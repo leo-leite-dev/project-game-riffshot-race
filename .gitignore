@@ -1,0 +1,36 @@
+# Dependências e saída de build
+node_modules/
+dist/
+
+# Variáveis de ambiente, inclusive em subdiretórios
+.env
+.env.*
+*.env
+*.env.*
+
+# Credenciais, segredos e chaves privadas
+.credentials/
+credentials/
+.secrets/
+secrets/
+.aws/
+.ssh/
+.npmrc
+.netrc
+_netrc
+.git-credentials
+credentials.json
+credentials.*.json
+client_secret*.json
+service-account*.json
+service_account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa*
+id_ed25519*
+
+# Logs locais
+*.log
