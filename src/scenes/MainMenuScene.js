@@ -13,7 +13,7 @@ export class MainMenuScene extends TitleScene {
   constructor() { super(SCENES.menu); }
 
   create() {
-    this.createShell('Menu principal. 1 JOGADOR disponível. CO-OP e ONLINE bloqueados. Use as setas e Enter.');
+    this.createShell('RIFFSHOT RACING. Menu principal. 1 JOGADOR inicia ou continua o campeonato. CO-OP e ONLINE seguem bloqueados.');
     this.selectedIndex = 0;
     this.logo = createLogo(this, 0, -206, 600);
     this.kicker = text(this, 0, -62, 'ESCOLHA SEU MODO', 13, COLORS.muted);
@@ -23,6 +23,7 @@ export class MainMenuScene extends TitleScene {
       onSelect: () => this.select(index),
       onActivate: () => this.activate(index),
     }));
+    this.buttons[0].detail.setText(this.game.championship.hasSelections ? 'CONTINUAR' : 'INICIAR');
     this.hint = text(this, 0, 272, '↑ ↓  NAVEGAR      ENTER  CONFIRMAR', 12, COLORS.muted);
     this.content.add([this.logo, this.kicker, ...this.buttons, this.hint]);
     this.select(0);
@@ -50,7 +51,8 @@ export class MainMenuScene extends TitleScene {
 
   activate(index) {
     if (MODES[index].locked) this.showSoon();
-    else this.goTo(SCENES.characters);
+    else if (this.game.championship.state.pendingResult) this.goTo(SCENES.results);
+    else this.goTo(this.game.championship.hasSelections ? SCENES.preparation : SCENES.difficulty);
   }
 
   layout(w, h) {

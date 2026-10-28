@@ -10,7 +10,7 @@ export default defineConfig({
   expect: { timeout: 6000 },
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: 'http://127.0.0.1:5183',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
     launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
@@ -22,16 +22,16 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run dev -- --port 5173 --strictPort',
-      url: 'http://127.0.0.1:5173',
+      command: 'npm run dev -- --port 5183 --strictPort',
+      url: 'http://127.0.0.1:5183',
       // Default to servers owned by this Playwright run. Opt in to reuse only
       // when deliberately testing against a Vite instance you control.
       reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
       timeout: 30_000,
     },
     {
-      command: 'npm run build && npm run preview -- --port 4173 --strictPort',
-      url: 'http://127.0.0.1:4173',
+      command: 'npm run build && npm run preview -- --port 4183 --strictPort',
+      url: 'http://127.0.0.1:4183',
       reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
       timeout: 30_000,
     },

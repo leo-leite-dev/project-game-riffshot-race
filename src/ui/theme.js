@@ -18,6 +18,10 @@ export const SCENES = {
   vehicles: 'VehicleSelection',
   preparation: 'RacePreparation',
   development: 'RaceDevelopment',
+  difficulty: 'DifficultySelection',
+  tracks: 'RaceTrackSelection',
+  race: 'Race',
+  results: 'RaceResults',
 };
 
 export function text(scene, x, y, value, size = 16, color = COLORS.white, display = false) {

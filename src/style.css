@@ -27,6 +27,17 @@ canvas {
   outline: none;
 }
 
+#game.race-layered { background: #080b19; isolation: isolate; }
+#game.race-layered > canvas:not(.race-three-canvas) {
+  position: relative;
+  z-index: 1;
+}
+#game > .race-three-canvas {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .screen-reader {
   position: absolute;
   width: 1px;

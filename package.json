@@ -8,7 +8,12 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "playwright test",
-    "test:smoke": "playwright test --project=desktop --grep \"produção em 4173\" --retries=0 --max-failures=1 --timeout=45000"
+    "test:smoke": "playwright test --project=desktop --grep \"produção em 4183\" --retries=0 --max-failures=1 --timeout=60000",
+    "test:race": "node --test tests/race-simulation.unit.js",
+    "test:camera": "node --test tests/race-camera.unit.js tests/track-assignment.unit.js",
+    "test:controls": "node --test tests/player-controls.unit.js",
+    "test:championship": "node --test tests/championship.unit.js tests/championship-service.unit.js",
+    "test:championship:flow": "playwright test --project=desktop tests/championship-flow.spec.js --retries=0 --max-failures=1 --timeout=75000"
   },
   "dependencies": {
     "phaser": "^3.90.0",

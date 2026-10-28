@@ -49,7 +49,8 @@ test('Dax Voltage mantém os atributos ofensivos e uma identidade original de t�
   expect(portrait).toEqual({ name: 'DAX VOLTAGE', key: 'pilot-dax-voltage' });
 });
 
-test('confirmação armazena o piloto; troca e cancelamento preservam a escolha confirmada', async ({ page }) => {
+test('confirmação armazena o piloto; troca, cancelamento e recarga preservam a escolha confirmada', async ({ page }) => {
+  test.setTimeout(45_000);
   await openCharacters(page);
   await page.keyboard.press('ArrowLeft');
   expect((await state(page)).selected).toBe(5);
@@ -66,6 +67,8 @@ test('confirmação armazena o piloto; troca e cancelamento preservam a escolha 
   await waitScene(page, 'MainMenu');
   expect((await state(page)).characterId).toBe('zuri-spark');
   await page.keyboard.press('Enter');
+  await waitScene(page, 'DifficultySelection');
+  await page.keyboard.press('Enter');
   await waitScene(page, 'CharacterSelection');
   expect((await state(page)).selected).toBe(5);
   await page.keyboard.press('ArrowUp');
@@ -73,9 +76,23 @@ test('confirmação armazena o piloto; troca e cancelamento preservam a escolha 
   await page.keyboard.press('Space');
   await waitScene(page, 'VehicleSelection');
   expect((await state(page)).characterId).toBe('echo-7');
+  await expect.poll(async () => page.evaluate(async () => {
+    const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
+    const scene = game.scene.getScene('VehicleSelection');
+    return !!scene.garageView && scene.loadingLabel.text.includes('OFICINA ONLINE');
+  }), { timeout: 15_000 }).toBe(true);
+  await clickObject(page, 'confirmButton');
+  await expect.poll(async () => (await state(page)).key, { timeout: 15_000 }).toBe('RacePreparation');
+  await waitScene(page, 'RacePreparation');
   await page.reload();
   await expect.poll(async () => (await state(page)).key).toBe('Splash');
-  expect((await state(page)).characterId).toBeNull();
+  expect((await state(page)).characterId).toBe('echo-7');
+  expect((await state(page)).difficultyId).toBe('normal');
+  await page.keyboard.press('Enter');
+  await waitScene(page, 'MainMenu');
+  await page.keyboard.press('Enter');
+  await waitScene(page, 'RacePreparation');
+  expect((await state(page)).characterId).toBe('echo-7');
 });
 
 test('Tab alcança confirmar e voltar sem criar uma seleção ao cancelar', async ({ page }) => {

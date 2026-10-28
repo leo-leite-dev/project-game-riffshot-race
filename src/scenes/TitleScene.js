@@ -5,6 +5,7 @@ import { COLORS, text } from '../ui/theme.js';
 // Shared presentation and lifecycle only; each scene owns its navigation rules.
 export class TitleScene extends Phaser.Scene {
   createShell(announcement) {
+    this.lastAnnouncement = announcement;
     this.transitioning = false;
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.backdrop = new RaceBackdrop(this);
@@ -16,11 +17,23 @@ export class TitleScene extends Phaser.Scene {
     this.footerLeft = text(this, 0, 0, 'SINTA A BATIDA. PISE FUNDO. ABRA FOGO.', 10, COLORS.muted);
     this.footerRight = text(this, 0, 0, 'PROTO // 0.2', 10, COLORS.muted).setOrigin(1, 0.5);
     this.toast = text(this, 0, 0, '', 16, '#a8f9ff').setDepth(10).setAlpha(0);
+    this.saveNotice = text(this, 0, 0, '', 12, '#ffbf75').setDepth(20)
+      .setStyle({ backgroundColor: '#080f1d', wordWrap: { width: 600 } });
+    this.updateSaveNotice = () => {
+      const warning = this.game.championship?.warning;
+      this.saveNotice.setText(warning ? `PROGRESSO TEMPORÁRIO / NÃO SALVO\n${warning}` : '').setVisible(!!warning);
+      if (warning) this.system.setText('●  SAVE INDISPONÍVEL').setColor('#ffbf75');
+      else this.system.setText('●  SISTEMA PRONTO').setColor('#71f6ff');
+      this.announce(this.lastAnnouncement);
+    };
+    this.game.events.on('championship-warning', this.updateSaveNotice);
+    this.updateSaveNotice();
     this.announce(announcement);
 
     this.scale.on('resize', this.resizeShell, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.resizeShell, this);
+      this.game.events.off('championship-warning', this.updateSaveNotice);
       this.input.keyboard?.removeAllListeners();
       this.input.removeAllListeners();
       this.backdrop.destroy();
@@ -39,6 +52,7 @@ export class TitleScene extends Phaser.Scene {
     this.footerLeft.setPosition(w / 2, h - 26).setVisible(w > 900);
     this.footerRight.setPosition(w - pad, h - 26);
     this.toast.setPosition(w / 2, h - 62);
+    this.saveNotice.setPosition(w / 2, h - 86).setWordWrapWidth(Math.min(700, w - 36));
     this.chrome.clear().lineStyle(1, COLORS.cyan, 0.14);
     this.chrome.lineBetween(pad, 53, w - pad, 53);
     this.chrome.lineBetween(pad, h - 48, w - pad, h - 48);
@@ -55,7 +69,10 @@ export class TitleScene extends Phaser.Scene {
   }
 
   announce(message) {
-    document.getElementById('screen-status').textContent = message;
+    this.lastAnnouncement = message;
+    const warning = this.game.championship?.warning;
+    document.getElementById('screen-status').textContent = warning
+      ? `${message} Atenção: progresso temporário, não salvo. ${warning}` : message;
   }
 
   showSoon() {
@@ -77,6 +94,6 @@ export class TitleScene extends Phaser.Scene {
   }
 
   update(_time, delta) {
-    if (!this.reducedMotion) this.backdrop.update(delta);
+    if (!this.reducedMotion && this.backdrop.motion.visible) this.backdrop.update(delta);
   }
 }

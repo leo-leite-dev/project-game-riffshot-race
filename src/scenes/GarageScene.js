@@ -1,13 +1,14 @@
 import { TitleScene } from './TitleScene.js';
 import { COLORS, text } from '../ui/theme.js';
 
-// Phaser owns the only animation loop and the only visible canvas. Three renders
-// offscreen; a bounded CanvasTexture bridges it into the existing Phaser layout.
+// Offscreen preview bridge for garage/preparation. Presentation hooks let the
+// race borrow the renderer's canvas directly, keeping one Phaser-owned loop.
 export class GarageScene extends TitleScene {
   createGarageShell(announcement) {
     this.createShell(announcement);
     this.garageView = null;
     this.preview = null;
+    this.presentationCopies = 0;
     this.lastPreviewTime = null;
     this.alive = true;
     this.loadFailed = false;
@@ -34,23 +35,21 @@ export class GarageScene extends TitleScene {
   async mountGarage(options) {
     const version = this.loadVersion;
     try {
-      const [{ getGarageResources }, { GarageWorld }] = await Promise.all([
-        import('../visuals/garage/GarageResources.js'), import('../visuals/garage/GarageWorld.js'),
-      ]);
+      const { getGarageResources } = await import('../visuals/garage/GarageResources.js');
       if (!this.alive || version !== this.loadVersion) return;
       const resources = getGarageResources(this.game);
       await resources.load();
       if (!this.alive || version !== this.loadVersion) return;
-      this.garageView = new GarageWorld(resources, { ...options, reducedMotion: this.reducedMotion });
-      this.previewKey = `${this.scene.key}-garage-preview`;
-      // Phaser CanvasTexture uses a 2D staging canvas, not the WebGL source.
-      this.previewTexture = this.textures.createCanvas(this.previewKey, 2, 2);
-      this.preview = this.add.image(0, 0, this.previewKey);
-      this.content.addAt(this.preview, 0);
-      this.applyPreviewBounds();
-      this.loadingLabel.setText(resources.source === 'original'
-        ? '●  OFICINA ONLINE  /  VEÍCULO ORIGINAL'
-        : '●  OFICINA ONLINE  /  AIR BLADE LOCAL');
+      const world = await this.createGarageWorld(resources, options, version);
+      if (!world) return;
+      if (!this.alive || version !== this.loadVersion) { world.destroy(); return; }
+      this.garageView = world;
+      this.mountPresentation();
+      this.loadingLabel.setText(options.mode === 'race'
+        ? `●  PISTA ONLINE  /  ${options.track.name}`
+        : resources.source === 'original'
+          ? '●  OFICINA ONLINE  /  VEÍCULO ORIGINAL'
+          : '●  OFICINA ONLINE  /  AIR BLADE LOCAL');
       this.onGarageReady?.();
     } catch (_error) {
       if (!this.alive || version !== this.loadVersion) return;
@@ -61,6 +60,20 @@ export class GarageScene extends TitleScene {
       this.onGarageError?.();
       this.announce('Não foi possível carregar a oficina 3D. Verifique WebGL e o arquivo GLB local. Escape volta.');
     }
+  }
+
+  async createGarageWorld(resources, options, version = this.loadVersion) {
+    const { GarageWorld } = await import('../visuals/garage/GarageWorld.js');
+    if (!this.alive || version !== this.loadVersion || resources.disposed) return null;
+    return new GarageWorld(resources, { ...options, reducedMotion: this.reducedMotion });
+  }
+
+  mountPresentation() {
+    this.previewKey = `${this.scene.key}-garage-preview`;
+    this.previewTexture = this.textures.createCanvas(this.previewKey, 2, 2);
+    this.preview = this.add.image(0, 0, this.previewKey);
+    this.content.addAt(this.preview, 0);
+    this.applyPreviewBounds();
   }
 
   setPreviewBounds(x, y, width, height) {
@@ -95,14 +108,20 @@ export class GarageScene extends TitleScene {
 
   update(time, delta) {
     super.update(time, delta);
-    if (!this.garageView || !this.previewTexture) return;
+    if (!this.garageView) return;
     // Phaser smooths its UI delta on slow frames. Use its monotonic clock for
     // presentation timing, without adding another requestAnimationFrame loop.
     const elapsed = this.lastPreviewTime === null ? delta : time - this.lastPreviewTime;
     this.lastPreviewTime = time;
+    this.renderPresentation(elapsed);
+  }
+
+  renderPresentation(elapsed) {
+    if (!this.previewTexture) return;
     if (this.garageView.update(elapsed)) {
       this.previewTexture.context.drawImage(this.garageView.resources.renderer.domElement, 0, 0);
       this.previewTexture.refresh();
+      this.presentationCopies += 1;
     }
   }
 }

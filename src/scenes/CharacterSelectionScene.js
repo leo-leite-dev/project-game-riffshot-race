@@ -78,7 +78,7 @@ export class CharacterSelectionScene extends TitleScene {
 
   confirm() {
     if (this.transitioning) return;
-    this.registry.set('selectedCharacterId', CHARACTERS[this.selectedIndex].id);
+    this.game.championship.select({ pilotId: CHARACTERS[this.selectedIndex].id });
     this.goTo(SCENES.vehicles);
   }
 

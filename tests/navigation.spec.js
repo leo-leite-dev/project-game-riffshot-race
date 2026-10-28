@@ -58,6 +58,8 @@ test('mouse destaca opções e bloqueia CO-OP e ONLINE; 1 JOGADOR abre os person
   }
   const start = await buttonPosition(page);
   await page.mouse.click(start.x, start.y);
+  await waitScene(page, 'DifficultySelection');
+  await page.keyboard.press('Enter');
   await waitScene(page, 'CharacterSelection');
   await expect(page.locator('#screen-status')).toContainText('Seleção de Personagem');
   const back = await buttonPosition(page, 0, true);
@@ -70,11 +72,15 @@ test('ida e volta repetidas não duplicam eventos nem acumulam texturas', async 
   await openMenu(page);
   // Portraits are intentionally cached once for reuse in later scenes.
   await page.keyboard.press('Enter');
+  await waitScene(page, 'DifficultySelection');
+  await page.keyboard.press('Enter');
   await waitScene(page, 'CharacterSelection');
   await page.keyboard.press('Escape');
   await waitScene(page, 'MainMenu');
   const initialTextures = (await state(page)).textures;
   for (let i = 0; i < 4; i += 1) {
+    await page.keyboard.press('Enter');
+    await waitScene(page, 'DifficultySelection');
     await page.keyboard.press('Enter');
     await waitScene(page, 'CharacterSelection');
     await page.keyboard.press('Enter');
@@ -106,6 +112,8 @@ test('botões ficam dentro da tela após redimensionamento e toque funciona', as
   }
   const start = await buttonPosition(page);
   await page.mouse.click(start.x, start.y);
+  await waitScene(page, 'DifficultySelection');
+  await page.keyboard.press('Enter');
   await waitScene(page, 'CharacterSelection');
 });
 
@@ -120,6 +128,8 @@ test('movimento reduzido mantém a navegação e gera registros visuais', async 
   const start = await buttonPosition(page);
   if (testInfo.project.use.hasTouch) await page.touchscreen.tap(start.x, start.y);
   else await page.mouse.click(start.x, start.y);
+  await waitScene(page, 'DifficultySelection');
+  await page.keyboard.press('Enter');
   await waitScene(page, 'CharacterSelection');
   await page.screenshot({ path: testInfo.outputPath('characters.png') });
   await page.keyboard.press('Enter');
@@ -128,12 +138,15 @@ test('movimento reduzido mantém a navegação e gera registros visuais', async 
 });
 
 test('build de produção abre e permite ida e volta sem erros', async ({ page }) => {
-  await page.goto('http://127.0.0.1:4173');
+  await page.goto('http://127.0.0.1:4183');
   const status = page.locator('#screen-status');
-  await expect(status).toContainText('Abertura');
+  await expect(status).toContainText('Sinta a batida');
   await page.keyboard.press('Enter');
   await expect(status).toContainText('Menu principal');
   // Wait for the entrance fade, as a player would before confirming.
+  await page.waitForTimeout(350);
+  await page.keyboard.press('Enter');
+  await expect(status).toContainText('Dificuldade');
   await page.waitForTimeout(350);
   await page.keyboard.press('Enter');
   await expect(status).toContainText('Seleção de Personagem');

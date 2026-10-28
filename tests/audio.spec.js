@@ -33,6 +33,8 @@ test('trilha espera interação, produz sinal e pode ser silenciada sem mudar de
   const source = await page.evaluateHandle(async () => (await import(document.querySelector('script[src*="/src/main.js"]').src)).game.menuMusic.source);
   await page.locator('canvas').focus();
   await page.keyboard.press('Enter');
+  await waitScene(page, 'DifficultySelection');
+  await page.keyboard.press('Enter');
   await waitScene(page, 'CharacterSelection');
   await page.keyboard.press('Enter');
   await waitScene(page, 'VehicleSelection');
@@ -47,6 +49,8 @@ test('indisponibilidade de síntese não bloqueia o fluxo', async ({ page }) => 
   });
   await openMenu(page);
   await expect(page.locator('#music-toggle')).toBeDisabled();
+  await page.keyboard.press('Enter');
+  await waitScene(page, 'DifficultySelection');
   await page.keyboard.press('Enter');
   await waitScene(page, 'CharacterSelection');
   await page.keyboard.press('Enter');
@@ -64,6 +68,8 @@ test('falha ao gerar a trilha mantém navegação e informa áudio indisponível
   await openMenu(page);
   await expect(page.locator('#music-toggle')).toBeDisabled();
   await expect(page.locator('#music-toggle')).toHaveText('♫ SOM INDISPONÍVEL');
+  await page.keyboard.press('Enter');
+  await waitScene(page, 'DifficultySelection');
   await page.keyboard.press('Enter');
   await waitScene(page, 'CharacterSelection');
   expect((await state(page)).musicStarted).toBe(false);

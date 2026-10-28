@@ -6,7 +6,7 @@ export const ATTRIBUTES = Object.freeze([
   { key: 'acceleration', label: 'ACELERAÇÃO', futureRole: 'Ganho de velocidade e retomada' },
   { key: 'handling', label: 'CONTROLE', futureRole: 'Resposta de direção e estabilidade' },
   { key: 'endurance', label: 'RESISTÊNCIA', futureRole: 'Tolerância a danos e impactos' },
-  { key: 'aggression', label: 'AGRESSIVIDADE', futureRole: 'Eficiência ofensiva' },
+  { key: 'aggression', label: 'AGRESSIVIDADE', futureRole: 'Força de contato e eficiência ofensiva' },
 ].map(Object.freeze));
 
 export const CHARACTERS = Object.freeze([

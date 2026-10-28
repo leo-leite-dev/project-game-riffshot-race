@@ -55,6 +55,7 @@ test.describe('oficina 3D e preparação', () => {
       const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
       const scene = game.scene.getScenes(true)[0];
       const view = scene.garageView;
+      const championship = game.championship.state;
       return {
         key: scene.scene.key, selected: scene.selectedIndex, confirming: scene.confirming,
         focus: view?.focusIndex, mode: view?.mode,
@@ -70,7 +71,8 @@ test.describe('oficina 3D e preparação', () => {
         characterId: game.registry.get('selectedCharacterId'),
         vehicleId: game.registry.get('selectedVehicleId') ?? null,
         paintId: game.registry.get('selectedPaintId') ?? null,
-        race: game.registry.get('racePreparation') ?? null,
+        race: { money: championship.money, score: championship.score, targetScore: championship.targetScore,
+          racesRun: championship.racesRun, maxRaces: championship.maxRaces, division: championship.division },
       };
     });
   }
@@ -369,10 +371,10 @@ test.describe('oficina 3D e preparação', () => {
       pilot: PILOT.name, player: 'PLAYER 1', playerName: PILOT.name,
       portrait: `pilot-${PILOT.id}`, originalPortrait: true,
       vehicle: `${VEHICLE.name} / ${PAINTS[1].name}`, start: 'START RACE', previousPreviewRemoved: true,
-      race: { player: 'PLAYER 1', credits: 2000, division: 'B', racesCompleted: 0, racesTotal: 8, requiredPoints: 1400, points: 0 },
-      fields: [['CRÉDITOS', '2.000'], ['DIVISÃO', 'B'], ['CORRIDAS', '0 de 8'],
-        ['PONTOS NECESSÁRIOS', '1.400'], ['PONTOS ATUAIS', '0']],
-      modules: [['PISTA / CORRIDA', 'Em breve'], ['MELHORIAS', 'Em breve'], ['REPAROS', 'Em breve'],
+      race: { money: 2000, division: 'B', racesRun: 0, maxRaces: 8, targetScore: 1400, score: 0 },
+      fields: [['MONEY', '$ 2.000'], ['DIVISION', 'B'], ['RACES RUN', '0 OF 8'],
+        ['SCORE NEED', '1.400'], ['SCORE HAVE', '0']],
+      modules: [['PISTA / CORRIDA', 'CIRCUITO'], ['MELHORIAS', 'Em breve'], ['REPAROS', 'Em breve'],
         ['VEÍCULO', 'SELEÇÃO'], ['SAIR / VOLTAR', 'ESC']],
     });
     expect(preparation.stats).toEqual(Object.fromEntries(VEHICLE_ATTRIBUTES.map(({ key }) => [key, String(VEHICLE.stats[key])])));
@@ -380,7 +382,7 @@ test.describe('oficina 3D e preparação', () => {
       expect(preparation.texts).toContain(label);
     }
     const selectedState = await garageState(page);
-    for (let index = 0; index < 3; index += 1) {
+    for (let index of [1, 2]) {
       await clickObject(page, 'modules', index);
       await expect(page.locator('#screen-status')).toHaveText('Em breve');
       expect((await state(page)).toast).toContain('Em breve');
@@ -389,6 +391,19 @@ test.describe('oficina 3D e preparação', () => {
         vehicleId: selectedState.vehicleId, paintId: selectedState.paintId, race: selectedState.race,
       });
     }
+    await clickObject(page, 'modules', 0);
+    await waitScene(page, 'RaceTrackSelection');
+    const assignedName = await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
+      return game.scene.getScene('RaceTrackSelection').assignedTrack.name;
+    });
+    await expect(page.locator('#screen-status')).toContainText(assignedName);
+    await page.keyboard.press('Escape');
+    await waitGarage(page, 'RacePreparation');
+    expect(await garageState(page)).toMatchObject({
+      key: 'RacePreparation', characterId: selectedState.characterId,
+      vehicleId: selectedState.vehicleId, paintId: selectedState.paintId, race: selectedState.race,
+    });
 
     const baseline = await resources(page);
     expect(baseline).toMatchObject({
@@ -396,8 +411,8 @@ test.describe('oficina 3D e preparação', () => {
     });
     for (let cycle = 0; cycle < 2; cycle += 1) {
       await clickObject(page, 'startButton');
-      await waitScene(page, 'RaceDevelopment');
-      await expect(page.locator('#screen-status')).toContainText('Corrida em desenvolvimento');
+      await waitScene(page, 'RaceTrackSelection');
+      await expect(page.locator('#screen-status')).toContainText(assignedName);
       expect(await page.evaluate(async () => {
         const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
         return game.textures.getTextureKeys().filter(key => key.endsWith('-garage-preview'));
@@ -458,8 +473,8 @@ test.describe('oficina 3D e preparação', () => {
     expect(await garageState(page)).toMatchObject({ selected: 2, paintId: PAINTS[2].id, characterId: PILOT.id });
   });
 
-  test('produção em 4173 usa veículo original sem GLB e percorre intro, menu, pilotos, oficina, estação e retorno', async ({ page }, testInfo) => {
-    test.setTimeout(45_000);
+  test('produção em 4183 usa veículo original sem GLB e percorre intro, menu, pilotos, oficina, estação e corrida', async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
     expect(existsSync(resolve(DIST_DIRECTORY, 'models/cars/air_blade_rock_n_roll_racing.glb'))).toBe(false);
     expect(existsSync(resolve(DIST_DIRECTORY, 'THIRD_PARTY_NOTICES.txt'))).toBe(true);
     const modelRequests = [];
@@ -472,6 +487,8 @@ test.describe('oficina 3D e preparação', () => {
       window.__garageAirBladeText = 0;
       window.__riffshotLogoDrawn = false;
       window.__riffshotSloganDrawn = false;
+      window.__raceSpeedValues = [];
+      window.__isometricCameraDrawn = false;
       const fillText = CanvasRenderingContext2D.prototype.fillText;
       CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
         const result = fillText.call(this, text, ...args);
@@ -479,6 +496,8 @@ test.describe('oficina 3D e preparação', () => {
         if (String(text).toUpperCase().includes('AIR BLADE')) window.__garageAirBladeText += 1;
         if (String(text).toUpperCase().includes('RIFFSHOT')) window.__riffshotLogoDrawn = true;
         if (String(text).toUpperCase().includes('SINTA A BATIDA')) window.__riffshotSloganDrawn = true;
+        if (/^\d{3}$/.test(String(text))) window.__raceSpeedValues.push(String(text));
+        if (String(text).includes('ISOMÉTRICA')) window.__isometricCameraDrawn = true;
         return result;
       };
     });
@@ -495,9 +514,9 @@ test.describe('oficina 3D e preparação', () => {
       await expect(status).toContainText(text, { timeout: READY_TIMEOUT });
       await frames();
     };
-    await page.goto('http://127.0.0.1:4173');
+    await page.goto('http://127.0.0.1:4183');
     expect(await page.title()).toContain('RIFFSHOT RACING');
-    const notices = await page.request.get('http://127.0.0.1:4173/THIRD_PARTY_NOTICES.txt');
+    const notices = await page.request.get('http://127.0.0.1:4183/THIRD_PARTY_NOTICES.txt');
     expect(notices.ok()).toBe(true);
     const licenseNotices = await notices.text();
     expect(licenseNotices).toContain('Richard Davey, Phaser Studio Inc.');
@@ -509,6 +528,7 @@ test.describe('oficina 3D e preparação', () => {
     await page.screenshot({ path: testInfo.outputPath('riffshot-intro.png') });
     await advance('Enter', 'Menu principal');
     expect(await page.evaluate(() => window.__riffshotLogoDrawn)).toBe(true);
+    await advance('Enter', 'Dificuldade');
     await advance('Enter', 'Seleção de Personagem');
     await advance('ArrowRight', PILOT.name);
     await advance('Enter', 'Seleção de Veículo');
@@ -528,19 +548,26 @@ test.describe('oficina 3D e preparação', () => {
     await expect.poll(onlineCount, { timeout: READY_TIMEOUT }).toBeGreaterThan(online);
     await frames();
     await page.screenshot({ path: testInfo.outputPath('preparation-production.png') });
-    await advance('Enter', 'Corrida em desenvolvimento');
-    online = await onlineCount();
-    await advance('Escape', 'Preparação');
-    await expect.poll(onlineCount, { timeout: READY_TIMEOUT }).toBeGreaterThan(online);
-    online = await onlineCount();
-    await advance('Escape', 'Seleção de Veículo');
-    await expect.poll(onlineCount, { timeout: READY_TIMEOUT }).toBeGreaterThan(online);
-    await expect(status).toContainText(PILOT.name);
-    await expect(status).toContainText(PAINTS[2].name);
+    await advance('Enter', 'Pista atribuída:');
+    const assignedName = (await status.textContent()).match(/Pista atribuída: ([^.]+)\./)[1];
+    await advance('ArrowRight', assignedName);
+    await advance('Enter', 'Quatro competidores');
+    await expect(status).toContainText('Largada!', { timeout: 12_000 });
+    await page.keyboard.down('w');
+    await page.waitForTimeout(700);
+    await page.keyboard.up('w');
+    await expect.poll(() => page.evaluate(() => window.__raceSpeedValues.some(value => value !== '000')),
+      { timeout: READY_TIMEOUT, message: 'W acelera o jogador na corrida pública' }).toBe(true);
+    await expect(status).toContainText(assignedName);
     expect(await page.evaluate(() => window.__garageAirBladeText)).toBe(0);
-    await advance('Escape', 'Seleção de Personagem');
-    await expect(status).toContainText(PILOT.name);
     expect(modelRequests).toEqual([]);
+    await expect(page.locator('canvas')).toHaveCount(2);
+    await page.keyboard.press('c');
+    await expect.poll(() => page.evaluate(() => window.__isometricCameraDrawn)).toBe(true);
+    await page.waitForTimeout(1400);
+    await page.screenshot({ path: testInfo.outputPath('race-production.png') });
+    await page.keyboard.press('Escape');
+    await expect(status).toContainText('Estação de Equipe');
     await expect(page.locator('canvas')).toHaveCount(1);
   });
 

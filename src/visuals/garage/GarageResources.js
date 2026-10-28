@@ -4,7 +4,8 @@ import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { VEHICLE } from '../../data/vehicles.js';
 
-// One resource owner per game: no animation loop, no DOM canvas, one GLB request.
+// One resource owner per game: no animation loop and one local GLB request.
+// The race may borrow the shared canvas for direct DOM presentation.
 export class GarageResources {
   constructor(game) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });

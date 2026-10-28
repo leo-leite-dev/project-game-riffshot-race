@@ -2,7 +2,7 @@ import { GarageScene } from './GarageScene.js';
 import { MenuButton } from '../ui/MenuButton.js';
 import { COLORS, SCENES, text } from '../ui/theme.js';
 import { getSelectedCharacter } from '../data/characters.js';
-import { VEHICLE, PAINTS, VEHICLE_ATTRIBUTES, getSelectedVehicle, confirmVehicle, getVehicleDisplayName } from '../data/vehicles.js';
+import { VEHICLE, PAINTS, VEHICLE_ATTRIBUTES, getSelectedVehicle, getVehicleDisplayName } from '../data/vehicles.js';
 
 export class VehicleSelectionScene extends GarageScene {
   constructor() { super(SCENES.vehicles); }
@@ -122,7 +122,7 @@ export class VehicleSelectionScene extends GarageScene {
   confirm() {
     if (this.transitioning || this.confirming || !this.garageView) return;
     this.confirming = true;
-    confirmVehicle(this.registry, this.selectedIndex);
+    this.game.championship.select({ vehicleId: VEHICLE.id, paintId: PAINTS[this.selectedIndex].id });
     this.loadingLabel.setText('TRANSFERÊNCIA EM CURSO  /  COMANDOS BLOQUEADOS');
     this.confirmButton.label.setText('TRANSFERINDO').setFontSize(16);
     this.announce(`${this.vehicleDisplayName} ${PAINTS[this.selectedIndex].name} confirmado. Braço mecânico transferindo veículo para a preparação.`);

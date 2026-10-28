@@ -10,7 +10,10 @@ export const test = base.extend({
     page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP ${response.status()}: ${response.url()}`); });
     await use(errors);
     expect(errors, 'Erros JavaScript, de console ou de carregamento').toEqual([]);
-    await expect(page.locator('canvas')).toHaveCount(1);
+    await expect(page.locator('canvas:not(.race-three-canvas)')).toHaveCount(1);
+    const direct = await page.locator('#game.race-layered').count();
+    await expect(page.locator('canvas.race-three-canvas')).toHaveCount(direct ? 1 : 0);
+    await expect(page.locator('canvas')).toHaveCount(direct ? 2 : 1);
   }, { auto: true }],
 });
 
@@ -29,6 +32,10 @@ export async function state(page) {
       keyboardListeners: scene?.input.keyboard.listenerCount('keydown'),
       textures: game.textures.getTextureKeys().length,
       characterId: game.registry.get('selectedCharacterId') ?? null,
+      vehicleId: game.registry.get('selectedVehicleId') ?? null,
+      paintId: game.registry.get('selectedPaintId') ?? null,
+      difficultyId: game.registry.get('selectedDifficultyId') ?? null,
+      trackId: game.registry.get('selectedTrackId') ?? null,
       musicStarted: !!game.menuMusic?.source,
       musicMuted: game.menuMusic?.muted,
     };
@@ -52,6 +59,8 @@ export async function openMenu(page) {
 
 export async function openCharacters(page) {
   await openMenu(page);
+  await page.keyboard.press('Enter');
+  await waitScene(page, 'DifficultySelection');
   await page.keyboard.press('Enter');
   await waitScene(page, 'CharacterSelection');
 }

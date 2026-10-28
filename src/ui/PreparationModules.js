@@ -62,7 +62,9 @@ export class PreparationButton extends Phaser.GameObjects.Container {
       });
       onActivate();
     };
+    this.locked = false;
     this.setSize(200, 64).setInteractive({ useHandCursor: true });
+    this.on('pointerdown', () => { if (this.locked) scene.showSoon(); });
     this.on('pointerover', () => { if (!scene.transitioning) onSelect(); });
     this.on('pointerdown', this.onActivate);
     this.on('pointerup', () => this.setSelected(this.selected));

@@ -12,6 +12,7 @@ export class RacePreparationScene extends GarageScene {
   constructor() { super(SCENES.preparation); }
 
   create() {
+    if (this.game.championship.state.pendingResult) { this.scene.start(SCENES.results); return; }
     this.character = getSelectedCharacter(this.registry);
     this.selection = getSelectedVehicle(this.registry);
     if (!this.character || !this.selection) {
@@ -71,18 +72,23 @@ export class RacePreparationScene extends GarageScene {
     const state = this.raceState;
     this.campaign = this.add.container();
     this.campaignFrame = this.add.graphics();
-    this.seasonLabel = text(this, 0, 0, 'TEMPORADA  /  PAINEL DE EQUIPE', 11, '#ffb454', true).setPadding(0);
-    this.playerLabel = text(this, 0, 0, state.player, 14, '#71f6ff', true).setPadding(0);
+    this.seasonLabel = text(this, 0, 0, state.attempt.status === 'qualified'
+      ? 'META ATINGIDA / DESAFIO CONCLUÍDO' : `TEMPORADA / TENTATIVA ${state.attempt.number}`, 11, '#ffb454', true).setPadding(0);
+    this.playerLabel = text(this, 0, 0, 'PLAYER 1', 14, '#71f6ff', true).setPadding(0);
     this.playerName = text(this, 0, 0, this.character.name, 23, COLORS.white, true).setPadding(0);
     this.campaignFields = [
-      ['CRÉDITOS', number(state.credits)], ['DIVISÃO', state.division],
-      ['CORRIDAS', `${state.racesCompleted} de ${state.racesTotal}`],
-      ['PONTOS NECESSÁRIOS', number(state.requiredPoints)], ['PONTOS ATUAIS', number(state.points)],
+      ['MONEY', `$ ${number(state.money)}`], ['DIVISION', state.division],
+      ['RACES RUN', `${state.racesRun} OF ${state.maxRaces}`],
+      ['SCORE NEED', number(state.targetScore)], ['SCORE HAVE', number(state.score)],
     ].map(([label, value]) => ({
       label: text(this, 0, 0, label, 12, COLORS.muted).setPadding(0),
       value: text(this, 0, 0, String(value), 21, COLORS.white, true).setPadding(0),
     }));
+    this.scoreProgress = this.add.graphics();
+    this.scoreStatus = text(this, 0, 0, state.attempt.status === 'qualified'
+      ? 'META ATINGIDA / PRÓXIMO DESAFIO EM DESENVOLVIMENTO' : `META SCORE / ${Math.min(100, Math.floor(state.score / state.targetScore * 100))}%`, 10, '#ffb454');
     this.campaign.add([this.campaignFrame, this.seasonLabel, this.playerLabel, this.playerName,
+      this.scoreProgress, this.scoreStatus,
       ...this.campaignFields.flatMap(field => [field.label, field.value])]);
   }
 
@@ -94,21 +100,44 @@ export class RacePreparationScene extends GarageScene {
 
   createActions() {
     const definitions = [
-      ['PISTA / CORRIDA', 'track', () => this.showSoon()],
+      ['PISTA / CORRIDA', 'track', () => this.startNextRace()],
       ['MELHORIAS', 'upgrade', () => this.showSoon()],
       ['REPAROS', 'repair', () => this.showSoon()],
       ['VEÍCULO', 'vehicle', () => this.goTo(SCENES.vehicles)],
       ['SAIR / VOLTAR', 'back', () => this.goTo(SCENES.vehicles)],
     ];
     this.modules = definitions.map(([label, icon, onActivate], index) => new PreparationButton(this, {
-      label, icon, detail: index < 3 ? 'Em breve' : index === 3 ? 'SELEÇÃO' : 'ESC',
+      label, icon, detail: index === 0 ? 'CIRCUITO' : index < 3 ? 'Em breve' : index === 3 ? 'SELEÇÃO' : 'ESC',
       onSelect: () => this.focusAction(index), onActivate,
     }));
     this.backButton = this.modules[4];
     this.startButton = new PreparationButton(this, {
       label: 'START RACE', icon: 'start', onSelect: () => this.focusAction(5),
-      onActivate: () => this.goTo(SCENES.development),
+      onActivate: () => this.startNextRace(),
     });
+    this.startButton.detail.setText('CORRIDA');
+    if (this.raceState.attempt.status === 'qualified') {
+      this.modules[0].label.setText('PRÓXIMO RIVAL').setFontSize(12);
+      this.modules[0].detail.setText('Em desenvolvimento');
+      this.modules[0].locked = true;
+      this.startButton.label.setText('DESAFIO CONCLUÍDO').setFontSize(13);
+      this.startButton.detail.setText('EM BREVE');
+      this.startButton.locked = true;
+      this.startButton.setSelected(false);
+    }
+  }
+
+  startNextRace() {
+    if (this.game.championship.canRace) this.goTo(SCENES.tracks);
+    else {
+      this.announce('Meta de SCORE atingida. Próximo rival em desenvolvimento. Dinheiro e melhorias preservados.');
+      this.toastTimer?.remove();
+      this.tweens.killTweensOf(this.toast);
+      this.toast.setText('◇  PRÓXIMO RIVAL EM DESENVOLVIMENTO').setAlpha(1);
+      this.toastTimer = this.time.delayedCall(2300, () => this.tweens.add({
+        targets: this.toast, alpha: 0, duration: this.reducedMotion ? 1 : 240,
+      }));
+    }
   }
 
   focusAction(index) {
@@ -212,12 +241,17 @@ export class RacePreparationScene extends GarageScene {
     }
     this.campaignFields.forEach(({ label, value }, i) => {
       const first = i < 3;
-      const fieldX = narrow
-        ? first ? (i - 1) * 118 : (i - 3.5) * 164
-        : first ? (i - 1) * (compact ? 174 : 180) : (i - 3.5) * (compact ? 250 : 270);
-      const labelY = narrow ? (first ? -8 : 30) : (first ? -20 : 42);
+      const fieldX = narrow ? first ? (i - 1) * 118 : (i - 3.5) * 164
+        : first ? [-15, compact ? 140 : 135, compact ? 270 : 275][i]
+          : compact ? [-15, 175][i - 3] : [-100, 130][i - 3];
+      const labelY = narrow ? (first ? -8 : 27) : compact ? (first ? -21 : 22) : (first ? -47 : 22);
       label.setPosition(fieldX, labelY).setFontSize(narrow ? 8 : compact ? 10 : 11);
-      value.setPosition(fieldX, labelY + (narrow ? 16 : 22)).setFontSize(narrow ? 14 : compact ? 18 : 20);
+      value.setPosition(fieldX, labelY + (narrow ? 16 : compact ? 17 : 22)).setFontSize(narrow ? 14 : compact ? 16 : 20);
     });
+    const barWidth = width - (narrow ? 28 : 40);
+    const barY = height / 2 - 7;
+    this.scoreProgress.clear().fillStyle(0x26364a).fillRect(-barWidth / 2, barY, barWidth, 4)
+      .fillStyle(0xffb454).fillRect(-barWidth / 2, barY, barWidth * Math.min(1, this.raceState.score / this.raceState.targetScore), 4);
+    this.scoreStatus.setPosition(0, height / 2 - 19).setFontSize(9).setVisible(!narrow && !compact);
   }
 }
