@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { PAINTS } from '../../data/vehicles.js';
+import { PAINTS, INITIAL_VEHICLES, VEHICLE, getVehicleById } from '../../data/vehicles.js';
 import { MechanicalArm } from './MechanicalArm.js';
 
 export class GarageWorld {
-  constructor(resources, { mode = 'selection', paintId = 'inferno', reducedMotion = false } = {}) {
+  constructor(resources, { mode = 'selection', vehicleId = VEHICLE.id, paintId = 'inferno',
+    vehicleIds = INITIAL_VEHICLES.map(vehicle => vehicle.id), reducedMotion = false } = {}) {
     this.resources = resources;
     this.mode = mode;
     this.reducedMotion = reducedMotion;
@@ -17,15 +18,20 @@ export class GarageWorld {
     this.ownedGeometries = new Set();
     this.elapsed = 0;
     this.renderElapsed = 1;
-    this.focusIndex = Math.max(0, PAINTS.findIndex(paint => paint.id === paintId));
+    this.vehicleOptions = mode === 'selection' ? vehicleIds.map(getVehicleById).filter(Boolean)
+      : [getVehicleById(vehicleId) ?? VEHICLE];
+    this.vehicleIndex = Math.max(0, this.vehicleOptions.findIndex(vehicle => vehicle.id === vehicleId));
+    this.paintIndex = Math.max(0, PAINTS.findIndex(paint => paint.id === paintId));
+    this.selectionStage = 'vehicle';
     this.vehicles = [];
     this.platforms = [];
     this.raycaster = new THREE.Raycaster();
     this.buildRoom();
-    const visiblePaints = mode === 'selection' ? PAINTS : [PAINTS[this.focusIndex]];
-    visiblePaints.forEach((paint, i) => {
-      const x = mode === 'selection' ? (i - 1) * 5 : 0;
-      const vehicle = resources.createVehicle(paint);
+    const vehicleOptions = this.vehicleOptions;
+    vehicleOptions.forEach((vehicleData, i) => {
+      const x = mode === 'selection' ? (i - (vehicleOptions.length - 1) / 2) * 5 : 0;
+      const paint = PAINTS[this.paintIndex];
+      const vehicle = resources.createVehicle(vehicleData.id, paint, { experimental: true });
       vehicle.position.set(x, 0.34, 0);
       vehicle.rotation.y = -0.5;
       this.scene.add(vehicle);
@@ -47,14 +53,15 @@ export class GarageWorld {
         const piece = this.box(platform, [0.11, 0.02, 0.3], [Math.sin(angle) * 1.9, 0.28, Math.cos(angle) * 1.9], neon);
         piece.rotation.y = angle;
       }
-      this.platforms.push({ neon, ring });
+      this.platforms.push({ neon, ring, group: platform });
       this.batchStaticMeshes(platform);
     });
-    if (mode === 'selection') this.arm = new MechanicalArm(this, this.vehicles[0].userData.size.y + 0.34);
+    if (mode === 'selection') this.arm = new MechanicalArm(this, this.vehicles[this.vehicleIndex].userData.size.y + 0.34);
     this.spot = new THREE.SpotLight(0xc5e7ff, 65, 26, 0.5, 0.75, 1.5);
     this.spot.position.set(0, 7, 3);
     this.scene.add(this.spot, this.spot.target);
-    this.setFocus(this.focusIndex);
+    if (mode === 'selection') this.setSelectionStage('vehicle', this.vehicleIndex, this.paintIndex);
+    else { this.focusIndex = 0; this.focusX = 0; }
     this.cameraFocus = this.focusX;
     this.resize(960, 470);
   }
@@ -151,18 +158,47 @@ export class GarageWorld {
 
   setFocus(index) {
     if (this.confirming) return;
+    if (this.mode === 'selection') {
+      if (this.selectionStage === 'vehicle') this.setSelectionStage('vehicle', index, this.paintIndex);
+      else this.setSelectionStage('paint', this.vehicleIndex, index);
+      return;
+    }
     this.focusIndex = index;
-    this.focusX = this.mode === 'selection' ? (index - 1) * 5 : 0;
+    this.focusX = 0;
     this.arm?.focus(this.focusX);
-    this.platforms.forEach(({ neon }, i) => {
-      neon.emissiveIntensity = this.mode !== 'selection' || i === index ? 2.4 : 0.25;
+  }
+
+  setSelectionStage(stage, vehicleIndex, paintIndex) {
+    if (this.mode !== 'selection' || this.confirming) return;
+    this.selectionStage = stage === 'paint' ? 'paint' : 'vehicle';
+    this.vehicleIndex = THREE.MathUtils.clamp(Math.floor(vehicleIndex), 0, this.vehicles.length - 1);
+    this.paintIndex = THREE.MathUtils.clamp(Math.floor(paintIndex), 0, PAINTS.length - 1);
+    this.focusIndex = this.selectionStage === 'vehicle' ? this.vehicleIndex : this.paintIndex;
+    const selectedPaint = PAINTS[this.paintIndex];
+    this.vehicles.forEach((vehicle, index) => {
+      const selected = index === this.vehicleIndex;
+      const visible = this.selectionStage === 'vehicle' || selected;
+      const x = this.selectionStage === 'vehicle' ? (index - (this.vehicles.length - 1) / 2) * 5 : 0;
+      vehicle.position.x = x;
+      vehicle.visible = visible;
+      this.platforms[index].group.position.x = x;
+      this.platforms[index].group.visible = visible;
+      this.resources.paintVehicle(vehicle, selected ? selectedPaint : PAINTS[0]);
+      this.platforms[index].neon.color.set(selected ? selectedPaint.color : PAINTS[0].color);
+      this.platforms[index].neon.emissive.set(selected ? selectedPaint.color : PAINTS[0].color);
+      this.platforms[index].neon.emissiveIntensity = selected ? 2.4 : 0.25;
     });
+    this.focusX = this.selectionStage === 'vehicle' ? (this.vehicleIndex - (this.vehicles.length - 1) / 2) * 5 : 0;
+    this.arm?.focus(this.focusX);
   }
 
   confirm(done) {
     if (this.confirming || !this.arm) return;
     this.confirming = true;
-    this.arm.confirm(this.vehicles[this.focusIndex], done);
+    const vehicleHeight = this.vehicles[this.vehicleIndex].userData.size.y + 0.34;
+    this.arm.gripY = vehicleHeight + 0.65;
+    this.arm.homeY = Math.max(3.65, vehicleHeight + 1.6);
+    this.arm.confirm(this.vehicles[this.vehicleIndex], done);
   }
 
   pick(u, v) {
@@ -193,16 +229,21 @@ export class GarageWorld {
     const dt = Math.min(delta / 1000, 0.25);
     this.elapsed += dt;
     this.renderElapsed += dt;
-    const focused = this.mode === 'selection' ? this.focusIndex : 0;
+    const focused = this.mode === 'selection' ? this.vehicleIndex : 0;
     // Keep the requested turntable active, but quieter with reduced motion.
     if (!this.confirming) this.vehicles[focused].rotation.y += dt * (this.reducedMotion ? 0.07 : 0.24);
     this.arm?.update(dt);
     this.cameraFocus = THREE.MathUtils.lerp(this.cameraFocus, this.focusX, 1 - Math.exp(-dt * 2.8));
     if (this.mode === 'selection') {
       // Keep the whole focused car in view, including on a tall preview area.
-      const distance = Math.max(14.5, 10 / this.camera.aspect);
-      this.camera.position.set(this.cameraFocus * 0.7 + 3.6, 7.2, distance);
-      this.camera.lookAt(this.cameraFocus * 0.75, 1.5, 0);
+      const distance = Math.max(8, 5 / this.camera.aspect);
+      this.camera.position.set(this.cameraFocus + 3.6, 4, distance);
+      this.camera.lookAt(this.cameraFocus, 1.1, 0);
+      if (this.selectionStage === 'paint') {
+        // A single bay gives a closer view without altering model proportions.
+        this.camera.position.set(4.1, 2.8, Math.max(5.8, 4.5 / this.camera.aspect));
+        this.camera.lookAt(0, 0.9, 0);
+      }
     } else {
       this.camera.position.set(5.8, 4.2, Math.max(7.8, 4.4 / this.camera.aspect));
       this.camera.lookAt(0, 1, 0);
@@ -219,6 +260,7 @@ export class GarageWorld {
   destroy() {
     if (this.arm) this.arm.done = null;
     for (const vehicle of this.vehicles) {
+      vehicle.userData.visualAdapter?.destroy();
       for (const material of vehicle.userData.ownedMaterials) material.dispose();
       const skeletons = new Set();
       vehicle.traverse(object => { if (object.skeleton) skeletons.add(object.skeleton); });

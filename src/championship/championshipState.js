@@ -1,5 +1,5 @@
 import { CHARACTERS } from '../data/characters.js';
-import { VEHICLE, PAINTS } from '../data/vehicles.js';
+import { VEHICLES, PAINTS, RIVAL_VEHICLE_ID, getVehicleById } from '../data/vehicles.js';
 import { DIFFICULTIES } from '../data/raceDifficulty.js';
 import { RACE_TRACKS } from '../data/raceTracks.js';
 import { CHAMPIONSHIP_RULES } from '../data/championshipRules.js';
@@ -7,7 +7,7 @@ import { createTrackAssignmentState, assignTrack, completeAssignment } from '../
 
 const selectionIds = {
   pilotId: CHARACTERS.map(item => item.id),
-  vehicleId: [VEHICLE.id],
+  vehicleId: VEHICLES.filter(item => !item.purchaseLocked).map(item => item.id),
   paintId: PAINTS.map(item => item.id),
   difficultyId: Object.values(DIFFICULTIES).map(item => item.id),
 };
@@ -16,6 +16,7 @@ const forbiddenKeys = new Set(['__proto__', 'constructor', 'prototype']);
 const stateKeys = ['schemaVersion', 'revision', 'id', 'money', 'score', 'targetScore', 'division',
   'rivalId', 'rivalName', 'racesRun', 'maxRaces', 'upgrades', 'selections', 'attempt', 'tracks',
   'awardedRaceIds', 'activeRace', 'pendingResult', 'previousAttempts'];
+const inventoryKeys = ['ownedVehicleIds', 'rivalRewardChoice'];
 const resultKeys = ['raceId', 'trackId', 'trackName', 'difficultyId', 'laps', 'elapsedTime', 'standings'];
 const text = value => typeof value === 'string' && value.trim().length > 0;
 const integer = (value, min = 0, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(value) && value >= min && value <= max;
@@ -31,6 +32,17 @@ const validSelections = (value, nullable = true) => keys(value, Object.keys(sele
   && Object.entries(selectionIds).every(([key, ids]) => (nullable && value[key] === null) || ids.includes(value[key]));
 const outcome = (score, racesRun, targetScore) => score >= targetScore ? 'qualified'
   : racesRun >= CHAMPIONSHIP_RULES.maximumRacesPerRival ? 'failed' : 'active';
+
+// Qualification opens the reward choice; only claiming it ends the opening.
+export const canRunOpening = state => ['active', 'qualified'].includes(state.attempt.status)
+  && state.racesRun < state.maxRaces && state.rivalRewardChoice === null;
+export const canClaimChampionshipRivalReward = state => state.attempt.status === 'qualified'
+  && state.score >= state.targetScore && !state.pendingResult && !state.activeRace
+  && state.rivalRewardChoice === null;
+export const ownsChampionshipVehicle = (state, id) => selectionIds.vehicleId.includes(id)
+  && state.ownedVehicleIds.includes(id);
+export const hasChampionshipSelections = state => validSelections(state.selections, false)
+  && ownsChampionshipVehicle(state, state.selections.vehicleId);
 
 // Validate JSON data before reading schemas: no accessors, custom prototypes,
 // cycles, non-JSON values or prototype-pollution keys, even in unused branches.
@@ -85,8 +97,9 @@ function validResult(value, receipt = false) {
     && ['active', 'qualified', 'failed'].includes(value.outcome);
 }
 
-function validState(value) {
-  if (!keys(value, stateKeys) || value.schemaVersion !== 1 || !integer(value.revision)
+function validState(value, legacy = false) {
+  if (!keys(value, legacy ? stateKeys : [...stateKeys, ...inventoryKeys])
+    || value.schemaVersion !== (legacy ? 2 : 3) || !integer(value.revision)
     || !text(value.id) || !integer(value.money) || !integer(value.score)
     || !integer(value.targetScore, 1, 1e6) || value.division !== 'B'
     || value.rivalId !== 'opening-b' || value.rivalName !== 'DESAFIO INICIAL'
@@ -98,6 +111,12 @@ function validState(value) {
     || value.attempt.status !== outcome(value.score, value.racesRun, value.targetScore)
     || !Array.isArray(value.previousAttempts) || value.previousAttempts.length !== value.attempt.number - 1
     || !list(value.awardedRaceIds, text)) return false;
+  if (!legacy && (!list(value.ownedVehicleIds, id => selectionIds.vehicleId.includes(id))
+    || (value.selections.vehicleId !== null && !ownsChampionshipVehicle(value, value.selections.vehicleId))
+    || ![null, 'vehicle', 'credits'].includes(value.rivalRewardChoice)
+    || (value.rivalRewardChoice !== null && (value.attempt.status !== 'qualified'
+      || value.pendingResult !== null || value.activeRace !== null))
+    || (value.rivalRewardChoice === 'vehicle' && !ownsChampionshipVehicle(value, RIVAL_VEHICLE_ID)))) return false;
   const previousIds = new Set([value.attempt.id]);
   for (const [index, previous] of value.previousAttempts.entries()) {
     if (!keys(previous, ['id', 'number', 'score', 'racesRun', 'status', 'tracks'])
@@ -126,7 +145,7 @@ function validState(value) {
     if (!keys(race, ['id', 'attemptId', 'trackId', 'selections']) || !text(race.id)
       || race.attemptId !== value.attempt.id || race.trackId !== tracks.pendingTrackId
       || !trackIds.includes(race.trackId) || value.awardedRaceIds.includes(race.id)
-      || value.attempt.status !== 'active' || value.pendingResult !== null
+      || (legacy ? value.attempt.status !== 'active' : !canRunOpening(value)) || value.pendingResult !== null
       || !validSelections(race.selections, false) || !sameSelections(race.selections, value.selections)) return false;
   }
   if (value.pendingResult !== null) {
@@ -152,7 +171,7 @@ export function isValidChampionshipState(value) {
 export function createChampionshipState({ id, attemptId }) {
   if (!text(id) || !text(attemptId)) throw new TypeError('Campeonato e tentativa precisam de IDs não vazios.');
   return {
-    schemaVersion: 1, revision: 0, id, money: 2000, score: 0,
+    schemaVersion: 3, revision: 0, id, money: 2000, score: 0,
     targetScore: CHAMPIONSHIP_RULES.targetScore, division: 'B',
     rivalId: 'opening-b', rivalName: 'DESAFIO INICIAL', racesRun: 0,
     maxRaces: CHAMPIONSHIP_RULES.maximumRacesPerRival, upgrades: {},
@@ -160,19 +179,71 @@ export function createChampionshipState({ id, attemptId }) {
     attempt: { id: attemptId, number: 1, status: 'active' },
     tracks: { ...createTrackAssignmentState(), history: [] },
     awardedRaceIds: [], activeRace: null, pendingResult: null, previousAttempts: [],
+    ownedVehicleIds: [], rivalRewardChoice: null,
   };
+}
+
+// Validate the exact legacy schema before granting its selected car for free.
+// Reading never writes: storage keeps the original raw save for backup/CAS.
+// Locked/invalid legacy cars are rejected, never granted or silently replaced.
+export function migrateChampionshipState(value) {
+  try {
+    if (!safeJson(value) || ![1, 2].includes(value.schemaVersion)) return null;
+    const migrated = JSON.parse(JSON.stringify(value));
+    if (migrated.schemaVersion === 1) {
+      if (migrated.selections?.vehicleId === 'air-blade') migrated.selections.vehicleId = 'rift-blaze';
+      if (migrated.activeRace?.selections?.vehicleId === 'air-blade') {
+        migrated.activeRace.selections.vehicleId = 'rift-blaze';
+      }
+    }
+    migrated.schemaVersion = 2;
+    if (!validState(migrated, true)) return null;
+    migrated.schemaVersion = 3;
+    migrated.ownedVehicleIds = migrated.selections.vehicleId === null ? [] : [migrated.selections.vehicleId];
+    migrated.rivalRewardChoice = null;
+    return validState(migrated) ? migrated : null;
+  } catch {
+    return null;
+  }
 }
 
 export function setSelections(state, patch) {
   if (!isValidChampionshipState(state) || !safeJson(patch) || !record(patch)
+    || state.activeRace || state.pendingResult
     || !Object.keys(patch).every(key => Object.hasOwn(selectionIds, key))) return state;
   const selections = { ...state.selections, ...patch };
-  if (!validSelections(selections) || sameSelections(selections, state.selections)) return state;
+  if (!validSelections(selections) || sameSelections(selections, state.selections)
+    || (selections.vehicleId !== null && !ownsChampionshipVehicle(state, selections.vehicleId))) return state;
   return { ...state, selections, activeRace: null };
 }
 
+// Purchase and equip form a single transition: invalid paint/price never debits.
+export function purchaseChampionshipVehicle(state, vehicleId, paintId) {
+  if (!isValidChampionshipState(state) || state.pendingResult || state.activeRace) return state;
+  const vehicle = getVehicleById(vehicleId);
+  if (!vehicle || vehicle.purchaseLocked || !selectionIds.paintId.includes(paintId)
+    || !integer(vehicle.price)) return state;
+  const owned = ownsChampionshipVehicle(state, vehicleId);
+  if (!owned && state.money < vehicle.price) return state;
+  return { ...state, money: state.money - (owned ? 0 : vehicle.price),
+    ownedVehicleIds: owned ? state.ownedVehicleIds : [...state.ownedVehicleIds, vehicleId],
+    selections: { ...state.selections, vehicleId, paintId } };
+}
+
+export function claimChampionshipRivalReward(state, choice) {
+  if (!isValidChampionshipState(state) || !canClaimChampionshipRivalReward(state)
+    || !['vehicle', 'credits'].includes(choice)) return state;
+  const rival = getVehicleById(RIVAL_VEHICLE_ID);
+  if (!rival || rival.purchaseLocked || !integer(rival.price)
+    || (choice === 'vehicle' && ownsChampionshipVehicle(state, rival.id))) return state;
+  const next = { ...state, rivalRewardChoice: choice,
+    ownedVehicleIds: choice === 'vehicle' ? [...state.ownedVehicleIds, rival.id] : state.ownedVehicleIds,
+    money: state.money + (choice === 'credits' ? rival.price / 2 : 0) };
+  return isValidChampionshipState(next) ? next : state;
+}
+
 export function ensureAssignedTrack(state, rng = Math.random) {
-  if (!isValidChampionshipState(state) || state.attempt.status !== 'active'
+  if (!isValidChampionshipState(state) || !canRunOpening(state)
     || state.pendingResult || state.tracks.pendingTrackId || typeof rng !== 'function') return state;
   const tracks = assignTrack(state.tracks, rng);
   const next = { ...state, tracks };
@@ -180,7 +251,7 @@ export function ensureAssignedTrack(state, rng = Math.random) {
 }
 
 export function chooseSpecialTrack(state, trackId) {
-  if (!isValidChampionshipState(state) || state.attempt.status !== 'active'
+  if (!isValidChampionshipState(state) || !canRunOpening(state)
     || !state.tracks.freeChoiceAvailable || state.pendingResult || !trackIds.includes(trackId)) return state;
   const remaining = state.tracks.remainingTrackIds.length ? state.tracks.remainingTrackIds : trackIds;
   if (!remaining.includes(trackId) || state.tracks.pendingTrackId === trackId) return state;
@@ -190,8 +261,8 @@ export function chooseSpecialTrack(state, trackId) {
 }
 
 export function beginChampionshipRace(state, raceId) {
-  if (!isValidChampionshipState(state) || !text(raceId) || state.attempt.status !== 'active'
-    || state.racesRun >= state.maxRaces || state.pendingResult || !validSelections(state.selections, false)
+  if (!isValidChampionshipState(state) || !text(raceId) || !canRunOpening(state)
+    || state.pendingResult || !hasChampionshipSelections(state)
     || !trackIds.includes(state.tracks.pendingTrackId) || state.awardedRaceIds.includes(raceId)) return state;
   if (state.activeRace) return state; // Only the same unfinished race can be resumed.
   return { ...state, activeRace: { id: raceId, attemptId: state.attempt.id,
@@ -200,7 +271,7 @@ export function beginChampionshipRace(state, raceId) {
 
 export function applyChampionshipResult(state, result) {
   if (!isValidChampionshipState(state) || !safeJson(result) || !validResult(result)
-    || !state.activeRace || state.pendingResult || state.attempt.status !== 'active'
+    || !state.activeRace || state.pendingResult || !canRunOpening(state)
     || state.awardedRaceIds.includes(result.raceId) || result.raceId !== state.activeRace.id
     || result.trackId !== state.activeRace.trackId || state.activeRace.attemptId !== state.attempt.id
     || (Object.hasOwn(result, 'attemptId') && result.attemptId !== state.attempt.id)

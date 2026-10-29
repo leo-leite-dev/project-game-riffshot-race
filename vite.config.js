@@ -1,5 +1,8 @@
 import { defineConfig } from 'vite';
 import { readFile } from 'node:fs/promises';
+import { localRiftBlazePlugin } from './scripts/localRiftBlazePlugin.js';
+import { vehicleAssetsPlugin } from './scripts/vehicleAssetsPlugin.js';
+import { publicCreditsPlugin } from './scripts/publicCreditsPlugin.js';
 
 export default defineConfig({
   // These are lazy-loaded only in the garage. Prebundle them together in dev so
@@ -8,23 +11,20 @@ export default defineConfig({
     include: [
       'three',
       'three/addons/loaders/GLTFLoader.js',
-      'three/addons/utils/SkeletonUtils.js',
       'three/addons/utils/BufferGeometryUtils.js',
       'three/addons/environments/RoomEnvironment.js',
     ],
   },
   build: {
-    // public/ contains a local-only third-party GLB. Copy only reviewed assets
-    // instead of letting Vite recursively publish the entire directory.
+    // Copy only reviewed assets instead of recursively publishing public/.
     copyPublicDir: false,
   },
-  plugins: [{
+  plugins: [localRiftBlazePlugin(), vehicleAssetsPlugin(), publicCreditsPlugin(), {
     name: 'copy-approved-public-assets',
     apply: 'build',
     async generateBundle() {
       for (const [sourcePath, fileName] of [
         ['./public/favicon.svg', 'favicon.svg'],
-        ['./THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.txt'],
       ]) {
         const source = await readFile(new URL(sourcePath, import.meta.url));
         this.emitFile({ type: 'asset', fileName, source });

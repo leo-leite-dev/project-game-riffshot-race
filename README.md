@@ -1,5 +1,7 @@
 # RIFFSHOT RACING
 
+**[Jogar gratuitamente no navegador](https://project-rock-n-racing-ia.pages.dev)**
+
 Experiência inicial de corrida e combate veicular para navegador, com identidade própria de hard rock/ficção científica retrô, neon, metal cromado e arte moderna sem pixel art.
 
 **Sinta a batida. Pise fundo. Abra fogo.**
@@ -18,17 +20,25 @@ Primeira experiência visual navegável:
 - Abertura animada com logo original **RIFFSHOT RACING** e o slogan oficial; Enter, clique ou toque permitem avançar.
 - Menu com **1 JOGADOR**, **CO-OP** e **ONLINE**. Os dois últimos permanecem bloqueados e mostram “Em breve”.
 - **Seleção de Personagem** com seis pilotos, retratos procedurais, biografias e atributos; Raze Riot foi substituído por Dax Voltage, técnico de ressonância e engenharia de som.
-- **Garagem 3D** com três pinturas cosméticas; o GLB Air Blade aparece somente no desenvolvimento local, enquanto a versão pública exibe ORIGINAL RACER, com plataformas, painéis industriais, iluminação neon e braço mecânico articulado.
-- **Estação de Equipe** com painéis holográficos assimétricos, valores reais do campeonato, barra de SCORE, telemetria, piloto e veículo. O próximo rival é explicitamente indicado como em desenvolvimento após a qualificação.
+- **Garagem 3D e loja:** seleção inicial de THUNDER BUG, CAMARO e ARMORED CAR; o módulo VEÍCULO da equipe abre cinco opções, incluindo WIDOWMAKER e RACE CAR 2 (bloqueado para a fase 2). GLBs com rodas animadas, prévias, plataformas e braço mecânico; a cor escolhida identifica a equipe, preservando os atlas originais dos carros.
+- **Estação de Equipe** com painéis holográficos assimétricos, valores reais do campeonato, barra de SCORE, telemetria, piloto, veículo e miniatura do rival WIDOWMAKER. Após a qualificação, é possível continuar até oito provas ou escolher um prêmio único; a fase 2 permanece em desenvolvimento.
 - **Dificuldade Normal/Difícil**, selecionada antes do piloto e mantida durante a sessão.
-- **Campeonato local salvo:** recompensas de SCORE e MONEY independentes, limite de oito provas por tentativa, meta por pontos, resultado pendente, reinício confirmado e continuação após recarregar.
+- **Campeonato local salvo:** recompensas de SCORE e MONEY independentes, compras/inventário, limite de oito provas por tentativa, meta por pontos, resultado pendente, reinício confirmado e continuação após recarregar.
 - Duas pistas 3D originais, **NEON FURNACE** e **VOLTAGE RUN**, com grid, três bots, física arcade, colisões, checkpoints, quatro voltas, classificação e resultados.
 - **START RACE** mostra somente a pista atribuída e CONFIRMAR/VOLTAR; retornar não muda a atribuição. Após concluir uma corrida, o ciclo segue sem repetição até usar as duas pistas, evitando repetição consecutiva entre ciclos.
-- Toda corrida inicia em **TERCEIRA PESSOA**, independentemente da câmera usada antes. **C** alterna suavemente com a **ISOMÉTRICA** somente na corrida atual.
-- Visual retrofuturista: tipografia metálica, neon e arte procedural, sem pixel art. O modelo externo provisório tem uso restrito a desenvolvimento e testes locais; consulte `CREDITS.md`.
-- Trilha sintética original de rock arcade, ativada pela primeira interação, com controle de som.
+- Toda corrida inicia em **TERCEIRA PESSOA**, independentemente da câmera usada antes. **C** alterna suavemente com a **ISOMÉTRICA**; **Z** percorre três aproximações em terceira pessoa, somente na corrida atual.
+- Drift natural sob tração, dano por colisão, vida em bolinhas com preenchimento parcial, fumaça, explosão e respawn protegido para jogador e bots; carros com escala visual ×1,3 na corrida.
+- Visual retrofuturista: tipografia metálica, neon e arte procedural, sem pixel art.
+- Trilha sintética original de rock arcade e perfis de motor sintetizados por veículo, ativados por interação e com controle global de som via M/botão. Escuta dos timbres e desempenho em GPU física ainda precisam de validação.
+- **Créditos e licenças:** link no rodapé compartilhado por todos os menus para `./credits.html`, em nova aba, sem recarregar o jogo. A página é gerada de `THIRD_PARTY_NOTICES.md`, com escape do conteúdo Markdown; os avisos completos continuam disponíveis em `THIRD_PARTY_NOTICES.txt`.
 
 Fluxo atual: **Abertura → Menu → Dificuldade → Seleção de Personagem → Seleção de Veículo → Estação de Equipe → Pista → Corrida → Resultados**.
+
+Documentação atual: [loja, inventário e prêmio do rival](docs/VEHICLE_SHOP.md) · [condução, dano, respawn, câmeras e motores](docs/VEHICLE_COMBAT.md). Os documentos distinguem estado implementado, histórico e critérios ainda pendentes de validação; não constituem relatório de testes desta integração.
+
+O jogo é gratuito, sem venda de veículos, itens ou créditos por dinheiro real. MONEY/CR são créditos fictícios obtidos no jogo. Doações opcionais estão planejadas; não há pagamento ou QR Code implementado.
+
+O domínio acima é o endereço de produção. O push em `main` aciona o Cloudflare Pages; o estado do deploy de cada versão aparece no check do commit no GitHub. A preparação atual de créditos/pacote teve **14 testes unitários e 4 casos de navegador aprovados**, com build e capturas em [RELEASE_VERIFICATION.md](docs/RELEASE_VERIFICATION.md). Os **107 testes unitários e 6 casos de navegador** de [VEHICLE_COMBAT_VERIFICATION.md](docs/VEHICLE_COMBAT_VERIFICATION.md) pertencem à entrega anterior de condução/combate, não a uma reexecução completa nesta release.
 
 O desenvolvimento será incremental, conforme as funcionalidades forem solicitadas e as decisões arquiteturais aprovadas.
 
@@ -45,7 +55,9 @@ Abra o endereço exibido pelo Vite, normalmente `http://127.0.0.1:5173`. Para pa
 
 No PowerShell com execução de scripts desabilitada, use `npm.cmd` e `npx.cmd` no lugar de `npm` e `npx`; não é necessário alterar a política de segurança do Windows. Reinicie o servidor de desenvolvimento se ele já estava aberto antes da instalação do Three.js.
 
-O GLB local `public/models/cars/air_blade_rock_n_roll_racing.glb` é opcional e serve apenas para testes/desenvolvimento; está ignorado pelo Git. Se estiver disponível em `npm run dev`, a garagem usa esse modelo. Se estiver ausente ou inválido, e sempre no build de produção, é usado um veículo 3D procedural original nas três pinturas. A interface informa qual apresentação está ativa. A garagem exige WebGL 2.
+Os veículos atuais usam os cinco GLBs do pacote selecionado e versionado em `assets/vehicles/`, com fallback procedural. A garagem exige WebGL 2. Desenvolvimento e build normais leem esse pacote, sem precisar de `referencias-locais/` nem executar a otimização de cerca de 30 segundos da etapa anterior. O plugin valida manifesto, tamanho, SHA-256 e estrutura GLB; cada binário deve ter **menos de 25 MiB**. Saves antigos preservam dinheiro, SCORE e progresso; `rift-blaze` agora é apresentado como THUNDER BUG. Consulte [VEHICLE_SHOP.md](docs/VEHICLE_SHOP.md).
+
+`npm run assets:prepare` é uma preparação **explícita**, somente para regenerar o pacote a partir dos cinco originais privados fixos. Não faz parte de `npm run dev` ou `npm run build`. O manifesto registra autor, título, fonte, licença, adaptações, URL pública, bytes e SHA-256. As referências privadas e os modelos históricos em `public/models/` permanecem ignorados e fora da distribuição.
 
 ### Controles
 
@@ -55,12 +67,14 @@ O GLB local `public/models/cars/air_blade_rock_n_roll_racing.glb` é opcional e 
 | Menu | ↑ / ↓ ou Tab / Shift+Tab para selecionar; Enter ou Espaço para confirmar; mouse e toque também funcionam |
 | Dificuldade | ↑ / ↓, mouse ou toque; Enter confirma Normal/Difícil; Escape retorna ao menu |
 | Seleção de Personagem | Setas ou mouse/toque para escolher; Enter, Espaço ou **Confirmar** para salvar e avançar; Escape ou **Voltar** retorna ao menu; Tab / Shift+Tab percorrem pilotos e ações |
-| Seleção de Veículo | ← / → ou A / D para pintura; mouse/toque nos carros ou cartões; Enter, Espaço ou **CONFIRMAR** inicia a transferência; Escape ou **VOLTAR** retorna aos pilotos; Tab percorre pinturas e ações |
-| Estação de Equipe | Mouse/toque nos módulos; setas ou Tab / Shift+Tab navegam; Enter / Espaço ativa; Escape, **VEÍCULO** ou **SAIR / VOLTAR** retorna à garagem; **START RACE** abre a seleção de pista |
+| Seleção de Veículo / loja | Primeiro ← / → ou A / D escolhe a máquina; Enter avança às cores. Depois, as mesmas teclas escolhem a cor da equipe; Enter compra/equipa conforme saldo, propriedade e bloqueio, e inicia a transferência. Escape volta às máquinas ou, na primeira etapa, à tela anterior. Mouse/toque e Tab também funcionam |
+| Estação de Equipe | Mouse/toque nos módulos; setas ou Tab / Shift+Tab navegam; Enter / Espaço ativa; **VEÍCULO** abre a loja completa; Escape ou **SAIR / VOLTAR** retorna à garagem; **START RACE** abre a seleção de pista |
 | Pista atribuída | Somente CONFIRMAR e VOLTAR; Enter confirma, Tab percorre as ações, Escape volta sem novo sorteio |
-| Corrida | W / ↑ acelera; S / ↓ freia e, perto da parada, dá ré; A / ← vira à esquerda do carro, D / → à direita; Espaço usa freio de mão; C alterna câmera; Escape ou EQUIPE retorna sem consumir a pista |
+| Corrida | W / ↑ acelera; S / ↓ freia e, perto da parada, dá ré; A / ← vira à esquerda do carro, D / → à direita; Espaço usa freio de mão; Shift usa nitro quando disponível (THUNDER BUG); C alterna câmera; Z percorre três aproximações em terceira pessoa; Escape ou EQUIPE retorna sem consumir a pista |
 | Resultados | Tab/setas escolhem ação; Enter confirma. No fracasso 8/8, REINICIAR DESAFIO confirma o reset; MENU/Escape preserva o resultado pendente. Após atingir a meta, VER EQUIPE retorna com dinheiro/melhorias preservados |
-| Som | **M** ou botão de som no canto inferior esquerdo ativa/silencia a trilha |
+| Prêmio do rival | Após a qualificação, escolher WIDOWMAKER ou 12.000 créditos encerra o desafio; o carro recebido não troca automaticamente o equipado |
+| Som | **M** ou botão de som no canto inferior esquerdo ativa/silencia globalmente trilha e motores; perda de foco/página oculta também silencia |
+| Créditos e licenças | Link no canto inferior direito; Tab ou Alt+L para focar, Enter para abrir em nova aba |
 
 ## Personagens e atributos
 
@@ -83,31 +97,49 @@ Os controladores de jogador e bots consultam os ratings sem depender da interfac
 
 ## Garagem, veículo e estado do campeonato
 
-`src/data/vehicles.js` centraliza o modelo, o material pintável, as três pinturas e os atributos-base:
+`src/data/vehicles.js` centraliza cinco veículos, cores de equipe, atributos-base e regras de compra:
 
-| Versão | Cor | Velocidade | Aceleração | Controle | Resistência |
-| --- | --- | ---: | ---: | ---: | ---: |
-| INFERNO | `#E53935` | 75 | 70 | 65 | 60 |
-| NEON | `#1677FF` | 75 | 70 | 65 | 60 |
-| VOLT | `#FFD027` | 75 | 70 | 65 | 60 |
+| Veículo | Velocidade | Aceleração | Controle | Resistência | Característica |
+| --- | ---: | ---: | ---: | ---: | --- |
+| THUNDER BUG (`rift-blaze`) | 76 | 84 | 72 | 55 | 2.000 créditos; 2 cargas de nitro, 3 s por carga, pico ×1,35; 4 bolinhas de vida |
+| CAMARO (`volt-vector`) | 62 | 76 | 84 | 35 | 800 créditos; sem nitro; 3 bolinhas |
+| ARMORED CAR (`iron-bastion`) | 58 | 52 | 56 | 100 | 7.500 créditos; sem nitro; 7 bolinhas |
+| RACE CAR 2 (`race-car-2`) | 94 | 92 | 82 | 70 | 15.000 créditos; bloqueado para fase 2; nitro configurado como no Thunder; 5 bolinhas |
+| WIDOWMAKER (`widowmaker`) | 88 | 78 | 65 | 90 | 24.000 créditos ou prêmio único do rival; sem nitro; 6 bolinhas |
 
-A escala-base é 0–100. As pinturas são cosméticas e não alteram os atributos. O veículo usa física arcade; o piloto aplica os modificadores documentados no código. As confirmações passam pelo serviço de campeonato e persistem veículo/pintura; o Registry expõe os mesmos IDs para compatibilidade, sem duplicar carteira ou pontuação. O GLB Air Blade é somente local; a versão pública usa **ORIGINAL RACER** procedural.
+As cores vermelha (`#E53935`), azul elétrica (`#1677FF`) e amarela (`#FFD027`) identificam equipe/plataforma: os GLBs atuais mantêm seus atlas e não são repintados integralmente. Bots usam a mesma física e o rival conduz WIDOWMAKER. O nome THUNDER BUG preserva o ID histórico `rift-blaze` e a propriedade dos saves.
+
+A escala-base é 0–100, não km/h. Cores são cosméticas. Velocidade, aceleração e controle alimentam a física arcade; resistência aumenta a capacidade de vida, sem segunda redução percentual de dano do veículo. O piloto aplica seus modificadores. Compra/equipamento passam pelo serviço de campeonato, persistindo propriedade e seleção sem duplicar carteira ou pontuação. Reequipar um carro adquirido não cobra novamente; falha ao salvar impede compra/prêmio.
 
 `src/championship/Championship.js` é o único serviço compartilhado pelas cenas. `championshipState.js` implementa transições puras e validação; `championshipStorage.js` é o adaptador local. `src/data/raceState.js` apenas lê esse estado canônico para o painel. O início mantém o saldo anterior de **$ 2.000**, divisão **B**, zero corridas e SCORE zero; os exemplos de referência não substituem esses dados reais.
 
 ## Corridas implementadas
 
-`src/data/raceTracks.js` contém duas pistas fechadas originais: **NEON FURNACE** (indústria e neon vermelho/laranja) e **VOLTAGE RUN** (noite, curvas técnicas e trechos elevados azul/violeta). O traçado central também define superfície, bordas, largura e checkpoints ordenados.
+### Histórico: Rift Blaze experimental local — Sci-Fi Buggy
+
+O experimento opt-in com [Sci - Fi Buggy, de TiyaMakes](https://sketchfab.com/3d-models/sci-fi-buggy-085bd97876a64eacbc041299ac945e9c), licença declarada [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), e seu candidato de 27.208.448 bytes são **históricos e superados como apresentação oficial**. Instruções, medições SwiftShader e limitações permanecem em [LOCAL_BUGGY_INSPECTION.md](docs/LOCAL_BUGGY_INSPECTION.md) e [RIFT_BLAZE_OPTIMIZATION.md](docs/RIFT_BLAZE_OPTIMIZATION.md); suas afirmações de produção sem GLB descrevem aquela etapa.
+
+THUNDER BUG usa outro modelo e o derivado sem perdas de **25.452.592 bytes (24,27 MiB)**, contra 28.914.440 bytes do original privado intacto. A distribuição atual contém cinco GLBs distintos; `race_car2.glb` é apenas alias de `race_car.glb`. O buggy antigo e Air Blade não integram o pacote público. Detalhes em [VEHICLE_SHOP.md](docs/VEHICLE_SHOP.md) e [CREDITS.md](CREDITS.md).
+
+### Corridas atuais
+
+`src/data/raceTracks.js` contém duas pistas fechadas originais: **NEON FURNACE** (indústria e neon vermelho/laranja) e **VOLTAGE RUN** (noite, curvas técnicas e trechos elevados azul/violeta). O traçado central define waypoints, largura, altura visual e checkpoints ordenados; ainda não há tipos de superfície com física própria.
 
 Ao escolher **1 JOGADOR**, a tela Normal/Difícil vem antes do piloto. `src/data/raceDifficulty.js` centraliza os parâmetros da IA: antecipação, resposta de direção, erro de trajetória e desejo de ultrapassagem. Dificuldade não aumenta o limite físico de velocidade.
 
-Cada corrida tem quatro participantes — jogador e três bots — e quatro voltas. A física arcade independente calcula aceleração, freio/reversa, direção, inércia lateral, colisão entre carros e contato com barreiras. Checkpoints sequenciais validam volta e chegada; classificação e resultados vêm do estado simulado. W/↑ acelera, S/↓ freia ou reverte, A/D ou ←/→ dirigem e Espaço usa o freio de mão.
+Cada corrida tem quatro participantes — jogador e três bots — e quatro voltas. A física arcade independente calcula aceleração, freio/reversa, direção progressiva, inércia lateral e drift sob tração. Um novo impacto na barreira conserva metade da velocidade de entrada, sem repetir essa penalidade a cada passo do mesmo contato. Checkpoints sequenciais validam volta e chegada; classificação e resultados vêm do estado simulado. W/↑ acelera, S/↓ freia ou reverte, A/D ou ←/→ dirigem e Espaço usa o freio de mão. Carro parado não gira no lugar; a resposta da direção cresce com a velocidade.
 
-A chegada registra pista, dificuldade, tempo, colocação, SCORE e MONEY da corrida no campeonato uma única vez. A tela de resultados exibe esse recibo; abrir/voltar/recarregar não aplica prêmios novamente. Compras permanecem desativadas até haver loja real.
+Colisões causam dano pela aproximação normal, com cooldown de 0,85 s por par de carros. Cada bolinha vale 20 HP e pode ficar parcialmente preenchida no HUD; dano reduz gradualmente aderência/direção, e abaixo de 75% da vida aparece fumaça. Zero HP causa explosão e destruição por 0,8 s, seguida de respawn central, vida cheia, velocidade zero e 1,5 s de proteção. Não há regeneração contínua nem reposição de cargas de nitro. Ré e respawn não rendem progresso extra: o débito de percurso e os gates físicos preservam voltas e chegadas legítimas. Regras e critérios pendentes em [VEHICLE_COMBAT.md](docs/VEHICLE_COMBAT.md).
+
+Em `npm run dev`, **F2** mostra um painel temporário com FPS Three.js, delta/quantidade de passos fixos, posição física e interpolada, correções de barreira/contato e taxa de atualização da câmera. O painel também conta avanços da simulação, atualizações de poses e renders para detectar duplicações. **F3** congela a câmera para comparação; **Shift+F3** volta ao acompanhamento. **F4** desliga contatos entre veículos para comparar a corrida sem colisões; **Shift+F4** os religa. Essas teclas e métricas não são habilitadas no build de produção; o solver continua ligado por padrão.
+
+A chegada registra pista, dificuldade, tempo, colocação, SCORE e MONEY da corrida no campeonato uma única vez. A tela de resultados exibe esse recibo; abrir/voltar/recarregar não aplica prêmios novamente. O módulo VEÍCULO da equipe abre a loja real; upgrades e reparos permanecem indisponíveis.
+
+`docs/GAMEPLAY_REFERENCE.md` separa relatos públicos sobre o clássico de fatos confirmados no código e hipóteses de design. A ROM em `referencias-locais/` não foi aberta, executada, copiada nem adicionada ao Git.
 
 ### SCORE, MONEY e progressão implementados
 
-**SCORE não é dinheiro:** acumula no desafio, não pode ser gasto e é o único recurso que determina progressão. **MONEY** é saldo independente, disponível para futuras compras; loja e compras reais ainda não existem, portanto esta versão não faz débitos nem simula aquisição de peças.
+**SCORE não é dinheiro:** acumula no desafio, não pode ser gasto e determina a qualificação. **MONEY** é saldo independente de créditos fictícios usado na compra de veículos dentro do jogo. Carreira nova começa com 2.000 créditos e nenhum carro adquirido; a seleção inicial oferece THUNDER BUG, CAMARO e ARMORED CAR, respeitando o saldo. Upgrades, peças e reparos ainda não podem ser comprados.
 
 As recompensas estão centralizadas em `championshipRules.js`:
 
@@ -120,9 +152,9 @@ As recompensas estão centralizadas em `championshipRules.js`:
 
 Cada resultado válido soma os dois recursos e uma corrida, com limite de **8**. A meta inicial é **1.400 SCORE**. O resultado precisa corresponder à prova ativa, pista, dificuldade e piloto, com quatro chegadas válidas; o recibo e o ledger de IDs premiados são salvos no mesmo registro. Provas abandonadas não concedem recompensas nem contam como realizadas. Recarregar durante uma prova não retoma a posição dos veículos: permite reiniciá-la na mesma pista, sem consumir o ciclo.
 
-Ao atingir a meta, inclusive na oitava corrida, o objetivo é marcado como concluído e a vitória aparece nos resultados. MONEY, melhorias e seleções são preservados. **Não há outro rival/divisão implementado:** o jogo informa “Próximo rival em desenvolvimento”, mantém o desafio concluído e não inventa um avanço ou novas provas. Na Estação de Equipe, novo início fica indisponível e identificado; o desafio não reinicia silenciosamente.
+Ao atingir a meta de 1.400 SCORE, inclusive na oitava corrida, o jogador se qualifica para o prêmio. Pode continuar o farming até o limite de oito provas ou encerrar escolhendo **WIDOWMAKER ou 12.000 créditos**, uma única vez. O carro recebido entra no inventário sem trocar o equipado; quem já o possui pode escolher os créditos. Receber o prêmio encerra o desafio e preserva dinheiro/inventário/seleções. **A fase 2 permanece em desenvolvimento:** não há avanço fictício nem novas provas após o encerramento.
 
-Em **8/8 sem a meta**, os resultados e totais permanecem até o jogador clicar **REINICIAR DESAFIO**. Menu e Escape não confirmam o reset. A reinicialização arquiva o resumo/histórico da tentativa, zera MONEY, SCORE, níveis de melhorias e corridas, preserva piloto/veículo/pintura/dificuldade e inicia a próxima tentativa. Melhorias são apenas dados preparados para o futuro; atualmente não podem ser adquiridas.
+Em **8/8 sem a meta**, os resultados e totais permanecem até o jogador clicar **REINICIAR DESAFIO**. Menu e Escape não confirmam o reset. A reinicialização arquiva o resumo/histórico da tentativa, zera MONEY, SCORE, níveis de melhorias e corridas, preserva carros comprados e piloto/veículo/pintura/dificuldade, e inicia a próxima tentativa. Melhorias são apenas dados preparados para o futuro; atualmente não podem ser adquiridas.
 
 ### Atribuição e exceção de pistas
 
@@ -132,11 +164,13 @@ Após confirmar o reinício por fracasso, **somente a primeira corrida da nova t
 
 ### Salvamento local e recuperação segura
 
-O save é JSON de **schemaVersion 1** na chave `riffshot-racing:championship:v1`, com revisão, IDs únicos, seleções, carteira, SCORE, corridas, níveis de melhorias, atribuição/ciclo de pistas, tentativas anteriores e recibo pendente. O carregamento valida tipos, IDs e consistência. Antes de substituir um save válido, sua cópia integral anterior é preservada em `riffshot-racing:championship:v1:backup`.
+Na **Estação de Equipe**, o botão **APAGAR PROGRESSO**, ao lado de START RACE, permite recomeçar desde a abertura. Clique/toque ou navegue com Tab/setas e confirme com Enter. O navegador pede uma confirmação explícita: cancelar preserva tudo; confirmar apaga o save do campeonato e seus backups, incluindo dinheiro, SCORE, corridas, melhorias, histórico e escolhas de piloto/veículo/pintura/dificuldade. A nova carreira começa com os valores iniciais ($ 2.000, SCORE zero e nenhuma escolha confirmada), sem recuperar os dados apagados após recarregar. Não afeta dados de outros projetos nem utiliza `localStorage.clear()`. A exclusão é irreversível; use somente uma aba do jogo. Se houver conflito com outra aba ou falha de armazenamento, a equipe permanece aberta e exibe um aviso. A remoção de várias chaves não é atômica: uma falha intermediária pode deixar parte dos backups já removida, sem reiniciar a carreira em memória ou informar sucesso.
 
-Não existe um formato legado comprovado para migrar. Saves inválidos, versões desconhecidas (incluindo `:v2` no mesmo namespace) e backup órfão sem principal são preservados e bloqueiam gravações automáticas. Não há `localStorage.clear()`, migração inventada ou promoção automática do backup. A interface e o anúncio acessível avisam **PROGRESSO TEMPORÁRIO / NÃO SALVO**; também avisam ao detectar alterações de outra aba. Falhas de acesso/quota mantêm a sessão em memória, sem repetir gravações em loop. Nessa condição, recarregar pode perder as alterações não gravadas.
+O save é JSON de **schemaVersion 3** na chave estável `riffshot-racing:championship:v1`, com revisão, IDs únicos, seleções, carteira, SCORE, corridas, níveis de melhorias, inventário `ownedVehicleIds`, escolha única `rivalRewardChoice`, atribuição/ciclo de pistas, tentativas anteriores e recibo pendente. Saves v1/v2 válidos são migrados conservadoramente, preservando progresso e concedendo o carro já selecionado sem cobrança retroativa; o ID legado `rift-blaze` agora apresenta THUNDER BUG. O original só é substituído numa gravação normal, com backup anterior preservado.
 
-O backup anterior não é histórico ilimitado, e a comparação antes de gravar reduz conflitos entre abas, mas **não é uma transação multiaba nem proteção contra edição deliberada do save**. Use uma aba de jogo por vez. localStorage é específico da origem: trocar host/porta/domínio ou limpar dados do site não transfere o progresso. Não há autenticação/backend; o adaptador pode futuramente ser substituído pela integração Game-IA.
+Saves inválidos, versões desconhecidas (incluindo `:v2` no mesmo namespace) e backup órfão sem principal são preservados e bloqueiam gravações automáticas. Não há `localStorage.clear()` ou promoção automática do backup. A interface e o anúncio acessível avisam **PROGRESSO TEMPORÁRIO / NÃO SALVO**; também avisam ao detectar alterações de outra aba. Falhas de acesso/quota mantêm a sessão em memória, sem repetir gravações em loop. Nessa condição, recarregar pode perder as alterações não gravadas.
+
+O backup anterior não é histórico ilimitado. Web Locks concede a uma única aba a permissão de gravar; outra aba fica temporária, sem comprar, receber prêmio ou apagar. Sem Web Locks, a economia bloqueia essas operações com aviso. Isso não protege contra edição deliberada do save; use uma aba por vez. localStorage é específico da origem: trocar host/porta/domínio ou limpar dados do site não transfere o progresso. Não há autenticação/backend; o adaptador pode futuramente ser substituído pela integração Game-IA. Regras e limitações em [VEHICLE_SHOP.md](docs/VEHICLE_SHOP.md).
 
 ## Integração Phaser + Three.js
 
@@ -144,11 +178,11 @@ Phaser mantém cenas, controles, simulação e HUD. **Na corrida**, `RaceCanvasL
 
 **Garagem e Estação de Equipe** preservam a ponte offscreen anterior (CanvasTexture até 1100×600 e 30 FPS). Ao sair da corrida, o canvas Three é removido do DOM, o CSS da composição é restaurado, eventos/timers e recursos exclusivos são liberados e o renderer volta a servir as prévias offscreen. Carregamentos assíncronos antigos são invalidados antes de montar um mundo/redimensionar o renderer.
 
-`RaceSimulation` mantém timestep fixo de 1/60 s, avançado pelo único loop Phaser; `PlayerController` e `BotController` alimentam a mesma física. Câmeras só leem posições/orientações. O renderer redesenha uma vez por frame Phaser, sem outro `requestAnimationFrame`/`setAnimationLoop`. A corrida usa o relógio monotônico do loop com proteção contra saltos para que suavização de delta da interface não alongue indevidamente a contagem regressiva.
+`RaceSimulation` mantém timestep fixo de 1/60 s, avançado pelo único loop Phaser; `PlayerController` e `BotController` alimentam a mesma física. Entre passos, a apresentação interpola posição, direção e velocidade sem alterar o estado físico; o valor suavizado de velocidade também alimenta a mira da câmera. Isso evita que renderizações acima de 60 Hz repitam a última pose. Câmeras só leem poses apresentadas. O renderer redesenha uma vez por frame Phaser, sem outro `requestAnimationFrame`/`setAnimationLoop`.
 
 ### Câmeras e qualidade visual
 
-`src/data/raceCameras.js` centraliza altura, distância, FOV, resposta e duração de transição; `RaceCameraRig` separa essas regras de apresentação da corrida. A isométrica usa projeção ortográfica e segue o jogador. A terceira pessoa usa FOV de 62° (70° em retrato), altura/distância ajustadas ao tamanho do carro, acompanhamento com atraso e mira adiante. A direção da câmera é suavizada por ângulo e taxa máxima, inclusive em colisões, paradas e giros; não muda os controles do carro. A câmera é uma preferência visual da corrida ativa, não um estado persistente do campeonato; toda prova nova começa em terceira pessoa.
+`src/data/raceCameras.js` centraliza altura, distância, FOV, resposta e duração de transição; `RaceCameraRig` separa essas regras de apresentação da corrida. A isométrica usa projeção ortográfica e segue o jogador. A terceira pessoa usa três aproximações via **Z**, com FOV-base de **62° / 70° / 80°**, altura/distância ajustadas ao tamanho do carro, acompanhamento com atraso e mira adiante. Em retrato, o FOV é adaptado à proporção e à cobertura horizontal necessária para preservar o enquadramento; não é fixo em 70°. A direção da câmera é suavizada por ângulo e taxa máxima, inclusive em colisões, paradas e giros; não muda os controles do carro. A câmera é uma preferência visual da corrida ativa, não um estado persistente do campeonato; toda prova nova começa em terceira pessoa.
 
 **C** faz uma passagem suave de posição, rotação e projeção. Comandos repetidos são ignorados durante a transição. O HUD informa o modo ativado brevemente. **Cada nova corrida começa em terceira pessoa** e não herda a isométrica da prova anterior. A direção usa apenas a orientação física do veículo: o sinal de A/D foi corrigido no adaptador humano sem alterar o controlador geométrico dos bots. S primeiro freia e então aplica aceleração negativa para a ré; W freia a ré antes de acelerar à frente. O freio não cruza zero por overshoot. Em ré, a mudança de orientação segue naturalmente a cinemática do carro, não uma troca de eixos de câmera.
 
@@ -162,15 +196,17 @@ O modo direto limita o framebuffer a **1280×720**, preservando proporção, e o
 
 Se a composição alpha não for suportada ou a montagem falhar, usa-se a ponte CanvasTexture anterior. Para diagnóstico ou preferência de compatibilidade, abra o jogo com **`?raceRenderer=texture`** (por exemplo `http://127.0.0.1:5173/?raceRenderer=texture`). A preferência de fallback também pode ser definida no Registry da sessão como `racePresentationMode = 'texture'`. Isso mantém física/câmeras, mas volta a copiar o frame, com custo maior de composição.
 
-Medição local automatizada, **Chromium/ANGLE com SwiftShader (software)**: baseline anterior ~4–5 FPS; rodada atual mediu 9,6 FPS em uma amostra, e 5,1 FPS na composição direta (1152×720, zero cópias) versus 6,5 FPS no fallback (1063×620, 12 cópias na janela medida). As amostras e resoluções diferem; não demonstram ganho comparável nem representam GPU física. O passe Three medido (~0,7 ms) é tempo de submissão em CPU, não tempo de GPU. A otimização confirmada é a remoção das cópias na composição direta; 60 FPS e fluidez contínua ainda precisam de validação manual em hardware real.
+Medição **histórica** local automatizada, **Chromium/ANGLE com SwiftShader (software)**: baseline anterior ~4–5 FPS; naquela rodada foram medidos 9,6 FPS em uma amostra, e 5,1 FPS na composição direta (1152×720, zero cópias) versus 6,5 FPS no fallback (1063×620, 12 cópias na janela medida). As amostras e resoluções diferem; não demonstram ganho comparável nem representam GPU física. O passe Three medido (~0,7 ms) é tempo de submissão em CPU, não tempo de GPU. A otimização confirmada é a remoção das cópias na composição direta; 60 FPS e fluidez contínua ainda precisam de validação manual em hardware real.
 
-`GarageResources` mantém um único renderer por instância do jogo. Desenvolvimento local carrega o GLB Air Blade uma vez; produção usa ORIGINAL RACER procedural. Os quatro carros de uma corrida compartilham a geometria-base e possuem pinturas independentes. Materiais e texturas do GLB nunca são copiados ao build público, nem a animação de suspensão é executada.
+Outra rodada Playwright após a revisão de colisões mediu 7,0 FPS em composição direta e 6,5 FPS no fallback (SwiftShader, uma janela por modo). É uma amostra isolada e não prova regressão nem ganho; GPU física continua sem validação.
+
+`GarageResources` mantém um único renderer e cache compartilhado de templates, geometrias e texturas dos cinco GLBs por instância do jogo, com carregamento por subconjunto de veículos. Corridas e prévias usam o mesmo pacote em desenvolvimento e produção; o fallback procedural permanece disponível. Os atlas dos GLBs não recebem pintura global: a cor escolhida identifica a equipe/plataforma.
 
 O braço acompanha a pré-seleção; ao confirmar, alinha, desce, fecha as garras, ergue o veículo e o transporta lateralmente antes da transição. Durante a transferência, novos comandos ficam bloqueados.
 
 Ao sair da cena, materiais exclusivos, esqueletos, geometria do ambiente e textura de composição são liberados; continua apenas o cache compartilhado, reutilizado na preparação e nos retornos. Ao destruir o jogo, renderer, ambiente e recursos do modelo também são descartados. Carregamentos tardios não montam uma tela que já foi encerrada. `observeGameSize` mantém o canvas e os controles sincronizados com o tamanho real do contêiner, inclusive ao girar a tela em dispositivos móveis.
 
-Para substituir o modelo futuramente, ajuste `modelUrl` e `paintMaterial` em `vehicles.js` e confira a orientação e a região pintável do novo GLB. A normalização de tamanho e as telas de seleção/preparação não dependem dos nomes das malhas do Air Blade.
+Os atributos ficam no catálogo de veículos; os templates Three.js normalizam os GLBs e preparam os pivôs de rodas. Os arquivos de modelo são distribuídos junto do jogo, sem download de uma fonte externa em tempo de execução. A fábrica procedural atende ao fallback.
 
 ## Trilha sonora placeholder
 
@@ -195,32 +231,35 @@ npm run preview
 
 A prévia é local, normalmente em `http://127.0.0.1:4173`. O build é gerado em `dist/`, que não é versionado.
 
-O build Vite exclui o GLB Air Blade e emite apenas os recursos revisados e avisos de licença. A verificação de publicação confirma que o modelo não aparece em `dist`.
+O build Vite emite o aplicativo, favicon, os cinco GLBs do pacote validado, `credits.html` e `THIRD_PARTY_NOTICES.txt`. Não copia `public/` inteira nem lê as referências privadas. A preparação explícita dos modelos é descrita em [VEHICLE_SHOP.md](docs/VEHICLE_SHOP.md).
 
-### Testes de navegador
+### Testes proporcionais ao impacto
 
-```bash
-npx playwright install chromium
-npm test
-```
+A política permanente está na seção 11 do `AGENTS.md` e o guia completo em **[`docs/TESTING.md`](docs/TESTING.md)**. Escolha somente os casos relacionados à alteração; os comandos abaixo são opções, **não uma lista para executar inteira**.
 
-Para uma verificação crítica e curta do build público: intro, menu, dificuldade, piloto, veículo procedural, pista, corrida, aceleração do jogador e ausência do GLB em `dist`:
+| Área | Comando |
+| --- | --- |
+| Controles | `npm.cmd run test:controls` |
+| Câmera, sem atribuição de pistas | `npm.cmd run test:camera:rig` |
+| Atribuição de pistas | `npm.cmd run test:tracks` |
+| Adaptador visual de veículos | `npm.cmd run test:vehicles` |
+| Partículas | `npm.cmd run test:particles` |
+| Armazenamento/migração/backup | `npm.cmd run test:save` |
+| Exclusão do progresso no serviço | `npm.cmd run test:save:erase` |
+| Botão APAGAR PROGRESSO no navegador | `npm.cmd run test:ui:erase` |
+| Créditos públicos HTML/TXT, link e teclado | `npm.cmd run test:ui:credits` |
+| Integração do buggy local | `npm.cmd run test:vehicles:flow` |
+| Fluxo crítico da corrida | `npm.cmd run test:integration:race` |
 
-```bash
-npm run test:smoke
-npm run test:race
-npm run test:camera
-npm run test:controls
-npm run test:championship
-npm.cmd test -- --project=desktop tests/championship-flow.spec.js --retries=0 --max-failures=1
-npm.cmd test -- --project=desktop tests/race-flow.spec.js --retries=0 --max-failures=1
-```
+Refine ainda mais usando `node --test --test-name-pattern="..." arquivo` (opções antes do arquivo) ou Playwright `--grep`. Exemplo: `npm.cmd run test:ui:erase -- --grep "cancelar preserva"`. Para só listar, sem executar testes, build ou servidores: `npm.cmd run test:ui:erase -- --list`.
 
-O smoke test executa um único fluxo desktop com timeout de 60 segundos, zero retries e parada na primeira falha. `npm run test:race`, `npm run test:camera`, `npm run test:controls` e `npm run test:championship` executam testes puros Node sem navegador. Os fluxos Playwright direcionados são `npm run test:championship:flow` e `npm.cmd test -- --project=desktop tests/race-flow.spec.js --retries=0 --max-failures=1`. A suíte completa continua disponível em `npm test`, quando for solicitada. Playwright inicia/encerra servidores isolados nas portas 5183 e 4183 para evitar conflitos com outros projetos.
+Os comandos antigos `test:race`, `test:camera`, `test:championship`, `test:championship:flow`, `test:smoke` e `npm test` foram preservados. Os mais amplos não são rotina para pequenas mudanças; consulte o guia antes de escolhê-los. Suíte extensa exige justificativa/aprovação, salvo validação abrangente já solicitada. Nunca executar automaticamente a suíte completa do Playwright.
+
+Mudança visual exige captura real da tela afetada em `previews-ui/`, com fixture isolada e sem usar o save real do proprietário. Mudanças só documentais não exigem build. Código que afeta aplicação/distribuição exige build; quando o Playwright direcionado já o fez para a mesma versão, não repetir sem motivo. A execução de navegador atual inicia servidores isolados nas portas 5183 e 4183; listagem `--list` não inicia esses servidores.
 
 O Playwright inicia o Vite e a prévia do build automaticamente e verifica abertura, fluxo completo, bloqueios, confirmação/cancelamento de piloto, atributos, retorno, redimensionamento, entradas repetidas e erros de console em Chromium desktop, mobile e paisagem emulados. Também verifica ativação e sinal do áudio, mute, ausência de trilhas duplicadas e navegação sem síntese disponível ou com falha de geração simulada. Inclui navegação no build de produção. As capturas de tela ficam em `test-results/`, ignorado pelo Git. Os testes detalhados importam a URL exata do módulo de entrada usada pela página, inclusive a versão HMR, para inspecionar uma única instância real do Phaser.
 
-`tests/garage.spec.js` cobre carregamento local, recoloração, fallback, seleção e braço. `tests/race-simulation.unit.js` valida simulação/dificuldades, ambas as pistas e conclusão dos bots. `tests/race-camera.unit.js` verifica enquadramento, transição, obstáculos, ângulos e suavização a 30/60/120 Hz; `tests/track-assignment.unit.js` verifica ciclos, retorno e conclusão idempotente. O fluxo de navegador direcionado cobre duas pistas/câmeras, resize, controles, HUD, resultados, preferência, composição/fallback e retorno à garagem/menu. Para concluir rapidamente a prova no teste, um controlador de teste conduz o jogador pela física real: isso não equivale a validar quatro voltas pilotadas por uma pessoa. Aparelhos físicos, GPU, Safari e Firefox continuam pendentes.
+`tests/garage.spec.js` mantém a cobertura histórica de seleção em etapas, pinturas, braço mecânico e preparação; suas premissas procedurais devem ser conferidas ao selecionar casos para os GLBs atuais. `tests/race-simulation.unit.js` verifica atributos, nitro, retorno gradual de velocidade, dano/cooldown, interpolação sem alterar física e conclusão dos bots. `tests/race-camera.unit.js` verifica enquadramento, transição e obstáculos; `tests/track-assignment.unit.js` verifica ciclos e retorno. O fluxo de navegador direcionado cobre pistas/câmeras, resize, controles, HUD, resultados e composição. Para concluir rapidamente a prova no teste, um controlador de teste conduz o jogador pela física real: isso não equivale a validar quatro voltas pilotadas por uma pessoa. Aparelhos físicos, GPU, Safari e Firefox continuam pendentes. A validação atual de pacote/créditos e suas expectativas está detalhada em [TESTING.md](docs/TESTING.md).
 
 Os testes de campeonato verificam as quatro premiações, SCORE independente de MONEY, chegada idempotente, sucesso antecipado/exato em 8/8, reset somente após confirmação, seleções e exceção de pista persistentes. Também cobrem save v1, backup, corrupção, versão desconhecida, quota, conflito de abas e armazenamento bloqueado. O fluxo específico de navegador usa uma chegada pela simulação real e fixtures de carreira para os limites de sucesso/fracasso; fixtures de melhorias não representam uma loja implementada.
 
@@ -229,15 +268,28 @@ Revise manualmente o enquadramento em toda a rotação, a pintura sob as luzes, 
 ## Estrutura e decisões desta etapa
 
 ```text
+assets/
+  vehicles/                       # Cinco GLBs selecionados para versionamento
+    manifest.json                 # Autoria, fonte, licença, adaptações, bytes e SHA-256
+scripts/
+  prepareVehicleAssets.js          # Preparação explícita dos cinco originais privados
+  vehicleAssetsPlugin.js           # Validação/entrega do pacote, sem otimização no build
+  publicCreditsPlugin.js           # Markdown com escape → credits.html e TXT integral
+  optimizeThunderBug.js            # Derivado sem perdas, usado na preparação explícita
+  optimizeRiftBlaze.js              # Rotinas de otimização e histórico do experimento
+  localRiftBlazePlugin.js           # Experimento privado opt-in, fora da produção
+THIRD_PARTY_NOTICES.md             # Fonte dos créditos HTML/TXT da distribuição
+CREDITS.md                         # Procedência e histórico detalhados
 src/
   main.js                         # Inicialização do Phaser e dimensionamento
   style.css                       # Página que hospeda o canvas
   audio/
     MenuMusic.js                   # Reprodução compartilhada, mute e ciclo de vida
     rockLoop.js                    # Composição sintética original
+    RaceEngineAudio.js             # Motores sintetizados, vozes e descarte por corrida
   data/
     characters.js                  # Seis pilotos, atributos e resolução por ID
-    vehicles.js                    # Veículo, pinturas e atributos-base
+    vehicles.js                    # Cinco veículos, preços, bloqueio e cores de equipe
     raceState.js                   # Acesso de leitura ao campeonato canônico
     raceTracks.js                  # Circuitos e parâmetros visuais
     raceDifficulty.js              # Ajustes de IA Normal/Difícil
@@ -246,7 +298,8 @@ src/
   championship/
     Championship.js                # Serviço único e projeção de IDs para as cenas
     championshipState.js           # Regras puras, resultados e validação
-    championshipStorage.js         # Save v1, backup e proteção de versões
+    championshipStorage.js         # Schema 3, migração v1/v2, backup e proteção de versões
+    championshipWriter.js          # Permissão exclusiva de gravação por aba (Web Locks)
   scenes/
     TitleScene.js                 # Apresentação comum e ciclo de vida
     SplashScene.js                 # Abertura e avanço protegido
@@ -259,11 +312,13 @@ src/
     RaceTrackSelectionScene.js     # NEON FURNACE / VOLTAGE RUN
     RaceScene.js                   # HUD e integração da simulação/rend. 3D
     RaceResultsScene.js            # Classificação dos quatro competidores
+    RivalRewardScene.js            # Prêmio único: Widowmaker ou créditos fictícios
     RaceDevelopmentScene.js        # Aviso de corrida em desenvolvimento
   race/
     RaceSimulation.js              # Física arcade, checkpoints e classificação
     BotController.js               # Navegação e decisões dos três bots
     PlayerController.js            # Teclado convertido para input normalizado
+    damageMath.js                  # Capacidade, dano normal e perda gradual de condução
     trackMath.js                    # Curvas, projeção e pontos do circuito
     trackAssignment.js             # Pista pendente e ciclos idempotentes de sessão
   ui/
@@ -281,10 +336,21 @@ src/
       RaceWorld.js                 # Pista, modelos e iluminação Three.js
       RaceCameraRig.js             # Duas câmeras e transição de projeção
       RaceCanvasLayer.js           # Composição direta sob o HUD Phaser
+      VehicleDamageEffects.js      # Fumaça de dano, explosão e pool por corrida
     garage/
-      GarageResources.js           # Renderer e cache compartilhado do GLB
+      GarageResources.js           # Renderer/cache GLB compartilhados e fallback procedural
       GarageWorld.js               # Ambiente 3D, plataformas e prévias
       MechanicalArm.js             # Articulação e transferência do veículo
+    vehicles/
+      vehicleModels.js             # Allowlist, URLs canônicas e alias Race Car 2
+      loadVehicleModels.js          # Carregamento, inspeção e templates GLB
+      VehicleGlbTemplate.js         # Normalização e separação das rodas dos cinco modelos
+      vehicleWheelGeometry.js       # Seleção de triângulos para rodas/pivôs
+      VehicleVisualAdapter.js       # Rodas assinadas, esterço e animação Fan do Thunder
+      TireSmoke.js                  # Pool de fumaça de pneus independente do dano
+      BuggyTemplate.js              # Template do experimento histórico privado
+      BuggyVisualAdapter.js         # Adaptador do buggy experimental
+      loadLocalRiftBlaze.js          # Carregamento opt-in somente em desenvolvimento
 tests/
   navigation.spec.js              # Verificações no navegador real
   characters.spec.js              # Escolha temporária, perfis e responsividade
@@ -298,6 +364,17 @@ tests/
   championship.unit.js            # Prêmios, tentativas, schema e armazenamento
   championship-service.unit.js    # Integração Registry/save e recarregamento
   championship-flow.spec.js       # Chegada, painel, reload, sucesso e reset
+  vehicle-shop.unit.js            # Compra, propriedade, bloqueio e prêmio único
+  championship-writer.unit.js     # Escrita exclusiva entre abas
+  vehicle-models.unit.js          # Templates, rodas e cache dos modelos oficiais
+  vehicle-assets-plugin.unit.js   # Contratos de entrega e bloqueio do plugin
+  release-assets.unit.js          # Pacote/manifesto, integridade e preparação explícita
+  public-credits.spec.js          # Créditos, link/teclado e integridade do pacote publicado
+  race-damage.unit.js             # Dano, destruição, respawn e integridade de progresso
+  vehicle-damage-effects.unit.js  # Pools, emissão e descarte dos efeitos de dano
+  audio.unit.js                   # Motores e controle global com Web Audio simulado
+  vehicle-shop.spec.js            # Compra, inventário, prêmio e persistência na interface
+  vehicle-combat.spec.js          # Câmeras, dano, rodas, motores e produção com GLBs
   helpers.js                      # Acesso à instância e monitoramento de erros
 ```
 
@@ -317,16 +394,16 @@ O HTML inclui identificação do canvas e anúncios de tela, mas a navegação v
 
 Os itens abaixo são ideias de trabalho futuro; não são funcionalidades disponíveis nesta versão:
 
-- Manter o GLB Air Blade restrito ao desenvolvimento até substituição por recurso original; confirmar/documentar direitos de todos os identificadores antes de qualquer publicação.
 - Expandir o campeonato além das duas pistas e quatro voltas por corrida atuais.
-- Implementar loja de upgrades/tuning e reparos usando MONEY. Até haver compras reais, os módulos correspondentes ficam desativados e não descontam valores.
-- Adicionar veículo e retrato reais do rival; por enquanto, a preparação mostra silhueta e área do rival com indicação de conteúdo futuro.
-- Implementar armas, danos, reparos, loja, melhorias e bônus ofensivos; os atributos de condução já afetam o modelo arcade atual.
-- Implementar novos rivais/divisões: somente então criar a transição para o próximo desafio, reiniciando SCORE/RACES e preservando MONEY/melhorias. Hoje a vitória termina com aviso de desenvolvimento.
+- Implementar upgrades/tuning e reparos usando MONEY; esses módulos continuam desativados, enquanto a loja de veículos já permite compras com créditos fictícios.
+- Adicionar o retrato definitivo e ampliar a apresentação do rival; WIDOWMAKER já aparece como miniatura na equipe e como veículo do rival na corrida.
+- Implementar armas, melhorias e bônus ofensivos; colisões, dano, destruição e respawn já integram a corrida atual.
+- Implementar novos rivais/divisões e a fase 2. Hoje a qualificação permite farming até oito provas e prêmio único, encerrando com aviso de desenvolvimento.
 - Adicionar interface de exportação/recuperação de saves e migrações de formatos futuros conhecidos; avaliar integração Game-IA sem criar autenticação própria.
 - Validar desempenho e experiência em navegadores e dispositivos físicos, incluindo GPUs móveis e WebGL 2.
-- Confirmar disponibilidade de marca e direitos do título RIFFSHOT RACING, nomes/designs do elenco e autoria da música; consulte `CREDITS.md`. O GLB Air Blade não faz parte do build público.
-- Fazer revisão independente dos riscos de semelhança da identidade e da Estação de Equipe antes de publicar.
+- Avaliar doações opcionais; não há QR Code ou integração de pagamentos nesta versão.
+- Confirmar disponibilidade de marca e direitos do título RIFFSHOT RACING, nomes/designs do elenco e autoria da música; consulte `CREDITS.md`.
+- Fazer revisão independente dos riscos de semelhança da identidade e da Estação de Equipe, como subsídio às decisões do proprietário.
 
 ## Integração futura
 
@@ -334,19 +411,39 @@ O jogo será independente, com previsão de disponibilização no catálogo Game
 
 ## Assets e originalidade
 
-O projeto não deve utilizar código, sprites, músicas ou outros assets protegidos de jogos existentes sem autorização. Os elementos gráficos são desenhados pelo projeto; isso não certifica exclusividade jurídica nem ausência de semelhança. Consulte `CREDITS.md` para riscos identificados e atribuições.
+O projeto não deve utilizar código, sprites, músicas ou outros assets protegidos de jogos existentes sem autorização. Logo, retratos, interface, garagem, cenários e efeitos adicionados são criações do projeto; os cinco veículos abaixo são modelos de terceiros. Isso não certifica exclusividade jurídica nem ausência de semelhança. Consulte [CREDITS.md](CREDITS.md) para procedência e ressalvas.
 
-O GLB provisório informa autoria **Linomig**, origem Sketchfab e licença declarada **CC BY 4.0**. Consulte `CREDITS.md` para atribuição, alterações e limitação de uso local. Essa licença declarada não confirma direitos sobre o design retratado. O GLB está ignorado pelo Git e só pode ser usado localmente; não inclua o arquivo no staging.
+### Créditos dos cinco veículos atuais
 
-O build Vite desativa a cópia automática de `public/` e emite somente o favicon SVG revisado e os avisos de licença de runtime. Em produção o jogo mostra **ORIGINAL RACER** e não solicita o GLB. Confirme que `dist/models/` está ausente antes de publicar. Música sintetizada, logo, retratos e cenário são gerados pelo projeto; fontes são alternativas do sistema, sem arquivos incluídos. Os riscos de direitos e atribuições estão em `CREDITS.md` e `THIRD_PARTY_NOTICES.md`.
+Todos têm licença **declarada [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/)**, não CC0. Os links dos autores e fontes abaixo acompanham os avisos da distribuição.
+
+| Nome no jogo | Autor/uploader declarado | Título e fonte do modelo |
+| --- | --- | --- |
+| THUNDER BUG | [Chenchanchong](https://sketchfab.com/Chenchanchong) | [race car](https://sketchfab.com/3d-models/race-car-97768c0e69744cd5922ddc5a9fd59266) |
+| CAMARO | [Primus03](https://sketchfab.com/Primus03) | [Transformers Universe: Drive-By's Vehicle Form](https://sketchfab.com/3d-models/transformers-universe-drive-bys-vehicle-form-1eee5b31a3dd46ef9b91a95b9261e7f8) |
+| ARMORED CAR | [jaack](https://sketchfab.com/jaack) | [Armored car (death race)](https://sketchfab.com/3d-models/armored-car-death-race-ea76bac506f04676b8514951b67994f8) |
+| RACE CAR 2 | [Tasneem](https://sketchfab.com/Tasneem) | [Race Car](https://sketchfab.com/3d-models/race-car-517dfa8823394b178c9c313d7e68fb7f) |
+| WIDOWMAKER | [Brian Trepanier](https://sketchfab.com/CMBC) | [Widowmaker - Death Race 2000](https://sketchfab.com/3d-models/widowmaker-death-race-2000-15b6eb31787446879f063bb9b25cbc5c) |
+
+As adaptações incluem normalização de escala/orientação, pivôs e animação própria das rodas em memória; o Thunder também recebe otimização sem perdas, preservando a animação original Fan. Os demais binários permanecem inalterados. Detalhes por modelo e condições de atribuição estão em [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), reproduzido em `/credits.html` e no TXT integral.
+
+**Ressalvas de procedência:** o uploader do Race Car usado pelo RACE CAR 2 declara não ser dono da malha; o modelo chamado CAMARO é descrito como extraído de Transformers Universe, da Jagex. As declarações CC BY não comprovam direitos sobre malhas, marcas ou designs de terceiros, nem implicam endosso. “Assets aprovados” significa apenas a **allowlist técnica** de distribuição, não certificação jurídica; as ressalvas permanecem registradas para a decisão do proprietário.
+
+O antigo modelo provisório Air Blade tinha autoria declarada **Linomig**, origem Sketchfab e licença declarada **CC BY 4.0**. Ele foi removido do aplicativo e do repositório; consulte `CREDITS.md` para o histórico de atribuição. Essa licença declarada não confirma direitos sobre o design retratado.
+
+O build Vite desativa a cópia automática de `public/`; os plugins emitem o favicon SVG, cinco GLBs validados, página de créditos e avisos integrais. `referencias-locais/` e `public/models/` histórico não são copiados para `dist`/Cloudflare. O antigo Sci - Fi Buggy e Air Blade ficam fora do pacote distribuído.
+
+**Áudio e software:** Neon Ignition (`src/audio/rockLoop.js`) e os timbres de `RaceEngineAudio` são sínteses originais, sem samples externos. Fontes tipográficas são alternativas do sistema, sem arquivos de fonte incluídos. Os avisos MIT de **Phaser 3, Three.js e eventemitter3** acompanham a distribuição em HTML e TXT. Cada licença se aplica ao respectivo recurso; estes créditos não alteram nem concedem uma nova licença às criações próprias do projeto.
 
 ### Cloudflare Pages
 
-Configuração ao conectar `leo-leite-dev/project-rock-n-racing-ia`:
+A integração GitHub → Cloudflare Pages já existe para o repositório público [leo-leite-dev/project-rock-n-racing-ia](https://github.com/leo-leite-dev/project-rock-n-racing-ia), na branch `main`. A configuração utilizada é:
 
 - Branch de produção: `main`.
 - Diretório raiz: `/` (raiz do repositório).
 - Comando de build: `npm run build`.
 - Diretório de saída: `dist`.
 
-Este é um site estático Vite; não usar o fluxo de deploy de Workers nem `wrangler deploy`. Criar/conectar o projeto Pages e autorizar a integração GitHub deve ser feito no painel da conta Cloudflare.
+O endereço de produção é **https://project-rock-n-racing-ia.pages.dev**. Há registro de check bem-sucedido para o commit antigo `4eeafe1` e de preview anterior; isso não comprova deploy desta atualização. O próximo push em `main` aciona build/deploy pela integração existente. A verificação da versão atual e o relatório de release serão feitos separadamente pela integração principal antes de registrar a publicação como concluída.
+
+Este é um site estático Vite servido pelo Cloudflare Pages, sem necessidade de Workers, `wrangler deploy`, GitHub Actions adicional ou serviços pagos.

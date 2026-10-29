@@ -9,6 +9,7 @@ import { DifficultySelectionScene } from './scenes/DifficultySelectionScene.js';
 import { RaceTrackSelectionScene } from './scenes/RaceTrackSelectionScene.js';
 import { RaceScene } from './scenes/RaceScene.js';
 import { RaceResultsScene } from './scenes/RaceResultsScene.js';
+import { RivalRewardScene } from './scenes/RivalRewardScene.js';
 import { MenuMusic } from './audio/MenuMusic.js';
 import { observeGameSize } from './ui/observeGameSize.js';
 import { Championship } from './championship/Championship.js';
@@ -30,7 +31,7 @@ export const game = new Phaser.Game({
   },
   input: { activePointers: 2 },
   scene: [SplashScene, MainMenuScene, DifficultySelectionScene, CharacterSelectionScene, VehicleSelectionScene,
-    RacePreparationScene, RaceTrackSelectionScene, RaceScene, RaceResultsScene, RaceDevelopmentScene],
+    RacePreparationScene, RaceTrackSelectionScene, RaceScene, RaceResultsScene, RivalRewardScene, RaceDevelopmentScene],
   callbacks: {
     postBoot(instance) {
       instance.championship = new Championship(instance);

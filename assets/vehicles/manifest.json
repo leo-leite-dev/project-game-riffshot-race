@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "fileName": "thunder_bug.glb",
+      "url": "/models/vehicles/thunder_bug.glb",
+      "author": "Chenchanchong",
+      "title": "race car",
+      "source": "https://sketchfab.com/3d-models/race-car-97768c0e69744cd5922ddc5a9fd59266",
+      "adaptations": "Derivado sem perdas: recompressão PNG, remoção de UVs não usados, compactação de índices, união de vértices idênticos e deduplicação de dados/imagens. Preserva pixels, triângulos, UVs usados e animação Fan. Apresentação em memória: escala, alinhamento, pivôs e animação própria das rodas.",
+      "notice": "THIRD_PARTY_NOTICES.md#thunder-bug--race-car",
+      "license": "CC BY 4.0",
+      "licenseURL": "https://creativecommons.org/licenses/by/4.0/",
+      "sourceBytes": 28914440,
+      "sourceSha256": "4f642d8d02b8669e85f69e6e89ec0868bb5b6da3b745446c4b65649d1ee44644",
+      "bytes": 25452592,
+      "sha256": "1fb69db423f5a360dadb17fbbc073e2f02729c6776bc04c20fae64fcd3930feb"
+    },
+    {
+      "fileName": "race_car.glb",
+      "url": "/models/vehicles/race_car.glb",
+      "author": "Tasneem",
+      "title": "Race Car",
+      "source": "https://sketchfab.com/3d-models/race-car-517dfa8823394b178c9c313d7e68fb7f",
+      "adaptations": "Binário inalterado. Apresentação em memória: escala, alinhamento +90°, pivôs e animação própria das rodas; estepe fixo. race_car2.glb é somente um alias de catálogo, sem payload duplicado.",
+      "notice": "THIRD_PARTY_NOTICES.md#race-car-2--race-car",
+      "license": "CC BY 4.0",
+      "licenseURL": "https://creativecommons.org/licenses/by/4.0/",
+      "sourceBytes": 10411768,
+      "sourceSha256": "71e361015328d4a1eb8e556890665294730bb09b401c1ba11ce66983968a5e2f",
+      "bytes": 10411768,
+      "sha256": "71e361015328d4a1eb8e556890665294730bb09b401c1ba11ce66983968a5e2f"
+    },
+    {
+      "fileName": "camaro.glb",
+      "url": "/models/vehicles/camaro.glb",
+      "author": "Primus03",
+      "title": "Transformers Universe: Drive-By's Vehicle Form",
+      "source": "https://sketchfab.com/3d-models/transformers-universe-drive-bys-vehicle-form-1eee5b31a3dd46ef9b91a95b9261e7f8",
+      "adaptations": "Binário inalterado. CAMARO é o nome de catálogo. Apresentação em memória: escala, alinhamento, pivôs e animação própria das rodas.",
+      "notice": "THIRD_PARTY_NOTICES.md#camaro--transformers-universe-drive-bys-vehicle-form",
+      "license": "CC BY 4.0",
+      "licenseURL": "https://creativecommons.org/licenses/by/4.0/",
+      "sourceBytes": 530436,
+      "sourceSha256": "7cf78e8aadff79bb8a797c71026283c438e2289ab4283d6b30cebc0762ce3953",
+      "bytes": 530436,
+      "sha256": "7cf78e8aadff79bb8a797c71026283c438e2289ab4283d6b30cebc0762ce3953"
+    },
+    {
+      "fileName": "armored_car_death_race.glb",
+      "url": "/models/vehicles/armored_car_death_race.glb",
+      "author": "jaack",
+      "title": "Armored car (death race)",
+      "source": "https://sketchfab.com/3d-models/armored-car-death-race-ea76bac506f04676b8514951b67994f8",
+      "adaptations": "Binário inalterado. Adaptado para iron-bastion em memória: escala, alinhamento −90°, pivôs e animação própria das rodas.",
+      "notice": "THIRD_PARTY_NOTICES.md#armored-car--armored-car-death-race",
+      "license": "CC BY 4.0",
+      "licenseURL": "https://creativecommons.org/licenses/by/4.0/",
+      "sourceBytes": 9936700,
+      "sourceSha256": "a54a76d3c17795fb660b8100fc4174d67af93a27f26486df887b07ab077f8d06",
+      "bytes": 9936700,
+      "sha256": "a54a76d3c17795fb660b8100fc4174d67af93a27f26486df887b07ab077f8d06"
+    },
+    {
+      "fileName": "widowmaker_-_death_race_2000.glb",
+      "url": "/models/vehicles/widowmaker_-_death_race_2000.glb",
+      "author": "Brian Trepanier",
+      "title": "Widowmaker - Death Race 2000",
+      "source": "https://sketchfab.com/3d-models/widowmaker-death-race-2000-15b6eb31787446879f063bb9b25cbc5c",
+      "adaptations": "Binário inalterado. Adaptado para widowmaker em memória: escala, alinhamento −34,52°, seleção de rodas por regiões cilíndricas, pivôs e animação própria das rodas.",
+      "notice": "THIRD_PARTY_NOTICES.md#widowmaker--widowmaker---death-race-2000",
+      "license": "CC BY 4.0",
+      "licenseURL": "https://creativecommons.org/licenses/by/4.0/",
+      "sourceBytes": 7577992,
+      "sourceSha256": "88a7702e9262b55821e2aa1bf2f184c5b4258344b2aa37c0b053490d30fd712b",
+      "bytes": 7577992,
+      "sha256": "88a7702e9262b55821e2aa1bf2f184c5b4258344b2aa37c0b053490d30fd712b"
+    }
+  ]
+}

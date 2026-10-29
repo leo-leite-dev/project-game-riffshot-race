@@ -1,4 +1,6 @@
 import { CHARACTERS, ATTRIBUTES, ATTRIBUTE_SCALE } from '../src/data/characters.js';
+import { createChampionshipState } from '../src/championship/championshipState.js';
+import { CHAMPIONSHIP_SAVE_KEY } from '../src/championship/championshipStorage.js';
 import { test, expect, state, waitScene, openCharacters, clickObject } from './helpers.js';
 
 test('seis pilotos distintos mostram retratos, descrição e atributos centralizados', async ({ page }) => {
@@ -51,6 +53,11 @@ test('Dax Voltage mantém os atributos ofensivos e uma identidade original de t�
 
 test('confirmação armazena o piloto; troca, cancelamento e recarga preservam a escolha confirmada', async ({ page }) => {
   test.setTimeout(45_000);
+  const seed = { ...createChampionshipState({ id: 'characters-career', attemptId: 'characters-attempt' }),
+    ownedVehicleIds: ['rift-blaze'] };
+  await page.addInitScript(({ key, seed }) => {
+    if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(seed));
+  }, { key: CHAMPIONSHIP_SAVE_KEY, seed });
   await openCharacters(page);
   await page.keyboard.press('ArrowLeft');
   expect((await state(page)).selected).toBe(5);
@@ -81,6 +88,7 @@ test('confirmação armazena o piloto; troca, cancelamento e recarga preservam a
     const scene = game.scene.getScene('VehicleSelection');
     return !!scene.garageView && scene.loadingLabel.text.includes('OFICINA ONLINE');
   }), { timeout: 15_000 }).toBe(true);
+  await clickObject(page, 'confirmButton');
   await clickObject(page, 'confirmButton');
   await expect.poll(async () => (await state(page)).key, { timeout: 15_000 }).toBe('RacePreparation');
   await waitScene(page, 'RacePreparation');

@@ -52,11 +52,20 @@ export function sampleTrackAtProgress(track, progress) {
 export function findNearestTrackPoint(track, x, z) {
   const sampled = track?.points ? track : sampleRaceTrack(track);
   let nearest = null, minimumDistanceSq = Infinity;
-  for (const point of sampled.points) {
-    const dx = x - point.x, dz = z - point.z, distanceSq = dx * dx + dz * dz;
+  for (let index = 0; index < sampled.points.length; index += 1) {
+    const point = sampled.points[index], next = sampled.points[(index + 1) % sampled.points.length];
+    const segmentX = next.x - point.x, segmentZ = next.z - point.z;
+    const lengthSq = segmentX * segmentX + segmentZ * segmentZ;
+    if (lengthSq === 0) continue;
+    const amount = Math.max(0, Math.min(1, ((x - point.x) * segmentX + (z - point.z) * segmentZ) / lengthSq));
+    const projectedX = lerp(point.x, next.x, amount), projectedZ = lerp(point.z, next.z, amount);
+    const dx = x - projectedX, dz = z - projectedZ, distanceSq = dx * dx + dz * dz;
     if (distanceSq < minimumDistanceSq) {
       minimumDistanceSq = distanceSq;
-      nearest = { ...point, lateral: -dx * point.tangentZ + dz * point.tangentX, distanceSq };
+      const length = Math.sqrt(lengthSq), tangentX = segmentX / length, tangentZ = segmentZ / length;
+      nearest = { x: projectedX, z: projectedZ, y: lerp(point.y, next.y, amount),
+        tangentX, tangentZ, distance: mod(point.distance + length * amount, sampled.totalLength),
+        lateral: -dx * tangentZ + dz * tangentX, distanceSq };
     }
   }
   return nearest;

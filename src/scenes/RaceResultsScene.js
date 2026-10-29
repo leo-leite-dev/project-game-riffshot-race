@@ -1,6 +1,7 @@
 import { TitleScene } from './TitleScene.js';
 import { MenuButton } from '../ui/MenuButton.js';
 import { COLORS, SCENES, text } from '../ui/theme.js';
+import { canRunOpening } from '../championship/championshipState.js';
 
 const formatTime = seconds => {
   if (!Number.isFinite(seconds)) return '--:--.--';
@@ -12,7 +13,8 @@ export class RaceResultsScene extends TitleScene {
   constructor() { super(SCENES.results); }
 
   create() {
-    const state = this.game.championship.state;
+    const championship = this.game.championship;
+    const state = championship.state;
     this.result = state.pendingResult ?? this.registry.get('lastRaceResult');
     const result = this.result;
     if (result?.standings?.length !== 4 || !['active', 'failed', 'qualified'].includes(result.outcome)
@@ -21,6 +23,12 @@ export class RaceResultsScene extends TitleScene {
       this.scene.start(SCENES.menu);
       return;
     }
+    // canRace includes the pending receipt gate. Preview only the existing rule;
+    // the actual capability is checked again after acknowledgment on navigation.
+    this.canFarm = canRunOpening(state) && championship.hasSelections;
+    const qualified = result.outcome === 'qualified';
+    const rewardClaimed = state.rivalRewardChoice !== null;
+    const remaining = Math.max(0, state.maxRaces - state.racesRun);
     this.createShell(`RIFFSHOT RACING. Resultado final da corrida em ${this.result.trackName}.`);
     this.kicker = text(this, 0, 0, 'BANDEIRA QUADRICULADA  /  RESULTADO OFICIAL', 12, '#ffb454');
     this.title = text(this, 0, 0, 'CLASSIFICAÇÃO FINAL', 34, COLORS.white, true);
@@ -44,24 +52,41 @@ export class RaceResultsScene extends TitleScene {
     const messages = {
       active: 'DESAFIO EM ANDAMENTO\nContinue rumo ao objetivo.',
       failed: 'META NÃO ATINGIDA\nReiniciar zerará SCORE, MONEY\ne upgrades.',
-      qualified: 'VITÓRIA DO DESAFIO / OBJETIVO ATINGIDO\nPróximo rival em desenvolvimento.\nDinheiro e melhorias preservados.',
+      qualified: rewardClaimed ? 'PRÊMIO JÁ RECEBIDO\nFASE 2 EM DESENVOLVIMENTO.'
+        : this.canFarm ? `META ATINGIDA / PRÊMIO DISPONÍVEL\nFarme mais ${remaining} corrida(s) ou escolha o prêmio agora.\nNão é obrigatório completar as ${state.maxRaces} corridas.`
+          : 'META ATINGIDA / LIMITE DE CORRIDAS ALCANÇADO\nEscolha o prêmio para concluir este desafio.',
     };
     this.challengeStatus = text(this, 0, 0,
       `CORRIDAS ${result.totals.racesRun}/${state.maxRaces} / META ${number(state.targetScore)} SCORE\n${messages[result.outcome]}`,
       16, result.outcome === 'failed' ? '#ffb454' : COLORS.white).setOrigin(0.5, 0);
-    const primaryLabel = { active: 'PRÓXIMA CORRIDA', failed: 'REINICIAR DESAFIO', qualified: 'VER EQUIPE' };
-    const primaryScene = result.outcome === 'active' ? SCENES.tracks : SCENES.preparation;
-    this.backScene = result.outcome === 'active' ? SCENES.preparation : SCENES.menu;
+    const primaryLabel = { active: 'PRÓXIMA CORRIDA', failed: 'REINICIAR DESAFIO',
+      qualified: rewardClaimed ? 'VER EQUIPE' : this.canFarm ? 'CONTINUAR / FARMAR' : 'ESCOLHER PRÊMIO' };
+    this.primaryScene = result.outcome === 'active' || (qualified && this.canFarm) ? SCENES.tracks
+      : qualified && !rewardClaimed ? SCENES.rivalReward : SCENES.preparation;
+    this.backScene = result.outcome === 'active' || (qualified && !rewardClaimed) ? SCENES.preparation : SCENES.menu;
+    this.secondaryScene = qualified && this.canFarm ? SCENES.rivalReward : this.backScene;
+    const secondaryLabel = qualified && this.canFarm ? 'ENFRENTAR PRÓXIMO RIVAL'
+      : this.backScene === SCENES.preparation ? 'ESTAÇÃO DE EQUIPE' : 'MENU';
     this.replayButton = new MenuButton(this, {
       label: primaryLabel[result.outcome], index: '↻', width: 480, labelSize: 24,
-      onSelect: () => this.focusAction(0), onActivate: () => this.continueTo(primaryScene),
+      onSelect: () => this.focusAction(0), onActivate: () => this.continueTo(this.primaryScene),
     });
     this.replayButton.detail.setText('↵');
+    this.replayButton.onActivate = () => this.continueTo(this.primaryScene);
     this.backButton = new MenuButton(this, {
-      label: result.outcome === 'active' ? 'ESTAÇÃO DE EQUIPE' : 'MENU', index: '←', width: 480, labelSize: 24,
-      onSelect: () => this.focusAction(1), onActivate: () => this.continueTo(this.backScene),
+      label: secondaryLabel, index: qualified && this.canFarm ? '◆' : '←', width: 480, labelSize: 24,
+      onSelect: () => this.focusAction(1), onActivate: () => this.continueTo(this.secondaryScene),
     });
-    this.backButton.detail.setText('ESC');
+    this.backButton.detail.setText(qualified && this.canFarm ? 'PRÊMIO' : 'ESC');
+    this.backButton.onActivate = () => this.continueTo(this.secondaryScene);
+    if (qualified) {
+      this.buttonsAnnouncement = `${messages.qualified} ${primaryLabel.qualified}. ${secondaryLabel}. `
+        + 'Enfrentar o próximo rival abre somente a premiação. Fase 2 em desenvolvimento. Escape volta sem escolher o prêmio.';
+      this.announce(`Resultado final. ${this.buttonsAnnouncement}`);
+      this.replayButton.label.setFontSize(21).setWordWrapWidth(330);
+      this.backButton.label.setFontSize(20).setWordWrapWidth(320);
+    }
+    this.rewardButton = qualified && !rewardClaimed ? (this.canFarm ? this.backButton : this.replayButton) : null;
     this.buttons = [this.replayButton, this.backButton];
     this.content.add([this.frame, this.kicker, this.title, this.details,
       ...this.rows.flatMap(row => [row.position, row.name, row.tag, row.time]),
@@ -78,7 +103,10 @@ export class RaceResultsScene extends TitleScene {
         event.preventDefault();
         this.focusAction(this.focusIndex + ((key === 'arrowup' || (key === 'tab' && event.shiftKey)) ? -1 : 1));
       }
-      if (key === 'enter' || event.code === 'Space') this.buttons[this.focusIndex].onActivate();
+      if (key === 'enter' || event.code === 'Space') {
+        event.preventDefault();
+        this.buttons[this.focusIndex].onActivate();
+      }
     });
     this.events.once('shutdown', () => this.input.keyboard.removeCapture(['UP', 'DOWN', 'SPACE', 'TAB']));
   }
@@ -86,11 +114,33 @@ export class RaceResultsScene extends TitleScene {
   continueTo(sceneKey) {
     if (this.transitioning) return;
     const outcome = this.result.outcome;
-    const allowed = outcome === 'active' ? [SCENES.tracks, SCENES.preparation] : [SCENES.preparation, SCENES.menu];
+    const championship = this.game.championship;
+    const allowed = outcome === 'active' ? [SCENES.tracks, SCENES.preparation]
+      : outcome === 'qualified' ? [SCENES.tracks, SCENES.rivalReward, SCENES.preparation, SCENES.menu]
+        : [SCENES.preparation, SCENES.menu];
     if (!allowed.includes(sceneKey)) return;
     // Leaving a failed attempt for the menu is not confirmation of a restart.
-    if (outcome !== 'failed' || sceneKey !== SCENES.menu) this.game.championship.acknowledgeResult();
+    if (outcome !== 'failed' || sceneKey !== SCENES.menu) {
+      championship.acknowledgeResult();
+      if (championship.state.pendingResult) {
+        this.navigationFeedback('Não foi possível reconhecer o resultado. Seu recibo foi preservado.');
+        return;
+      }
+    }
+    if (sceneKey === SCENES.tracks && !championship.canRace) {
+      this.navigationFeedback('Não há corridas disponíveis neste desafio. Volte à equipe ou escolha o prêmio.');
+      return;
+    }
+    if (sceneKey === SCENES.rivalReward && !championship.canClaimRivalReward) {
+      this.navigationFeedback('Prêmio indisponível ou já recebido. Volte à estação de equipe.');
+      return;
+    }
     this.goTo(sceneKey);
+  }
+
+  navigationFeedback(message) {
+    this.announce(message);
+    this.toast.setText(message).setWordWrapWidth(Math.min(600, this.scale.width - 40)).setAlpha(1);
   }
 
   focusAction(index) {
@@ -144,11 +194,11 @@ export class RaceResultsScene extends TitleScene {
     const statusBottom = this.challengeStatus.y + this.challengeStatus.height;
     const buttonTop = (compact ? Math.max(statusBottom, this.summary.y + this.summary.height / 2) : statusBottom) + (narrow ? 7 : 16);
     this.buttons.forEach((button, index) => {
-      button.setScale(narrow ? 0.52 : compact ? 0.6 : 0.7).setPosition(narrow ? 0 : (index - 0.5) * (compact ? 350 : 370),
-        buttonTop + (narrow ? 25 + index * 48 : compact ? 24 : 29));
+      button.setScale(narrow ? 0.64 : compact ? 0.6 : 0.7).setPosition(narrow ? 0 : (index - 0.5) * (compact ? 350 : 370),
+        buttonTop + (narrow ? 26 + index * 56 : compact ? 24 : 29));
     });
     // Measure wrapped text before fitting; children use local scale exactly once.
-    const height = Math.max(this.backButton.y + (narrow ? 28 : 36), this.summary.y + this.summary.height / 2 + 8);
+    const height = Math.max(this.backButton.y + (narrow ? 30 : 36), this.summary.y + this.summary.height / 2 + 8);
     this.content.list.forEach(child => { child.y -= height / 2; });
     this.fitContent(w, h, width, height);
   }

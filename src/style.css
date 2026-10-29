@@ -72,3 +72,36 @@ canvas {
 }
 
 .music-toggle:disabled { color: #8192ab; cursor: default; }
+
+.public-credits {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid #71f6ff40;
+  background: #080f1de6;
+  color: #95e6ee;
+  font: 11px Consolas, "Courier New", monospace;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  touch-action: manipulation;
+}
+
+.public-credits:hover, .public-credits:focus-visible {
+  border-color: #71f6ff;
+  outline: 1px solid #71f6ff;
+  outline-offset: 3px;
+}
+
+@media (max-width: 359px) {
+  .public-credits {
+    max-width: 116px;
+    text-align: center;
+  }
+}

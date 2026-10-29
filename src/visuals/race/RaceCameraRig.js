@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { findNearestTrackPoint } from '../../race/trackMath.js';
-import { DEFAULT_RACE_CAMERA_MODE, RACE_CAMERA_MODES, RACE_CAMERA_SETTINGS } from '../../data/raceCameras.js';
+import { sampleRaceTrack } from '../../race/trackMath.js';
+import { DEFAULT_RACE_CAMERA_MODE, RACE_CAMERA_MODES, RACE_CAMERA_SETTINGS, ZOOM_LABELS } from '../../data/raceCameras.js';
 
 const follow = (rate, dt) => 1 - Math.exp(-rate * dt);
 const angleDelta = angle => Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -11,16 +11,22 @@ const angleDelta = angle => Math.atan2(Math.sin(angle), Math.cos(angle));
 export class RaceCameraRig {
   constructor({ track, vehicleSize, obstacles = [], mode = DEFAULT_RACE_CAMERA_MODE }) {
     this.track = track;
+    if (track && !track.points) this.track = { ...sampleRaceTrack(track), width: track.width };
     this.size = vehicleSize ?? new THREE.Vector3(3, 1.5, 3.25);
     this.obstacles = obstacles;
     this.mode = RACE_CAMERA_MODES[mode] ? mode : DEFAULT_RACE_CAMERA_MODE;
     this.previousMode = this.mode;
+    this.zoomIndex = 0;
+    this.zoomLevel = 0;
+    this.zoomFov = RACE_CAMERA_SETTINGS.chase.presets[0].fov;
+    this.minHorizontalTangent = 0;
     this.camera = new THREE.Camera();
     this.camera.near = 0.15;
     this.camera.far = 600;
     this.isometric = new THREE.OrthographicCamera(-27, 27, 27, -27, 0.1, 600);
     this.chase = new THREE.PerspectiveCamera(RACE_CAMERA_SETTINGS.chase.fov, 1, 0.15, 600);
     this.center = new THREE.Vector3();
+    this.isometricTarget = new THREE.Vector3();
     this.chasePosition = new THREE.Vector3();
     this.chaseTarget = new THREE.Vector3();
     this.desiredPosition = new THREE.Vector3();
@@ -36,6 +42,13 @@ export class RaceCameraRig {
   }
 
   get transitioning() { return this.transitionElapsed < RACE_CAMERA_SETTINGS.transitionSeconds; }
+  get zoomLabel() { return ZOOM_LABELS[this.zoomIndex]; }
+
+  cycleZoom() {
+    if (this.mode !== 'chase' || this.transitioning) return false;
+    this.zoomIndex = (this.zoomIndex + 1) % ZOOM_LABELS.length;
+    return true;
+  }
 
   toggle() {
     // Ignore repeated presses while blending rather than queueing rotations.
@@ -47,17 +60,39 @@ export class RaceCameraRig {
   }
 
   resize(aspect) {
-    const height = RACE_CAMERA_SETTINGS.isometric.viewHeight;
+    this.aspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+    const settings = RACE_CAMERA_SETTINGS.isometric;
+    const height = Math.max(settings.viewHeight, settings.minViewWidth / this.aspect);
+    aspect = this.aspect;
     this.isometric.left = -height * aspect / 2;
     this.isometric.right = height * aspect / 2;
     this.isometric.top = height / 2;
     this.isometric.bottom = -height / 2;
     this.isometric.updateProjectionMatrix();
-    this.chase.aspect = aspect;
-    // Portrait keeps more of the car and near corners in view.
-    this.chase.fov = aspect < 1 ? 70 : RACE_CAMERA_SETTINGS.chase.fov;
-    this.chase.updateProjectionMatrix();
+    this.refreshChaseProjection();
     if (this.initialized) this.compose();
+  }
+
+  refreshChaseProjection() {
+    // Preserve horizontal coverage in portrait instead of cropping the enlarged
+    // car. Landscape retains the preset's vertical FOV.
+    const tangent = Math.max(
+      Math.tan(THREE.MathUtils.degToRad(this.zoomFov / 2)) / Math.min(1, this.aspect),
+      this.minHorizontalTangent / this.aspect);
+    const fov = THREE.MathUtils.radToDeg(2 * Math.atan(tangent));
+    if (this.chase.aspect === this.aspect && this.chase.fov === fov) return;
+    this.chase.aspect = this.aspect;
+    this.chase.fov = fov;
+    this.chase.updateProjectionMatrix();
+  }
+
+  resetAfterRespawn(pose) {
+    // A teleport starts fresh at the selected endpoint, never across the track.
+    this.initialized = false;
+    this.previousMode = this.mode;
+    this.transitionElapsed = RACE_CAMERA_SETTINGS.transitionSeconds;
+    this.zoomLevel = this.zoomIndex;
+    this.update(pose, 0);
   }
 
   update(player, deltaSeconds) {
@@ -72,20 +107,35 @@ export class RaceCameraRig {
       const turn = angleDelta(player.heading - this.heading) * follow(settings.headingResponse, dt);
       this.heading += THREE.MathUtils.clamp(turn, -settings.maxYawRate * dt, settings.maxYawRate * dt);
     }
-    this.isometric.position.copy(this.center).add(this.desiredTarget.set(...RACE_CAMERA_SETTINGS.isometric.offset));
-    this.isometric.lookAt(this.center);
-
     const forwardX = Math.sin(this.heading), forwardZ = Math.cos(this.heading);
-    const distance = Math.max(settings.distance, this.size.z * 2.6);
-    const height = settings.height + this.size.y * 0.7;
-    const lookAhead = settings.lookAhead + Math.min(Math.abs(player.speed ?? 0), 40) * 0.10;
-    this.desiredPosition.set(player.x - forwardX * distance, player.y + height, player.z - forwardZ * distance);
-    this.desiredTarget.set(player.x + forwardX * lookAhead, player.y + this.size.y * 0.45, player.z + forwardZ * lookAhead);
+    const speed = Math.min(Math.abs(player.speed ?? 0), 40);
+    const isoAhead = RACE_CAMERA_SETTINGS.isometric.lookAhead + speed * 0.04;
+    this.isometricTarget.copy(this.center);
+    this.isometricTarget.x += forwardX * isoAhead;
+    this.isometricTarget.z += forwardZ * isoAhead;
+    this.isometric.position.copy(this.isometricTarget).add(this.desiredTarget.set(...RACE_CAMERA_SETTINGS.isometric.offset));
+    this.isometric.lookAt(this.isometricTarget);
 
-    const road = this.track && findNearestTrackPoint(this.track, this.desiredPosition.x, this.desiredPosition.z);
-    if (road && road.distanceSq < (this.track.width / 2 + 3) ** 2) {
-      this.desiredPosition.y = Math.max(this.desiredPosition.y, road.y + settings.groundClearance);
-    }
+    this.zoomLevel = first ? this.zoomIndex : THREE.MathUtils.lerp(this.zoomLevel, this.zoomIndex, follow(settings.zoomFollow, dt));
+    if (Math.abs(this.zoomLevel - this.zoomIndex) < 1e-5) this.zoomLevel = this.zoomIndex;
+    const lower = Math.floor(this.zoomLevel), amount = this.zoomLevel - lower;
+    const a = settings.presets[lower], b = settings.presets[Math.min(lower + 1, settings.presets.length - 1)];
+    const distance = Math.max(THREE.MathUtils.lerp(a.distance, b.distance, amount) * this.size.z, this.size.z * 0.5 + 0.65);
+    const height = Math.max(THREE.MathUtils.lerp(a.height, b.height, amount) * this.size.z + this.size.y * 0.65, this.size.y + 0.45);
+    const lookAhead = THREE.MathUtils.lerp(a.lookAhead, b.lookAhead, amount) * this.size.z + speed * 0.035;
+    const targetHeight = THREE.MathUtils.lerp(a.targetHeight, b.targetHeight, amount) * this.size.y;
+    this.zoomFov = THREE.MathUtils.lerp(a.fov, b.fov, amount);
+    // The rear roof corners are the widest/closest silhouette in chase view.
+    // Reserve 10% horizontal room for them, especially on narrow phone screens.
+    const pitch = Math.atan2(height - targetHeight, distance + lookAhead);
+    const rearDepth = (distance - this.size.z / 2) * Math.cos(pitch)
+      + (height - this.size.y - 0.08) * Math.sin(pitch);
+    this.minHorizontalTangent = this.size.x * 0.55 / Math.max(this.chase.near, rearDepth);
+    this.refreshChaseProjection();
+    this.desiredPosition.set(player.x - forwardX * distance, player.y + height, player.z - forwardZ * distance);
+    this.desiredTarget.set(player.x + forwardX * lookAhead, player.y + targetHeight, player.z + forwardZ * lookAhead);
+
+    this.clearGround(this.desiredPosition);
     if (first) {
       this.chasePosition.copy(this.desiredPosition);
       this.chaseTarget.copy(this.desiredTarget);
@@ -93,15 +143,40 @@ export class RaceCameraRig {
       this.chasePosition.lerp(this.desiredPosition, follow(settings.follow, dt));
       this.chaseTarget.lerp(this.desiredTarget, follow(settings.follow, dt));
     }
-    // Cast from the vehicle's upper body, not the distant look-ahead point.
-    // Contract the boom immediately for safety, then recover smoothly afterward.
-    this.rayOrigin.set(player.x, player.y + Math.max(0.9, this.size.y * 0.7), player.z);
-    if (this.mode === 'chase' || this.transitioning) this.avoidObstacles(this.rayOrigin, this.chasePosition);
+    // A roof-level pivot keeps even a fully contracted boom outside the car.
+    // Resolve after smoothing too: a rising road must not leave the camera below
+    // the floor while it catches up. Recover the boom smoothly after obstacles.
+    this.rayOrigin.set(player.x, player.y + this.size.y + 0.45, player.z);
+    this.clearGround(this.rayOrigin);
+    if (this.mode === 'chase' || this.transitioning) this.constrainPosition(this.chasePosition);
     this.chase.position.copy(this.chasePosition);
     this.chase.lookAt(this.chaseTarget);
     this.initialized = true;
     this.transitionElapsed = Math.min(RACE_CAMERA_SETTINGS.transitionSeconds, this.transitionElapsed + dt);
     this.compose();
+  }
+
+  clearGround(position) {
+    if (!this.track) return;
+    // Only the nearest elevation is needed: reuse sampled points rather than
+    // allocating nearest-point result objects several times per frame.
+    let nearest = null, distanceSq = Infinity;
+    for (const point of this.track.points) {
+      const candidate = (position.x - point.x) ** 2 + (position.z - point.z) ** 2;
+      if (candidate < distanceSq) { nearest = point; distanceSq = candidate; }
+    }
+    if (nearest && distanceSq < (this.track.width / 2 + 3) ** 2) {
+      position.y = Math.max(position.y, nearest.y + RACE_CAMERA_SETTINGS.chase.groundClearance);
+    }
+  }
+
+  constrainPosition(position) {
+    // Never place the near plane in the roof, including after abrupt elevation
+    // changes and obstacle contraction.
+    position.y = Math.max(position.y, this.rayOrigin.y);
+    this.clearGround(position);
+    this.avoidObstacles(this.rayOrigin, position);
+    this.clearGround(position);
   }
 
   avoidObstacles(origin, position) {
@@ -131,6 +206,10 @@ export class RaceCameraRig {
     this.camera.isPerspectiveCamera = !this.camera.isOrthographicCamera;
     this.camera.position.lerpVectors(this.isometric.position, this.chase.position, chaseWeight);
     this.camera.quaternion.slerpQuaternions(this.isometric.quaternion, this.chase.quaternion, chaseWeight);
+    // The chase endpoint keeps its collision-safe boom throughout the blend.
+    // Contracting the output toward the roof would snap to the fixed isometric
+    // endpoint at the end; only enforce terrain clearance on the blended path.
+    if (this.transitioning) this.clearGround(this.camera.position);
     // Normalize homogeneous scale around the focus plane before blending.
     // This avoids an abrupt zoom when orthographic and perspective W differ.
     this.orthoProjection.copy(this.isometric.projectionMatrix);

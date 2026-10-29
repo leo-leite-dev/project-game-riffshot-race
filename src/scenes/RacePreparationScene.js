@@ -1,6 +1,6 @@
 import { GarageScene } from './GarageScene.js';
-import { getSelectedCharacter } from '../data/characters.js';
-import { getSelectedVehicle, VEHICLE_ATTRIBUTES, getVehicleDisplayName } from '../data/vehicles.js';
+import { CHARACTERS, getSelectedCharacter } from '../data/characters.js';
+import { getSelectedVehicle, VEHICLE_ATTRIBUTES, RIVAL_VEHICLE_ID, getVehicleDisplayName } from '../data/vehicles.js';
 import { getRaceState } from '../data/raceState.js';
 import { characterPortrait } from '../visuals/characterPortrait.js';
 import { COLORS, SCENES, text } from '../ui/theme.js';
@@ -20,6 +20,7 @@ export class RacePreparationScene extends GarageScene {
       return;
     }
     this.raceState = getRaceState(this.registry);
+    this.erasingProgress = false;
     this.createGarageShell('RIFFSHOT RACING. Estação de Equipe. Preparação da corrida. Tab ou setas navegam; Enter confirma. Escape volta à seleção do veículo.');
     this.title = text(this, 0, 0, 'ESTAÇÃO DE EQUIPE', 26, COLORS.white, true).setOrigin(0, 0.5);
     this.stationKicker = text(this, 0, 0, 'PIT CONTROL  /  TELEMETRIA ORBITAL', 11, '#71f6ff');
@@ -33,15 +34,15 @@ export class RacePreparationScene extends GarageScene {
     this.rivalFrame = this.add.graphics();
     this.rivalPortrait = createRivalPortrait(this);
     this.rivalTag = text(this, 0, 0, 'RIVAL', 13, '#ff78ae');
-    this.rivalName = text(this, 0, 0, 'EM BREVE', 14, COLORS.muted, true);
+    this.rivalName = text(this, 0, 0, CHARACTERS.find(character => character.id !== this.character.id).name, 14, COLORS.white, true);
     this.rivalPanel.add([this.rivalFrame, this.rivalPortrait, this.rivalTag, this.rivalName]);
     this.createCampaign();
     this.vehicleFrame = this.add.graphics();
-    this.vehicleTitle = text(this, 0, 0, `${getVehicleDisplayName(this.game.garageResources?.source)} / ${this.selection.paint.name}`, 16, this.selection.paint.color, true);
+    this.vehicleTitle = text(this, 0, 0, `${getVehicleDisplayName(this.selection.vehicle)} / ${this.selection.paint.name}`, 16, this.selection.paint.color, true);
     this.rivalVehicle = this.add.container();
     this.rivalVehicleFrame = this.add.graphics();
     this.rivalVehicleTitle = text(this, 0, 0, 'VEÍCULO RIVAL', 13, '#a7b6cb');
-    this.rivalVehicleSoon = text(this, 0, 0, 'EM BREVE', 14, COLORS.muted);
+    this.rivalVehicleSoon = text(this, 0, 0, 'WIDOWMAKER', 12, '#ff78ae');
     this.rivalVehicleShape = this.add.graphics().lineStyle(2, 0x40536c, 0.7);
     this.rivalVehicleShape.strokePoints([{ x: -54, y: 16 }, { x: -46, y: -8 }, { x: -19, y: -24 },
       { x: 23, y: -24 }, { x: 50, y: -4 }, { x: 57, y: 16 }], true);
@@ -52,13 +53,17 @@ export class RacePreparationScene extends GarageScene {
     const statPanel = (heading, keys) => createStatPanel(this, heading, VEHICLE_ATTRIBUTES.filter(item => keys.includes(item.key)), this.selection.vehicle.stats, this.statValues);
     this.motor = statPanel('MOTOR', ['speed', 'acceleration']);
     this.suspension = statPanel('SUSPENSÃO', ['control']);
-    this.armor = statPanel('BLINDAGEM', ['armor']);
+    this.armor = statPanel('RESISTÊNCIA', ['armor']);
+    this.vehicleAbility = text(this, 0, 0, this.selection.vehicle.ability.nitroCharges
+      ? 'NITRO / 2 CARGAS' : this.selection.vehicle.id === 'iron-bastion' ? 'BLINDAGEM REFORÇADA' : 'TRAÇÃO PRECISA',
+    10, '#ffb454', true);
     this.createActions();
     this.content.add([this.title, this.stationKicker, this.pilotPanel, this.rivalPanel, this.campaign, this.vehicleFrame,
-      this.vehicleTitle, this.rivalVehicle, this.motor, this.suspension, this.armor, ...this.modules, this.startButton]);
+      this.vehicleTitle, this.vehicleAbility, this.rivalVehicle, this.motor, this.suspension, this.armor, ...this.modules, this.startButton, this.eraseButton, this.rewardButton]);
     // Keep the base's ready/error feedback; handle an uncaught loader rejection too.
     const loadingLabel = this.loadingLabel;
-    this.mountGarage({ mode: 'preparation', paintId: this.selection.paint.id }).catch(() => {
+    this.mountGarage({ mode: 'preparation', vehicleId: this.selection.vehicle.id,
+      paintId: this.selection.paint.id }).catch(() => {
       if (!this.sys.isActive() || this.loadingLabel !== loadingLabel) return;
       this.loadingLabel?.setText('PREVIEW INDISPONÍVEL');
       this.announce('Preview 3D indisponível. Sua seleção foi preservada.');
@@ -73,7 +78,8 @@ export class RacePreparationScene extends GarageScene {
     this.campaign = this.add.container();
     this.campaignFrame = this.add.graphics();
     this.seasonLabel = text(this, 0, 0, state.attempt.status === 'qualified'
-      ? 'META ATINGIDA / DESAFIO CONCLUÍDO' : `TEMPORADA / TENTATIVA ${state.attempt.number}`, 11, '#ffb454', true).setPadding(0);
+      ? state.rivalRewardChoice ? 'DESAFIO CONCLUÍDO / PRÊMIO RECEBIDO' : 'META ATINGIDA / VOCÊ ESCOLHE QUANDO AVANÇAR'
+      : `TEMPORADA / TENTATIVA ${state.attempt.number}`, 11, '#ffb454', true).setPadding(0);
     this.playerLabel = text(this, 0, 0, 'PLAYER 1', 14, '#71f6ff', true).setPadding(0);
     this.playerName = text(this, 0, 0, this.character.name, 23, COLORS.white, true).setPadding(0);
     this.campaignFields = [
@@ -86,7 +92,10 @@ export class RacePreparationScene extends GarageScene {
     }));
     this.scoreProgress = this.add.graphics();
     this.scoreStatus = text(this, 0, 0, state.attempt.status === 'qualified'
-      ? 'META ATINGIDA / PRÓXIMO DESAFIO EM DESENVOLVIMENTO' : `META SCORE / ${Math.min(100, Math.floor(state.score / state.targetScore * 100))}%`, 10, '#ffb454');
+      ? state.rivalRewardChoice ? 'FASE 2 EM DESENVOLVIMENTO / CARROS E CRÉDITOS PRESERVADOS'
+        : state.racesRun < state.maxRaces ? 'CONTINUE FARMANDO ATÉ A 8ª CORRIDA OU ESCOLHA SEU PRÊMIO'
+          : 'OITO CORRIDAS CONCLUÍDAS / ESCOLHA SEU PRÊMIO'
+      : `META SCORE / ${Math.min(100, Math.floor(state.score / state.targetScore * 100))}%`, 10, '#ffb454');
     this.campaign.add([this.campaignFrame, this.seasonLabel, this.playerLabel, this.playerName,
       this.scoreProgress, this.scoreStatus,
       ...this.campaignFields.flatMap(field => [field.label, field.value])]);
@@ -95,7 +104,38 @@ export class RacePreparationScene extends GarageScene {
   onGarageReady() {
     // The model sits above the panel's opaque background, below its labels.
     this.content.moveTo(this.preview, this.content.getIndex(this.vehicleFrame) + 1);
-    this.vehicleTitle.setText(`${getVehicleDisplayName(this.garageView.resources.source)} / ${this.selection.paint.name}`);
+    this.vehicleTitle.setText(`${getVehicleDisplayName(this.selection.vehicle)} / ${this.selection.paint.name}`);
+    this.mountRivalPreview().catch(() => {
+      // The player's live preview must keep working if this optional thumbnail fails.
+      if (this.alive) this.rivalVehicleShape.setVisible(true);
+    });
+  }
+
+  async mountRivalPreview() {
+    const version = this.loadVersion;
+    await this.garageView.resources.load([RIVAL_VEHICLE_ID]);
+    if (!this.alive || version !== this.loadVersion) return;
+    const world = await this.createGarageWorld(this.garageView.resources,
+      { mode: 'preparation', vehicleId: RIVAL_VEHICLE_ID, paintId: 'inferno' }, version);
+    if (!world) return;
+    try {
+      world.resize(240, 240);
+      world.update(0);
+      const key = 'preparation-rival-preview';
+      const texture = this.textures.createCanvas(key, world.width, world.height);
+      texture.context.drawImage(world.resources.renderer.domElement, 0, 0);
+      texture.refresh();
+      this.rivalPreview = this.add.image(0, 0, key);
+      this.rivalVehicle.addAt(this.rivalPreview, 1);
+      this.rivalVehicleShape.setVisible(false);
+      this.events.once('shutdown', () => { this.rivalPreview = null; this.textures.remove(key); });
+      this.resizeShell();
+    } finally {
+      world.destroy();
+      // Both previews share one renderer; restore the live player's dimensions.
+      this.garageView.resources.renderer.setSize(this.garageView.width, this.garageView.height, false);
+      this.applyPreviewBounds();
+    }
   }
 
   createActions() {
@@ -107,7 +147,7 @@ export class RacePreparationScene extends GarageScene {
       ['SAIR / VOLTAR', 'back', () => this.goTo(SCENES.vehicles)],
     ];
     this.modules = definitions.map(([label, icon, onActivate], index) => new PreparationButton(this, {
-      label, icon, detail: index === 0 ? 'CIRCUITO' : index < 3 ? 'Em breve' : index === 3 ? 'SELEÇÃO' : 'ESC',
+      label, icon, detail: index === 0 ? 'CIRCUITO' : index < 3 ? 'Em breve' : index === 3 ? 'LOJA DE VEÍCULOS' : 'ESC',
       onSelect: () => this.focusAction(index), onActivate,
     }));
     this.backButton = this.modules[4];
@@ -116,19 +156,52 @@ export class RacePreparationScene extends GarageScene {
       onActivate: () => this.startNextRace(),
     });
     this.startButton.detail.setText('CORRIDA');
-    if (this.raceState.attempt.status === 'qualified') {
+    this.eraseButton = new PreparationButton(this, {
+      label: 'APAGAR PROGRESSO', detail: 'RECOMEÇAR DO INÍCIO', icon: 'back',
+      onSelect: () => this.focusAction(6), onActivate: () => this.requestEraseProgress(),
+    });
+    this.rewardButton = new PreparationButton(this, {
+      label: 'PRÓXIMO RIVAL / PRÊMIO', detail: 'WIDOWMAKER OU 12.000 CR', icon: 'vehicle',
+      onSelect: () => this.focusAction(7), onActivate: () => {
+        if (this.game.championship.canClaimRivalReward) this.goTo(SCENES.rivalReward);
+      },
+    });
+    this.rewardButton.setVisible(this.game.championship.canClaimRivalReward);
+    if (this.raceState.attempt.status === 'qualified' && !this.raceState.rivalRewardChoice) {
+      const farming = this.game.championship.canRace;
+      this.startButton.label.setText(farming ? 'CONTINUAR / FARMAR' : 'ESCOLHER PRÊMIO').setFontSize(14);
+      this.startButton.detail.setText(farming ? `ATÉ ${this.raceState.maxRaces} CORRIDAS` : 'RIVAL SUPERADO');
+      this.modules[0].label.setText(farming ? 'PISTA / FARMAR' : 'PRÊMIO DO RIVAL');
+    } else if (this.raceState.rivalRewardChoice) {
       this.modules[0].label.setText('PRÓXIMO RIVAL').setFontSize(12);
-      this.modules[0].detail.setText('Em desenvolvimento');
-      this.modules[0].locked = true;
-      this.startButton.label.setText('DESAFIO CONCLUÍDO').setFontSize(13);
-      this.startButton.detail.setText('EM BREVE');
-      this.startButton.locked = true;
-      this.startButton.setSelected(false);
+      this.modules[0].detail.setText('Fase 2 em desenvolvimento');
+      this.startButton.label.setText('FASE 2 EM DESENVOLVIMENTO').setFontSize(12);
+      this.startButton.detail.setText('PRÊMIO RECEBIDO');
+      this.modules[0].locked = this.startButton.locked = true;
     }
+  }
+
+  requestEraseProgress() {
+    if (this.transitioning || this.erasingProgress) return;
+    this.erasingProgress = true;
+    const confirmed = window.confirm('APAGAR TODO O PROGRESSO?\n\nDinheiro, SCORE, corridas, carros comprados, prêmio do rival, melhorias, histórico, piloto, veículo e pintura serão apagados, incluindo os backups do campeonato.\n\nEsta ação não pode ser desfeita. Deseja voltar ao início com uma carreira nova?');
+    if (!confirmed) {
+      this.erasingProgress = false;
+      this.announce('Exclusão cancelada. Seu progresso foi preservado.');
+      return;
+    }
+    if (!this.game.championship.eraseProgress()) {
+      this.erasingProgress = false;
+      this.toast.setText('NÃO FOI POSSÍVEL APAGAR O SAVE. VEJA O AVISO.').setAlpha(1);
+      return;
+    }
+    this.announce('Progresso apagado. Voltando à abertura.');
+    this.goTo(SCENES.splash);
   }
 
   startNextRace() {
     if (this.game.championship.canRace) this.goTo(SCENES.tracks);
+    else if (this.game.championship.canClaimRivalReward) this.goTo(SCENES.rivalReward);
     else {
       this.announce('Meta de SCORE atingida. Próximo rival em desenvolvimento. Dinheiro e melhorias preservados.');
       this.toastTimer?.remove();
@@ -142,13 +215,14 @@ export class RacePreparationScene extends GarageScene {
 
   focusAction(index) {
     if (this.transitioning) return;
-    this.focusIndex = (index + 6) % 6;
-    [...this.modules, this.startButton].forEach((button, i) => button.setSelected(i === this.focusIndex));
+    const count = this.rewardButton.visible ? 8 : 7;
+    this.focusIndex = (index + count) % count;
+    [...this.modules, this.startButton, this.eraseButton, this.rewardButton].forEach((button, i) => button.setSelected(i === this.focusIndex));
   }
 
   handleKey(event) {
     if (event.key === 'Escape') this.goTo(SCENES.vehicles);
-    else if (event.key === 'Enter' || event.key === ' ') [...this.modules, this.startButton][this.focusIndex].onActivate();
+    else if (event.key === 'Enter' || event.key === ' ') [...this.modules, this.startButton, this.eraseButton, this.rewardButton][this.focusIndex].onActivate();
     else {
       const step = event.key === 'Tab' ? (event.shiftKey ? -1 : 1)
         : { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -1, ArrowDown: 1 }[event.key];
@@ -160,7 +234,7 @@ export class RacePreparationScene extends GarageScene {
     const narrow = w < 700 && w < h;
     const compact = !narrow && h < 600;
     const designW = narrow ? 360 : compact ? 1000 : 1200;
-    const designH = narrow ? 550 : compact ? 330 : 700;
+    const designH = narrow ? (this.rewardButton.visible ? 760 : 660) : compact ? 330 : 700;
     this.content.setPosition(w / 2, (h + 6) / 2).setScale(Math.min((w - 24) / designW, (h - 114) / designH, 1.15));
     const titleY = narrow ? -258 : compact ? -151 : -319;
     this.title.setFontSize(narrow ? 19 : compact ? 20 : 25);
@@ -168,7 +242,7 @@ export class RacePreparationScene extends GarageScene {
     this.stationKicker.setPosition(narrow ? 0 : compact ? 370 : 510, titleY).setFontSize(narrow ? 9 : 11).setVisible(!narrow);
     const portraitY = narrow ? -207 : compact ? -84 : -174;
     const portraitW = narrow ? 104 : compact ? 142 : 180;
-    const portraitH = narrow ? 76 : compact ? 104 : 178;
+    const portraitH = narrow ? 68 : compact ? 104 : 178;
     const pilotX = narrow ? -126 : compact ? -414 : -500;
     const rivalX = narrow ? 128 : compact ? 430 : 495;
     this.layoutPortrait(this.pilotPanel, this.pilotFrame, this.pilotPortrait, this.pilotTag, this.pilotName,
@@ -176,17 +250,18 @@ export class RacePreparationScene extends GarageScene {
     this.layoutPortrait(this.rivalPanel, this.rivalFrame, this.rivalPortrait, this.rivalTag, this.rivalName,
       rivalX, portraitY - (narrow ? 4 : 12), portraitW, portraitH, true);
     const campaignX = narrow ? 0 : compact ? -12 : -10;
-    const campaignY = narrow ? -119 : compact ? -84 : -172;
+    const campaignY = narrow ? -106 : compact ? -84 : -172;
     const campaignW = narrow ? 360 : compact ? 640 : 710;
-    const campaignH = narrow ? 126 : compact ? 120 : 190;
+    const campaignH = narrow ? 108 : compact ? 120 : 190;
     this.layoutCampaign(narrow, compact, campaignX, campaignY, campaignW, campaignH);
     const vehicleX = narrow ? -52 : compact ? -104 : -125;
-    const vehicleY = narrow ? -8 : compact ? 37 : 60;
+    const vehicleY = narrow ? 4 : compact ? 37 : 60;
     const vehicleW = narrow ? 244 : compact ? 350 : 500;
-    const vehicleH = narrow ? 104 : compact ? 126 : 230;
+    const vehicleH = narrow ? 96 : compact ? 126 : 230;
     this.vehicleFrame.setPosition(vehicleX, vehicleY);
     preparationFrame(this.vehicleFrame, vehicleW, vehicleH);
     this.vehicleTitle.setPosition(vehicleX, vehicleY - vehicleH / 2 + 12).setFontSize(narrow ? 12 : compact ? 13 : 16);
+    this.vehicleAbility.setPosition(vehicleX, vehicleY + vehicleH / 2 - 30).setFontSize(narrow ? 8 : compact ? 9 : 10);
     // Local content coordinates; the base owns the offscreen renderer and lifecycle.
     this.setPreviewBounds(vehicleX, vehicleY + 1, vehicleW - 12, vehicleH - 44);
     this.loadingLabel?.setOrigin(0.5).setPosition(vehicleX, vehicleY + vehicleH / 2 - 10).setFontSize(narrow ? 10 : compact ? 11 : 13);
@@ -197,20 +272,28 @@ export class RacePreparationScene extends GarageScene {
     this.rivalVehicleTitle.setPosition(0, -vehicleH / 2 + 12).setFontSize(narrow ? 10 : 13);
     this.rivalVehicleSoon.setPosition(0, vehicleH / 2 - 13).setFontSize(narrow ? 12 : 14);
     this.rivalVehicleShape.setScale(narrow ? 0.6 : compact ? 0.65 : 1.5);
-    this.motor.arrange(narrow ? -92 : compact ? -414 : -500, narrow ? 81 : compact ? 44 : 54,
+    this.rivalPreview?.setPosition(0, 3).setDisplaySize(rivalW - 12, vehicleH - 55);
+    this.motor.arrange(narrow ? -92 : compact ? -414 : -500, narrow ? 107 : compact ? 44 : 54,
       narrow ? 176 : compact ? 164 : 180, narrow ? 92 : compact ? 118 : 220);
-    this.suspension.arrange(narrow ? 94 : compact ? 382 : 485, narrow ? 57 : compact ? -12 : -10,
+    this.suspension.arrange(narrow ? 94 : compact ? 382 : 485, narrow ? 84 : compact ? -12 : -10,
       narrow ? 172 : compact ? 160 : 180, narrow ? 44 : compact ? 58 : 84);
-    this.armor.arrange(narrow ? 94 : compact ? 382 : 485, narrow ? 105 : compact ? 54 : 90,
+    this.armor.arrange(narrow ? 94 : compact ? 382 : 485, narrow ? 132 : compact ? 54 : 90,
       narrow ? 172 : compact ? 160 : 180, narrow ? 44 : compact ? 58 : 84);
     this.modules.forEach((button, i) => {
-      if (narrow) button.arrange(i < 3 ? (i - 1) * 122 : (i - 3.5) * 184, i < 3 ? 162 : 218, i < 3 ? 116 : 176, i < 3 ? 58 : 42);
+      if (narrow) button.arrange(i < 3 ? (i - 1) * 122 : (i - 3.5) * 184, i < 3 ? 191 : 250, i < 3 ? 116 : 176, i < 3 ? 58 : 42);
       else button.arrange((i - 2) * (compact ? 178 : 232), compact ? 104 : 232, compact ? 164 : 220, compact ? 50 : 68);
     });
-    const startY = narrow ? 258 : compact ? 152 : 296;
+    const startY = narrow ? 292 : compact ? 152 : 296;
     this.startButton.arrange(narrow ? -70 : 0, startY, narrow ? 220 : compact ? 340 : 400, narrow ? 34 : compact ? 38 : 46, true);
+    this.eraseButton.label.setText(narrow ? 'APAGAR\nPROGRESSO' : 'APAGAR PROGRESSO');
+    this.eraseButton.detail.setText(narrow ? '' : 'RECOMEÇAR DO INÍCIO');
+    this.eraseButton.arrange(narrow ? 114 : compact ? -360 : -390, startY,
+      narrow ? 128 : compact ? 240 : 270, narrow ? 34 : compact ? 38 : 46);
+    this.rewardButton.arrange(narrow ? 0 : compact ? 360 : 390, narrow ? 344 : startY,
+      narrow ? 360 : compact ? 260 : 340, narrow ? 44 : compact ? 38 : 46);
     // Reserve feedback space beside START, including on portrait phones.
-    this.toast.setPosition(w / 2 + (narrow ? 112 : 350) * this.content.scaleX, this.content.y + startY * this.content.scaleY);
+    this.toast.setPosition(w / 2 + (narrow ? 0 : 350) * this.content.scaleX,
+      narrow ? h - 66 : this.content.y + startY * this.content.scaleY);
     this.toast.setFontSize(14).setScale(this.content.scaleX);
   }
 

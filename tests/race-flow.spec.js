@@ -1,9 +1,16 @@
 import { CHARACTERS } from '../src/data/characters.js';
 import { RACE_TRACKS } from '../src/data/raceTracks.js';
+import { createChampionshipState } from '../src/championship/championshipState.js';
+import { CHAMPIONSHIP_SAVE_KEY } from '../src/championship/championshipStorage.js';
 import { test, expect, state, waitScene, openMenu, clickObject } from './helpers.js';
 
 test('dificuldade → piloto → garagem → pista → corrida arcade → resultado, preservando a campanha', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
+  const seed = { ...createChampionshipState({ id: 'race-flow-career', attemptId: 'race-flow-attempt' }),
+    ownedVehicleIds: ['rift-blaze'] };
+  await page.addInitScript(({ key, seed }) => {
+    if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(seed));
+  }, { key: CHAMPIONSHIP_SAVE_KEY, seed });
   await openMenu(page);
   await page.keyboard.press('Enter');
   await waitScene(page, 'DifficultySelection');
@@ -19,6 +26,7 @@ test('dificuldade → piloto → garagem → pista → corrida arcade → result
     const scene = game.scene.getScene('VehicleSelection');
     return scene.loadingLabel.text.includes('OFICINA ONLINE') && !!scene.garageView;
   }), { timeout: 15_000 }).toBe(true);
+  await page.keyboard.press('Enter');
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await state(page)).key, { timeout: 20_000 }).toBe('RacePreparation');
   await waitScene(page, 'RacePreparation');
@@ -61,7 +69,7 @@ test('dificuldade → piloto → garagem → pista → corrida arcade → result
       mode: scene.garageView.cameraRig.mode, texture: !!scene.previewTexture,
     };
   });
-  expect(initial).toMatchObject({ participants: 4, difficulty: 'hard', track: assigned.id, model: 'air-blade-local' });
+  expect(initial).toMatchObject({ participants: 4, difficulty: 'hard', track: assigned.id, model: 'vehicle-glb' });
   expect(initial).toMatchObject({ presentation: 'direct', copies: 0, texture: false, mode: 'chase' });
   await expect(page.locator('canvas')).toHaveCount(2);
   await expect(page.locator('.race-three-canvas')).toHaveCSS('pointer-events', 'none');
@@ -72,9 +80,72 @@ test('dificuldade → piloto → garagem → pista → corrida arcade → result
     const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
     return game.scene.getScene('Race').simulation.participants[0].speed;
   });
+  await page.keyboard.press('F2');
+  await expect.poll(() => page.evaluate(async () => {
+    const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
+    const scene = game.scene.getScene('Race');
+    return scene.diagnosticsText.visible && scene.diagnosticsText.text.includes('Render');
+  }), { message: 'F2 mostra métricas somente no build de desenvolvimento' }).toBe(true);
+  await page.keyboard.press('F3');
+  const frozenCamera = await page.evaluate(async () => {
+    const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
+    const scene = game.scene.getScene('Race');
+    return { frozen: scene.garageView.cameraFrozen, cameraUpdates: scene.garageView.cameraUpdates,
+      position: scene.garageView.camera.position.toArray(),
+      vehicle: scene.garageView.vehicles[0].position.toArray() };
+  });
+  expect(frozenCamera.frozen).toBe(true);
   await page.keyboard.down('w');
   await page.waitForTimeout(450);
   await page.keyboard.up('w');
+  const frozenCameraAfterDrive = await page.evaluate(async () => {
+    const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
+    const scene = game.scene.getScene('Race');
+    return { frozen: scene.garageView.cameraFrozen, cameraUpdates: scene.garageView.cameraUpdates,
+      camera: scene.garageView.camera.position.toArray(),
+      vehicle: scene.garageView.vehicles[0].position.toArray(), speed: scene.simulation.participants[0].speed,
+      steps: scene.simulation.lastAdvanceSteps, delta: scene.simulation.lastAdvanceDeltaMs };
+  });
+  expect(frozenCameraAfterDrive.frozen).toBe(true);
+  expect(frozenCameraAfterDrive.cameraUpdates).toBe(frozenCamera.cameraUpdates);
+  expect(frozenCameraAfterDrive.camera).toEqual(frozenCamera.position);
+  expect(Math.hypot(...frozenCameraAfterDrive.vehicle.map((value, index) => value - frozenCamera.vehicle[index]))).toBeGreaterThan(0.1);
+  expect(frozenCameraAfterDrive.speed).toBeGreaterThan(beforeDrive);
+  expect(frozenCameraAfterDrive.steps).toBeGreaterThan(0);
+  expect(frozenCameraAfterDrive.delta).toBeGreaterThan(0);
+  await page.keyboard.press('Shift+F3');
+  await expect.poll(() => page.evaluate(async () => {
+    const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
+    return game.scene.getScene('Race').garageView.cameraUpdates;
+  })).toBeGreaterThan(frozenCamera.cameraUpdates);
+  await page.keyboard.press('F4');
+  expect(await page.evaluate(async () => {
+    const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
+    return game.scene.getScene('Race').simulation.vehicleContactsEnabled;
+  })).toBe(false);
+  await page.keyboard.press('Shift+F4');
+  expect(await page.evaluate(async () => {
+    const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
+    return game.scene.getScene('Race').simulation.vehicleContactsEnabled;
+  })).toBe(true);
+  const countersBefore = await page.evaluate(async () => {
+    const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
+    const scene = game.scene.getScene('Race');
+    return { advances: scene.simulation.diagnosticAdvanceCalls,
+      poses: scene.garageView.participantPoseUpdates, renders: scene.garageView.renderFrames };
+  });
+  await page.waitForTimeout(350);
+  const countersAfter = await page.evaluate(async () => {
+    const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
+    const scene = game.scene.getScene('Race');
+    return { advances: scene.simulation.diagnosticAdvanceCalls,
+      poses: scene.garageView.participantPoseUpdates, renders: scene.garageView.renderFrames };
+  });
+  const advanceDelta = countersAfter.advances - countersBefore.advances;
+  expect(advanceDelta).toBeGreaterThan(0);
+  expect(countersAfter.poses - countersBefore.poses).toBe(advanceDelta);
+  expect(countersAfter.renders - countersBefore.renders).toBe(advanceDelta);
+  await page.keyboard.press('F2');
   const afterDrive = await page.evaluate(async () => {
     const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
     return game.scene.getScene('Race').simulation.participants[0].speed;
@@ -85,7 +156,7 @@ test('dificuldade → piloto → garagem → pista → corrida arcade → result
   await page.keyboard.press('c');
   await expect.poll(() => page.evaluate(async () => {
     const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
-    return game.registry.get('raceCameraMode');
+    return game.scene.getScene('Race').garageView.cameraRig.mode;
   })).toBe('isometric');
   await expect.poll(() => page.evaluate(async () => {
     const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
@@ -144,7 +215,8 @@ test('dificuldade → piloto → garagem → pista → corrida arcade → result
     // A fresh real race validates completion separately from manual input.
     const { RaceSimulation } = await import('/src/race/RaceSimulation.js');
     const fresh = new RaceSimulation({ track: scene.track, difficulty: scene.difficulty.id,
-      player: scene.character, vehicleStats: scene.vehicleSelection.vehicle.stats,
+      player: scene.character, playerVehicle: scene.vehicleSelection.vehicle,
+      vehicleStats: scene.vehicleSelection.vehicle.stats,
       playerPaint: scene.vehicleSelection.paint.color, botPilots: scene.createOpponents() }).start();
     scene.simulationStarted = true;
     for (let frame = 0; frame < 120 * 60 && fresh.status !== 'finished'; frame += 1) {
@@ -246,9 +318,7 @@ test('dificuldade → piloto → garagem → pista → corrida arcade → result
     return !!game.scene.getScene('VehicleSelection').previewTexture;
   })).toBe(true);
   await page.keyboard.press('Escape');
-  await waitScene(page, 'CharacterSelection');
-  await page.keyboard.press('Escape');
-  await waitScene(page, 'MainMenu');
+  await waitScene(page, 'RacePreparation');
   expect((await state(page)).keyboardListeners).toBe(1);
   await expect(page.locator('canvas')).toHaveCount(1);
 });

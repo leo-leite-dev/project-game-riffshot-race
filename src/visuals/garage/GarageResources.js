@@ -1,11 +1,10 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { VEHICLE } from '../../data/vehicles.js';
+import { VEHICLE, VEHICLES, getVehicleById } from '../../data/vehicles.js';
+import { VehicleModelCache } from '../vehicles/loadVehicleModels.js';
 
-// One resource owner per game: no animation loop and one local GLB request.
-// The race may borrow the shared canvas for direct DOM presentation.
+// The game owns one renderer and cached GLB templates. Geometry/textures are
+// shared; procedural vehicles remain the safe fallback for individual failures.
 export class GarageResources {
   constructor(game) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
@@ -18,140 +17,225 @@ export class GarageResources {
     this.environment = generator.fromScene(environmentScene, 0.04);
     environmentScene.dispose();
     generator.dispose();
-    this.loads = 0;
+    this.models = new Map();
+    this.sharedGeometries = new Set();
+    this.sharedMaterials = new Set();
     this.promise = null;
     this.disposed = false;
+    this.source = 'procedural';
+    this.modelFailures = [];
+    this.vehicleModels = new VehicleModelCache({
+      onFailure: (asset, error) => this.recordModelFailure(asset, error),
+    });
     game.events.once('destroy', () => this.destroy());
   }
 
-  load() {
-    if (!this.promise) {
-      this.promise = (import.meta.env.DEV ? this.loadLocalModel() : Promise.resolve(null))
-        .catch(() => null)
-        .then(gltf => {
-          // The Air Blade is a local-only development asset. Production builds
-          // never request it; they always use this original procedural vehicle.
-          this.model = gltf ?? this.createOriginalModel();
-          this.source = gltf ? 'air-blade-local' : 'original';
-          if (this.disposed) { this.releaseModel(); throw new Error('Jogo encerrado'); }
-          return this.model;
-        }).catch(error => { this.promise = null; throw error; });
+  load(vehicleIds = VEHICLES.map(vehicle => vehicle.id)) {
+    // Cache promises per canonical model, rather than freezing the first subset.
+    // Existing load() callers still load all; later subsets can extend the cache.
+    const vehicles = [...new Set(vehicleIds)].map(id => getVehicleById(id)).filter(Boolean);
+    const loading = (async () => {
+      await Promise.all(vehicles.map(vehicle => this.vehicleModels.load(vehicle.modelFile)));
+      if (this.disposed) return this;
+      this.source = this.vehicleModels.templates.size ? 'vehicle-glb' : 'procedural-fallback';
+      if (import.meta.env?.DEV && new URLSearchParams(window.location.search).get('localRiftBlaze') === '1') {
+        if (this.experimentalPromise) { await this.experimentalPromise; return this; }
+        this.experimentalPromise = this.loadExperimental();
+        await this.experimentalPromise;
+      }
+      return this;
+    })();
+    this.promise = loading;
+    return loading;
+  }
+
+  async loadExperimental() {
+    this.experimentalStatus = 'loading';
+    try {
+      const { loadLocalRiftBlaze } = await import('../vehicles/loadLocalRiftBlaze.js');
+      const template = await loadLocalRiftBlaze();
+      if (this.disposed) { template.destroy(); return this; }
+      this.experimentalTemplate = template;
+      this.experimentalStatus = 'ready';
+    } catch (_error) {
+      this.experimentalStatus = 'fallback';
+      // Expected local-file failures must never block the official garage.
     }
-    return this.promise;
+    return this;
   }
 
-  async loadLocalModel() {
-    this.loads += 1;
-    return new GLTFLoader().loadAsync(VEHICLE.modelUrl);
-  }
-
-  createOriginalModel() {
-    const scene = new THREE.Group();
-    const painted = new THREE.MeshPhysicalMaterial({
-      name: VEHICLE.paintMaterial, color: 0xffffff, metalness: 0.78,
-      roughness: 0.28, clearcoat: 0.85, clearcoatRoughness: 0.18,
+  get metrics() {
+    return Object.freeze({ source: this.source,
+      models: Object.freeze([...this.vehicleModels.templates.values()].map(template => Object.freeze({
+        modelFile: template.asset.fileName, fileBytes: template.fileBytes ?? null,
+        loadMs: template.loadMs ?? null, ...template.metrics,
+      }))),
+      failures: Object.freeze([...this.modelFailures]),
     });
-    const chassis = new THREE.MeshStandardMaterial({ color: 0x202d3b, metalness: 0.8, roughness: 0.38 });
-    const glass = new THREE.MeshPhysicalMaterial({ color: 0x162a42, metalness: 0.48, roughness: 0.2, clearcoat: 0.9 });
-    const tire = new THREE.MeshStandardMaterial({ color: 0x11151c, roughness: 0.82 });
-    const alloy = new THREE.MeshStandardMaterial({ color: 0x9ab4c9, metalness: 0.9, roughness: 0.24 });
-    const lamp = new THREE.MeshStandardMaterial({ color: 0xbafaff, emissive: 0x71f6ff, emissiveIntensity: 2.2 });
-    const add = (geometry, material, position, rotation = null, scale = null) => {
-      const mesh = new THREE.Mesh(geometry, material);
+  }
+
+  sharedMaterial(material) {
+    this.sharedMaterials.add(material);
+    return material;
+  }
+
+  recordModelFailure(asset, error) {
+    const url = asset?.url ?? null;
+    if (this.modelFailures.some(failure => failure.url === url)) return;
+    const failure = Object.freeze({ source: 'vehicle-glb', url, modelFile: asset?.fileName ?? null,
+      reason: error?.message ?? 'Falha desconhecida no modelo GLB.', fallback: 'procedural' });
+    this.modelFailures.push(failure);
+    console.warn('[vehicle-glb:fallback]', failure.modelFile, failure.reason);
+  }
+
+  sharedGeometry(geometry) {
+    this.sharedGeometries.add(geometry);
+    return geometry;
+  }
+
+  buildModel(vehicle) {
+    const design = vehicle.design;
+    const scene = new THREE.Group();
+    const paint = this.sharedMaterial(new THREE.MeshPhysicalMaterial({
+      name: 'ProjectVehiclePaint', color: 0xffffff, metalness: 0.78,
+      roughness: 0.28, clearcoat: 0.85, clearcoatRoughness: 0.18,
+    }));
+    const chassis = this.sharedMaterial(new THREE.MeshStandardMaterial({ color: 0x202d3b, metalness: 0.8, roughness: 0.38 }));
+    const glass = this.sharedMaterial(new THREE.MeshPhysicalMaterial({ color: 0x162a42, metalness: 0.48, roughness: 0.2, clearcoat: 0.9 }));
+    const tire = this.sharedMaterial(new THREE.MeshStandardMaterial({ color: 0x11151c, roughness: 0.82 }));
+    const alloy = this.sharedMaterial(new THREE.MeshStandardMaterial({ color: 0x9ab4c9, metalness: 0.9, roughness: 0.24 }));
+    const lamp = this.sharedMaterial(new THREE.MeshStandardMaterial({ color: 0xbafaff, emissive: 0x71f6ff, emissiveIntensity: 2.2 }));
+    const add = (geometry, material, position, rotation = null, paintable = false) => {
+      const mesh = new THREE.Mesh(this.sharedGeometry(geometry), material);
       mesh.position.set(...position);
       if (rotation) mesh.rotation.set(...rotation);
-      if (scale) mesh.scale.set(...scale);
+      if (paintable) mesh.userData.paintable = true;
       scene.add(mesh);
       return mesh;
     };
+    const box = (size, position, material, rotation = null, paintable = false) =>
+      add(new THREE.BoxGeometry(...size), material, position, rotation, paintable);
+    const { width, length, height, wheelbase, body } = design;
 
-    // Original low-poly electric rally coupe made from project-owned geometry:
-    // tapered nose, armored fenders, canopy, visible mechanical wheels and lamps.
-    add(new THREE.BoxGeometry(1.65, 0.35, 2.25), painted, [0, 0.68, 0]);
-    add(new THREE.ConeGeometry(0.84, 1.1, 6), painted, [0, 0.72, 1.38], [Math.PI / 2, 0, 0], [1, 0.48, 1]);
-    add(new THREE.BoxGeometry(1.98, 0.32, 0.62), painted, [0, 0.65, -1.18]);
-    add(new THREE.SphereGeometry(0.68, 12, 8), glass, [0, 1.04, -0.08], null, [0.78, 0.48, 1.05]);
-    add(new THREE.BoxGeometry(1.98, 0.12, 0.12), chassis, [0, 0.43, 0]);
-    add(new THREE.BoxGeometry(1.8, 0.1, 0.46), chassis, [0, 0.98, -1.42]);
-    add(new THREE.BoxGeometry(0.1, 0.38, 0.08), chassis, [-0.72, 0.9, -1.42]);
-    add(new THREE.BoxGeometry(0.1, 0.38, 0.08), chassis, [0.72, 0.9, -1.42]);
-    for (const x of [-0.92, 0.92]) {
-      for (const z of [-0.9, 0.95]) {
-        add(new THREE.CylinderGeometry(0.43, 0.43, 0.28, 16), tire, [x, 0.43, z], [0, 0, Math.PI / 2]);
-        add(new THREE.CylinderGeometry(0.23, 0.23, 0.3, 12), alloy, [x * 1.01, 0.43, z], [0, 0, Math.PI / 2]);
+    if (body === 'coupe') {
+      box([width, height, length * 0.58], [0, 0.67, -0.02], paint, null, true);
+      add(new THREE.ConeGeometry(width * 0.46, length * 0.43, 6), paint,
+        [0, 0.69, length * 0.35], [Math.PI / 2, 0, 0], true);
+      box([width * 1.16, 0.34, 0.35], [0, 0.64, -length * 0.42], paint, null, true);
+      add(new THREE.SphereGeometry(width * 0.39, 12, 8), glass,
+        [0, 1.02, -0.08], [0, 0, 0]);
+      box([width * 1.16, 0.1, 0.42], [0, 1.0, -length * 0.48], chassis);
+      for (const side of [-1, 1]) box([0.24, 0.28, 1.1], [side * width * 0.54, 0.58, -0.02], paint, null, true);
+    } else if (body === 'streamliner') {
+      box([width, height, length * 0.62], [0, 0.58, -0.03], paint, null, true);
+      add(new THREE.ConeGeometry(width * 0.43, length * 0.44, 5), paint,
+        [0, 0.59, length * 0.34], [Math.PI / 2, 0, 0], true);
+      add(new THREE.SphereGeometry(width * 0.34, 12, 8), glass,
+        [0, 0.85, -0.12], [0, 0, 0]);
+      for (const side of [-1, 1]) {
+        box([0.14, 0.22, length * 0.62], [side * width * 0.56, 0.56, -0.04], chassis);
+        box([0.08, 0.6, 0.12], [side * width * 0.5, 0.86, -length * 0.43], paint,
+          [side * -0.12, 0, side * 0.08], true);
       }
-    }
-    for (const x of [-0.54, 0.54]) {
-      add(new THREE.BoxGeometry(0.34, 0.1, 0.1), lamp, [x, 0.78, 1.93]);
-      add(new THREE.BoxGeometry(0.1, 0.12, 0.08), lamp, [x, 0.72, -1.51]);
+      box([width * 0.8, 0.1, 0.36], [0, 0.91, -length * 0.43], paint, null, true);
+    } else {
+      box([width, height, length * 0.68], [0, 0.79, -0.03], paint, null, true);
+      box([width * 0.84, height * 0.7, length * 0.34], [0, 1.3, -0.12], chassis);
+      box([width * 1.12, 0.45, 0.38], [0, 0.67, length * 0.49], chassis);
+      box([width * 1.06, 0.24, 0.28], [0, 0.86, length * 0.5], paint, null, true);
+      for (const side of [-1, 1]) {
+        box([0.25, height * 0.66, length * 0.62], [side * width * 0.51, 0.88, -0.02], paint, null, true);
+        box([0.13, 0.14, 0.4], [side * width * 0.48, 1.02, -length * 0.49], lamp);
+      }
+      box([0.18, 0.18, 0.9], [0, 1.42, -0.08], chassis);
     }
 
-    this.originalMaterials = [painted, chassis, glass, tire, alloy, lamp];
-    this.originalGeometries = new Set();
-    scene.traverse(object => { if (object.geometry) this.originalGeometries.add(object.geometry); });
-    return { scene, animations: [], parser: null, asset: { generator: 'RIFFSHOT RACING procedural vehicle' } };
+    const wheelX = width * 0.48;
+    for (const x of [-wheelX, wheelX]) for (const z of [-wheelbase, wheelbase]) {
+      add(new THREE.CylinderGeometry(0.38, 0.38, 0.28, 16), tire,
+        [x, 0.42, z], [0, 0, Math.PI / 2]);
+      add(new THREE.CylinderGeometry(0.21, 0.21, 0.3, 12), alloy,
+        [x * 1.01, 0.42, z], [0, 0, Math.PI / 2]);
+    }
+    for (const x of [-width * 0.3, width * 0.3]) {
+      box([0.32, 0.1, 0.1], [x, 0.78, length * 0.49], lamp);
+      box([0.1, 0.12, 0.08], [x, 0.72, -length * 0.5], lamp);
+    }
+    return scene;
   }
 
-  createVehicle(paint) {
-    // SkeletonUtils is necessary: the supplied GLB has skinned wheel meshes.
-    const root = clone(this.model.scene);
+  getModel(vehicle) {
+    if (!this.models.has(vehicle.id)) this.models.set(vehicle.id, this.buildModel(vehicle));
+    return this.models.get(vehicle.id);
+  }
+
+  createVehicle(vehicleId, paint, { experimental = false } = {}) {
+    // Accept the prior paint-only signature as a small compatibility bridge.
+    if (vehicleId && typeof vehicleId === 'object' && !paint) {
+      paint = vehicleId;
+      vehicleId = VEHICLE.id;
+    }
+    const model = getVehicleById(vehicleId) ?? VEHICLE;
+    if (!paint?.color || !paint?.id) throw new TypeError('Pintura de veículo inválida.');
+    if (experimental && model.id === 'rift-blaze' && this.experimentalStatus === 'ready') {
+      let vehicle;
+      try {
+        vehicle = this.experimentalTemplate.create(paint);
+        vehicle.userData.visualAdapter = this.experimentalTemplate.createAdapter(vehicle);
+        return vehicle;
+      } catch (_error) {
+        vehicle?.userData.visualAdapter?.destroy();
+        for (const material of vehicle?.userData.ownedMaterials ?? []) material.dispose();
+        this.experimentalStatus = 'fallback';
+      }
+    }
+    const template = this.vehicleModels.get(model.modelFile);
+    if (template) {
+      try { return template.create(model.id, paint); }
+      catch (error) { this.recordModelFailure(template.asset, error); }
+    }
+    const root = this.getModel(model).clone(true);
     const ownedMaterials = [];
     root.traverse(object => {
-      if (!object.isMesh) return;
-      const recolor = material => {
-        if (material.name !== VEHICLE.paintMaterial) return material;
-        const independent = material.clone();
-        independent.color.set(paint.color);
-        ownedMaterials.push(independent);
-        return independent;
-      };
-      object.material = Array.isArray(object.material) ? object.material.map(recolor) : recolor(object.material);
+      if (!object.isMesh || !object.userData.paintable) return;
+      const material = object.material.clone();
+      material.color.set(paint.color);
+      object.material = material;
+      ownedMaterials.push(material);
     });
-    if (!ownedMaterials.length) throw new Error('Material de pintura não encontrado no modelo');
+    if (!ownedMaterials.length) throw new Error(`Modelo procedural sem peças pintáveis: ${model.id}`);
     root.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(root);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
+    const bounds = new THREE.Box3().setFromObject(root);
+    const size = bounds.getSize(new THREE.Vector3());
+    const center = bounds.getCenter(new THREE.Vector3());
     const scale = 3.25 / Math.max(size.x, size.z);
     const normalization = new THREE.Group();
     normalization.scale.setScalar(scale);
-    root.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
+    root.position.sub(new THREE.Vector3(center.x, bounds.min.y, center.z));
     normalization.add(root);
     const vehicle = new THREE.Group();
     vehicle.add(normalization);
-    vehicle.userData = { paintId: paint.id, ownedMaterials, size: size.multiplyScalar(scale) };
+    vehicle.userData = { source: 'procedural-fallback', vehicleId: model.id, paintId: paint.id,
+      ownedMaterials, paintMaterials: ownedMaterials, size: size.multiplyScalar(scale) };
     return vehicle;
   }
 
-  releaseModel() {
-    if (!this.model) return;
-    if (this.source === 'original') {
-      for (const geometry of this.originalGeometries ?? []) geometry.dispose();
-      for (const material of this.originalMaterials ?? []) material.dispose();
-      this.originalGeometries?.clear();
-      this.originalMaterials = null;
-      this.model = null;
-      return;
-    }
-    const geometries = new Set(), materials = new Set(), textures = new Set();
-    this.model.scene.traverse(object => {
-      if (object.geometry) geometries.add(object.geometry);
-      if (object.material) for (const material of [object.material].flat()) materials.add(material);
-    });
-    for (const material of materials) {
-      for (const value of Object.values(material)) if (value?.isTexture) textures.add(value);
-      material.dispose();
-    }
-    for (const geometry of geometries) geometry.dispose();
-    for (const texture of textures) { texture.dispose(); texture.source.data?.close?.(); }
-    this.model.scene.traverse(object => object.skeleton?.dispose());
-    this.model = null;
+  paintVehicle(vehicle, paint) {
+    for (const material of vehicle.userData.paintMaterials ?? vehicle.userData.ownedMaterials) material.color.set(paint.color);
+    vehicle.userData.paintId = paint.id;
   }
 
   destroy() {
     if (this.disposed) return;
     this.disposed = true;
-    this.releaseModel();
+    this.vehicleModels.destroy();
+    this.experimentalTemplate?.destroy();
+    for (const model of this.models.values()) model.clear();
+    this.models.clear();
+    for (const geometry of this.sharedGeometries) geometry.dispose();
+    for (const material of this.sharedMaterials) material.dispose();
+    this.sharedGeometries.clear();
+    this.sharedMaterials.clear();
     this.environment.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss();

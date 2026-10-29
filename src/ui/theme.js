@@ -22,6 +22,7 @@ export const SCENES = {
   tracks: 'RaceTrackSelection',
   race: 'Race',
   results: 'RaceResults',
+  rivalReward: 'RivalReward',
 };
 
 export function text(scene, x, y, value, size = 16, color = COLORS.white, display = false) {

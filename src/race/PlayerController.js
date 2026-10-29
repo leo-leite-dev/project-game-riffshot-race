@@ -22,6 +22,7 @@ export function readVehicleControls(keys, vehicle) {
     // in Three's Y-up, right-handed world. Bots keep their own geometric yaw.
     steer: (isDown(keys, 'A', 'LEFT') ? 1 : 0) - (isDown(keys, 'D', 'RIGHT') ? 1 : 0),
     handbrake: isDown(keys, 'SPACE') ? 1 : 0,
+    nitro: isDown(keys, 'SHIFT'),
   };
 }
 
@@ -29,8 +30,8 @@ export function readVehicleControls(keys, vehicle) {
 export class PlayerController {
   constructor(scene) {
     this.keyboard = scene.input.keyboard;
-    this.keys = this.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE') ?? {};
-    this.captures = ['W', 'A', 'S', 'D', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'SPACE'];
+    this.keys = this.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,SHIFT') ?? {};
+    this.captures = ['W', 'A', 'S', 'D', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'SPACE', 'SHIFT'];
     this.keyboard?.addCapture(this.captures);
     scene.events.once('shutdown', () => this.keyboard?.removeCapture(this.captures));
   }

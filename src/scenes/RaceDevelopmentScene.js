@@ -21,7 +21,7 @@ export class RaceDevelopmentScene extends TitleScene {
       : this.add.graphics();
     this.pilotName = text(this, 0, 0, this.character?.name ?? 'PILOTO NÃO SELECIONADO', 20, COLORS.white, true);
     const vehicle = this.selection
-      ? `${getVehicleDisplayName(this.game.garageResources?.source)} / ${this.selection.paint.name}`
+      ? `${getVehicleDisplayName(this.selection.vehicle)} / ${this.selection.paint.name}`
       : 'VEÍCULO NÃO SELECIONADO';
     this.vehicleName = text(this, 0, 0, vehicle, 16, this.selection?.paint.color ?? COLORS.muted);
     this.backButton = new PreparationButton(this, {

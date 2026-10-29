@@ -8,7 +8,7 @@ import { CHAMPIONSHIP_RULES } from '../src/data/championshipRules.js';
 import { createTrackAssignmentState } from '../src/race/trackAssignment.js';
 import {
   createChampionshipState, setSelections, ensureAssignedTrack, chooseSpecialTrack,
-  beginChampionshipRace, applyChampionshipResult, acknowledgeChampionshipResult,
+  beginChampionshipRace, applyChampionshipResult, acknowledgeChampionshipResult, migrateChampionshipState,
   isValidChampionshipState,
 } from '../src/championship/championshipState.js';
 import {
@@ -20,7 +20,9 @@ const selections = {
   paintId: PAINTS[1].id, difficultyId: DIFFICULTIES.normal.id,
 };
 const initial = () => createChampionshipState({ id: 'career-1', attemptId: 'attempt-1' });
-const selected = () => setSelections(initial(), selections);
+// Existing race/save regressions use an already-owned legacy car; shop tests
+// exercise fresh wallets and acquisition separately in vehicle-shop.unit.js.
+const selected = () => setSelections({ ...initial(), ownedVehicleIds: [VEHICLE.id] }, selections);
 const ready = (state = selected(), id = `race-${state.attempt.number}-${state.racesRun + 1}`) =>
   beginChampionshipRace(ensureAssignedTrack(state, () => 0.25), id);
 const clone = value => structuredClone(value);
@@ -91,12 +93,12 @@ function roundTrip(state) {
 test('estado inicial canônico, dinheiro existente e API de seleções reais', () => {
   const state = initial();
   assert.deepEqual(state, {
-    schemaVersion: 1, revision: 0, id: 'career-1', money: 2000, score: 0, targetScore: 1400,
+    schemaVersion: 3, revision: 0, id: 'career-1', money: 2000, score: 0, targetScore: 1400,
     division: 'B', rivalId: 'opening-b', rivalName: 'DESAFIO INICIAL', racesRun: 0, maxRaces: 8,
     upgrades: {}, selections: { pilotId: null, vehicleId: null, paintId: null, difficultyId: null },
     attempt: { id: 'attempt-1', number: 1, status: 'active' },
     tracks: { ...createTrackAssignmentState(), history: [] }, awardedRaceIds: [],
-    activeRace: null, pendingResult: null, previousAttempts: [],
+    activeRace: null, pendingResult: null, previousAttempts: [], ownedVehicleIds: [], rivalRewardChoice: null,
   });
   assert.equal(isValidChampionshipState(state), true);
   assert.equal(isValidChampionshipState(roundTrip(state)), true);
@@ -276,10 +278,12 @@ test('ledger é idempotente após reload, ack, reset e tentativa futura na mesma
   assert.equal(accepted.score, 300);
 });
 
-test('merge parcial preserva progresso/upgrades; alterações invalidam apenas corrida ativa', () => {
+test('merge parcial preserva progresso/upgrades e bloqueia mudanças durante corrida ou recibo', () => {
   const progress = acknowledgeChampionshipResult(runPositions([2]));
   const state = freeze(ready({ ...progress, upgrades: { engine: 3 }, revision: 42 }));
-  const next = setSelections(state, { pilotId: CHARACTERS[2].id, difficultyId: DIFFICULTIES.hard.id });
+  const patch = { pilotId: CHARACTERS[2].id, difficultyId: DIFFICULTIES.hard.id };
+  assert.equal(setSelections(state, patch), state, 'trocar piloto/dificuldade não cancela a corrida para contornar bloqueios');
+  const next = setSelections({ ...state, activeRace: null }, patch);
   assert.deepEqual(next.selections, { ...state.selections, pilotId: CHARACTERS[2].id, difficultyId: DIFFICULTIES.hard.id });
   assert.equal(next.activeRace, null);
   for (const key of ['money', 'score', 'racesRun', 'upgrades', 'tracks', 'awardedRaceIds', 'revision']) {
@@ -289,12 +293,13 @@ test('merge parcial preserva progresso/upgrades; alterações invalidam apenas c
   assert.equal(setSelections(state, { pilotId: state.selections.pilotId }), state);
   const pending = runPositions([1]);
   const changed = setSelections(pending, { pilotId: CHARACTERS[2].id, difficultyId: DIFFICULTIES.hard.id });
+  assert.equal(changed, pending);
   assert.equal(changed.pendingResult, pending.pendingResult);
   assert.equal(isValidChampionshipState(roundTrip(changed)), true);
 });
 
 test('revision permanece sob responsabilidade do serviço em todas as transições', () => {
-  let state = { ...initial(), revision: 91 };
+  let state = { ...initial(), ownedVehicleIds: [VEHICLE.id], revision: 91 };
   state = setSelections(state, selections);
   state = ensureAssignedTrack(state, () => 0);
   state = beginChampionshipRace(state, 'revision-race');
@@ -371,7 +376,7 @@ test('registro antigo, vazio ou sem corrida ativa não lança nem concede prêmi
 });
 
 const corruptions = {
-  'versão desconhecida': state => { state.schemaVersion = 2; },
+  'versão desconhecida': state => { state.schemaVersion = 4; },
   'chave ausente': state => { delete state.upgrades; },
   'chave extra': state => { state.moneyGoal = 1400; },
   'revision negativa': state => { state.revision = -1; },
@@ -488,8 +493,48 @@ test('storage v1 roundtrip conserva pendência; backup completo precede substitu
   assert.equal(applyChampionshipResult(loaded.state, resultFor(racing)), loaded.state);
 });
 
+test('migração de save v1 troca a máquina antiga sem perder dinheiro, SCORE nem corrida ativa', () => {
+  const legacy = ready();
+  delete legacy.ownedVehicleIds;
+  delete legacy.rivalRewardChoice;
+  legacy.schemaVersion = 1;
+  legacy.selections.vehicleId = 'air-blade';
+  legacy.activeRace.selections.vehicleId = 'air-blade';
+  legacy.money = 7350;
+  legacy.score = 680;
+  const raw = JSON.stringify(legacy);
+  const storage = new MemoryStorage([[CHAMPIONSHIP_SAVE_KEY, raw]]);
+
+  const loaded = loadChampionship(storage);
+
+  assert.equal(loaded.writable, true);
+  assert.equal(loaded.raw, raw, 'a migração de leitura não substitui silenciosamente o save original');
+  assert.equal(loaded.migrated, true);
+  assert.equal(loaded.state.schemaVersion, 3);
+  assert.deepEqual(loaded.state.ownedVehicleIds, ['rift-blaze']);
+  assert.equal(loaded.state.selections.vehicleId, 'rift-blaze');
+  assert.equal(loaded.state.activeRace.selections.vehicleId, 'rift-blaze');
+  assert.equal(loaded.state.money, 7350);
+  assert.equal(loaded.state.score, 680);
+  assert.equal(loaded.state.racesRun, legacy.racesRun);
+  assert.deepEqual(loaded.state.tracks, legacy.tracks);
+  assert.deepEqual(loaded.state.awardedRaceIds, legacy.awardedRaceIds);
+  assert.equal(isValidChampionshipState(loaded.state), true);
+
+  const updated = { ...loaded.state, revision: loaded.state.revision + 1 };
+  updated.selections.paintId = PAINTS[2].id;
+  updated.activeRace.selections.paintId = PAINTS[2].id;
+  const saved = saveChampionship(storage, updated, loaded.raw);
+  assert.equal(saved.ok, true, saved.warning);
+  assert.equal(storage.getItem(CHAMPIONSHIP_BACKUP_KEY), raw);
+  assert.equal(JSON.parse(storage.getItem(CHAMPIONSHIP_SAVE_KEY)).schemaVersion, 3);
+  assert.equal(JSON.parse(storage.getItem(CHAMPIONSHIP_SAVE_KEY)).money, 7350);
+  assert.equal(JSON.parse(storage.getItem(CHAMPIONSHIP_SAVE_KEY)).score, 680);
+});
+
 for (const raw of ['{bad-json', 'null', '{}', JSON.stringify({ ...initial(), schemaVersion: 0 }),
-  JSON.stringify({ ...initial(), schemaVersion: 2 }), JSON.stringify({ ...initial(), schemaVersion: 999 }),
+  JSON.stringify({ ...initial(), schemaVersion: 1, selections: { ...initial().selections, vehicleId: 'not-a-legacy-car' } }),
+  JSON.stringify({ ...initial(), schemaVersion: 4 }), JSON.stringify({ ...initial(), schemaVersion: 999 }),
   JSON.stringify({ ...initial(), money: -1 }),
   JSON.stringify(initial()).replace('"upgrades":{}', '"upgrades":{"__proto__":1}')]) {
   test(`migração desconhecida/corrupção bloqueada e original/backup preservados: ${raw.slice(0, 70)}`, () => {

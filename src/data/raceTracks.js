@@ -8,7 +8,7 @@ export const RACE_TRACKS = [
     id: 'neon-furnace', name: 'NEON FURNACE',
     description: 'Um circuito industrial amplo entre chaminés e arcos de luz.',
     theme: theme('#252932', '#ff503b', '#ff8a3d', '#211317', '#ff7043', '#ffb454'),
-    width: 22, laps: 4,
+    width: 14, laps: 4,
     waypoints: [
       { x: 0, z: 0, y: 0 }, { x: 52, z: 3, y: 1 }, { x: 95, z: 20, y: 2 },
       { x: 112, z: 57, y: 1 }, { x: 94, z: 91, y: 0 }, { x: 55, z: 108, y: 2 },
@@ -25,7 +25,7 @@ export const RACE_TRACKS = [
     id: 'voltage-run', name: 'VOLTAGE RUN',
     description: 'Curvas elevadas atravessam plataformas suspensas e vales de energia.',
     theme: theme('#202b35', '#38d6e8', '#a245ff', '#101629', '#54e6ff', '#b66cff'),
-    width: 20, laps: 4,
+    width: 13, laps: 4,
     waypoints: [
       { x: 0, z: 0, y: 4 }, { x: 46, z: -4, y: 8 }, { x: 83, z: 11, y: 12 },
       { x: 104, z: 43, y: 16 }, { x: 91, z: 77, y: 20 }, { x: 55, z: 96, y: 24 },

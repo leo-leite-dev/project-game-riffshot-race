@@ -38,7 +38,10 @@ id_ed25519*
 # Resultados locais de testes de navegador
 test-results/
 playwright-report/
+previews-ui/
 
-# Modelo provisório: autorizado apenas para desenvolvimento e testes locais.
-# A licença declarada não confirma direitos sobre o design representado.
-/public/models/cars/air_blade_rock_n_roll_racing.glb
+# Referências locais privadas; nunca versionar imagens, ROMs ou outros arquivos.
+/referencias-locais/
+
+# Candidatos e experimentos anteriores não integram o pacote público versionado.
+/public/models/

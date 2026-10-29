@@ -1,24 +1,45 @@
-// Presentation and base balance only. No pilot bonus or physics is applied here.
-export const VEHICLE = Object.freeze({
-  id: 'air-blade', name: 'AIR BLADE',
-  modelUrl: '/models/cars/air_blade_rock_n_roll_racing.glb',
-  paintMaterial: 'AirBladeColor',
-  stats: Object.freeze({ speed: 75, acceleration: 70, control: 65, armor: 60 }),
+// Stable IDs preserve existing careers; visual assets and shop rules are data.
+const defineVehicle = (id, name, stats, design, ability = {}, shop = {}) => Object.freeze({
+  id, name, stats: Object.freeze(stats), design: Object.freeze(design), ability: Object.freeze(ability),
+  ...shop,
 });
 
-export const PAINTS = Object.freeze([
-  Object.freeze({ id: 'inferno', name: 'INFERNO', color: '#E53935' }),
-  Object.freeze({ id: 'neon', name: 'NEON', color: '#1677FF' }),
-  Object.freeze({ id: 'volt', name: 'VOLT', color: '#FFD027' }),
+export const VEHICLES = Object.freeze([
+  defineVehicle('rift-blaze', 'THUNDER BUG',
+    { speed: 76, acceleration: 84, control: 72, armor: 55 },
+    { body: 'coupe', width: 1.72, length: 3.2, height: 0.42, wheelbase: 0.95 },
+    { nitroCharges: 2, nitroSeconds: 3, nitroMultiplier: 1.35 },
+    { price: 2000, initialSelection: true, modelFile: 'thunder_bug.glb' }),
+  defineVehicle('volt-vector', 'CAMARO',
+    { speed: 62, acceleration: 76, control: 84, armor: 35 },
+    { body: 'streamliner', width: 1.52, length: 3.65, height: 0.34, wheelbase: 1.02 }, {},
+    { price: 800, initialSelection: true, modelFile: 'camaro.glb' }),
+  defineVehicle('iron-bastion', 'ARMORED CAR',
+    { speed: 58, acceleration: 52, control: 56, armor: 100 },
+    { body: 'armored', width: 2.18, length: 2.85, height: 0.76, wheelbase: 0.84 }, {},
+    { price: 7500, initialSelection: true, modelFile: 'armored_car_death_race.glb' }),
+  defineVehicle('race-car-2', 'RACE CAR 2',
+    { speed: 94, acceleration: 92, control: 82, armor: 70 },
+    { body: 'coupe', width: 1.72, length: 3.2, height: 0.42, wheelbase: 0.95 },
+    { nitroCharges: 2, nitroSeconds: 3, nitroMultiplier: 1.35 },
+    { price: 15000, initialSelection: false, modelFile: 'race_car2.glb', purchaseLocked: true,
+      unlockMessage: 'CHEFÃO DA FASE 2 / AINDA NÃO LIBERADO' }),
+  defineVehicle('widowmaker', 'WIDOWMAKER',
+    { speed: 88, acceleration: 78, control: 65, armor: 90 },
+    { body: 'armored', width: 2.18, length: 2.85, height: 0.76, wheelbase: 0.84 }, {},
+    { price: 24000, initialSelection: false, modelFile: 'widowmaker_-_death_race_2000.glb' }),
 ]);
 
-export const ORIGINAL_VEHICLE_NAME = 'ORIGINAL RACER';
+export const INITIAL_VEHICLES = Object.freeze(VEHICLES.filter(vehicle => vehicle.initialSelection));
+export const RIVAL_VEHICLE_ID = 'widowmaker';
 
-// The Air Blade name is shown only with the development-only GLB. The public
-// procedural design has a distinct neutral label.
-export function getVehicleDisplayName(source) {
-  return source === 'air-blade-local' ? VEHICLE.name : ORIGINAL_VEHICLE_NAME;
-}
+export const VEHICLE = VEHICLES[0];
+
+export const PAINTS = Object.freeze([
+  Object.freeze({ id: 'inferno', name: 'VERMELHO', color: '#E53935' }),
+  Object.freeze({ id: 'neon', name: 'AZUL ELÉTRICO', color: '#1677FF' }),
+  Object.freeze({ id: 'volt', name: 'AMARELO', color: '#FFD027' }),
+]);
 
 export const VEHICLE_ATTRIBUTES = Object.freeze([
   { key: 'speed', label: 'VELOCIDADE MÁXIMA' },
@@ -27,15 +48,16 @@ export const VEHICLE_ATTRIBUTES = Object.freeze([
   { key: 'armor', label: 'RESISTÊNCIA' },
 ]);
 
-export function getSelectedVehicle(registry) {
-  if (registry.get('selectedVehicleId') !== VEHICLE.id) return null;
-  const paint = PAINTS.find(item => item.id === registry.get('selectedPaintId'));
-  return paint ? { vehicle: VEHICLE, paint } : null;
+export function getVehicleById(id) {
+  return VEHICLES.find(vehicle => vehicle.id === id) ?? null;
 }
 
-export function confirmVehicle(registry, index) {
-  const paint = PAINTS[index];
-  if (!paint) return;
-  registry.set('selectedVehicleId', VEHICLE.id);
-  registry.set('selectedPaintId', paint.id);
+export function getSelectedVehicle(registry) {
+  const vehicle = getVehicleById(registry.get('selectedVehicleId'));
+  const paint = PAINTS.find(item => item.id === registry.get('selectedPaintId'));
+  return vehicle && paint ? { vehicle, paint } : null;
+}
+
+export function getVehicleDisplayName(vehicle) {
+  return vehicle?.name ?? VEHICLE.name;
 }

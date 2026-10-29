@@ -42,13 +42,16 @@ test('trilha espera interação, produz sinal e pode ser silenciada sem mudar de
   await source.dispose();
 });
 
-test('indisponibilidade de síntese não bloqueia o fluxo', async ({ page }) => {
+test('indisponibilidade de síntese offline mantém controle global e não bloqueia o fluxo', async ({ page }) => {
   await page.addInitScript(() => {
     window.OfflineAudioContext = undefined;
     window.webkitOfflineAudioContext = undefined;
   });
   await openMenu(page);
-  await expect(page.locator('#music-toggle')).toBeDisabled();
+  await expect(page.locator('#music-toggle')).toBeEnabled();
+  await page.keyboard.press('m');
+  expect((await state(page)).musicMuted).toBe(true);
+  await page.keyboard.press('m');
   await page.keyboard.press('Enter');
   await waitScene(page, 'DifficultySelection');
   await page.keyboard.press('Enter');
@@ -58,7 +61,7 @@ test('indisponibilidade de síntese não bloqueia o fluxo', async ({ page }) => 
   expect((await state(page)).musicStarted).toBe(false);
 });
 
-test('falha ao gerar a trilha mantém navegação e informa áudio indisponível', async ({ page }) => {
+test('falha ao gerar a trilha mantém navegação e controle global de som', async ({ page }) => {
   await page.addInitScript(() => {
     const Original = window.OfflineAudioContext;
     window.OfflineAudioContext = class extends Original {
@@ -66,8 +69,8 @@ test('falha ao gerar a trilha mantém navegação e informa áudio indisponível
     };
   });
   await openMenu(page);
-  await expect(page.locator('#music-toggle')).toBeDisabled();
-  await expect(page.locator('#music-toggle')).toHaveText('♫ SOM INDISPONÍVEL');
+  await expect(page.locator('#music-toggle')).toBeEnabled();
+  await expect(page.locator('#music-toggle')).toHaveText('♫ SOM: ON [M]');
   await page.keyboard.press('Enter');
   await waitScene(page, 'DifficultySelection');
   await page.keyboard.press('Enter');

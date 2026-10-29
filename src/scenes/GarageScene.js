@@ -38,7 +38,9 @@ export class GarageScene extends TitleScene {
       const { getGarageResources } = await import('../visuals/garage/GarageResources.js');
       if (!this.alive || version !== this.loadVersion) return;
       const resources = getGarageResources(this.game);
-      await resources.load();
+      const vehicleIds = options.mode === 'race' ? options.participants.map(car => car.vehicleId)
+        : options.vehicleIds ?? [options.vehicleId];
+      await resources.load(vehicleIds);
       if (!this.alive || version !== this.loadVersion) return;
       const world = await this.createGarageWorld(resources, options, version);
       if (!world) return;
@@ -47,9 +49,13 @@ export class GarageScene extends TitleScene {
       this.mountPresentation();
       this.loadingLabel.setText(options.mode === 'race'
         ? `●  PISTA ONLINE  /  ${options.track.name}`
-        : resources.source === 'original'
-          ? '●  OFICINA ONLINE  /  VEÍCULO ORIGINAL'
-          : '●  OFICINA ONLINE  /  AIR BLADE LOCAL');
+        : resources.experimentalStatus === 'ready'
+          ? '●  OFICINA ONLINE  /  RIFT BLAZE EXPERIMENTAL — TIYAMAKES, CC BY 4.0'
+          : resources.experimentalStatus === 'fallback'
+            ? '●  OFICINA ONLINE  /  GLB LOCAL INDISPONÍVEL — PROCEDURAL ATIVO'
+            : resources.modelFailures.length
+              ? '●  OFICINA ONLINE  /  ALGUNS MODELOS INDISPONÍVEIS — VISUAL RESERVA'
+              : '●  OFICINA ONLINE  /  MODELOS 3D CARREGADOS');
       this.onGarageReady?.();
     } catch (_error) {
       if (!this.alive || version !== this.loadVersion) return;
@@ -58,7 +64,7 @@ export class GarageScene extends TitleScene {
       this.loadFailed = true;
       this.showGarageError();
       this.onGarageError?.();
-      this.announce('Não foi possível carregar a oficina 3D. Verifique WebGL e o arquivo GLB local. Escape volta.');
+      this.announce('Não foi possível carregar a oficina 3D. Verifique se o navegador oferece WebGL. Escape volta.');
     }
   }
 
@@ -83,7 +89,7 @@ export class GarageScene extends TitleScene {
 
   showGarageError() {
     const { x = 0, y = 0, width = 500 } = this.previewBounds ?? {};
-    this.loadingLabel.setText('3D INDISPONÍVEL\nVerifique WebGL e o arquivo GLB local.\nESC para voltar.')
+    this.loadingLabel.setText('3D INDISPONÍVEL\nVerifique se o navegador oferece WebGL.\nESC para voltar.')
       .setColor('#ff9c91').setVisible(true).setOrigin(0.5).setPosition(x, y).setFontSize(16)
       .setWordWrapWidth(width - 24);
     this.content.bringToTop(this.loadingLabel);

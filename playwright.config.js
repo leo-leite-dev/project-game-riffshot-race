@@ -33,7 +33,8 @@ export default defineConfig({
       command: 'npm run build && npm run preview -- --port 4183 --strictPort',
       url: 'http://127.0.0.1:4183',
       reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
-      timeout: 30_000,
+      // Generous startup budget; normal builds use the curated, prepared assets.
+      timeout: 120_000,
     },
   ],
 });

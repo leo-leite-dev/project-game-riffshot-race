@@ -2,12 +2,23 @@ import * as THREE from 'three';
 import { sampleRaceTrack } from '../../race/RaceSimulation.js';
 import { RaceCameraRig } from './RaceCameraRig.js';
 import { DEFAULT_RACE_CAMERA_MODE } from '../../data/raceCameras.js';
+import { PAINTS } from '../../data/vehicles.js';
+import { TireSmoke } from '../vehicles/TireSmoke.js';
+import { VehicleDamageEffects } from './VehicleDamageEffects.js';
+
+export const RACE_VEHICLE_SCALE = 1.3;
 
 // Phaser schedules every render. The canvas is presented directly during the
 // race; the old CanvasTexture bridge remains available as a session fallback.
 export class RaceWorld {
-  constructor(resources, { track, participants, cameraMode = DEFAULT_RACE_CAMERA_MODE }) {
+  constructor(resources, { track, participants, cameraMode = DEFAULT_RACE_CAMERA_MODE, diagnostics = false }) {
     this.resources = resources;
+    this.diagnostics = diagnostics;
+    this.cameraFrozen = false;
+    if (diagnostics) {
+      this.cameraUpdates = 0;
+      this.participantPoseUpdates = 0;
+    }
     this.trackData = track;
     this.track = sampleRaceTrack(track, 20);
     this.scene = new THREE.Scene();
@@ -18,6 +29,7 @@ export class RaceWorld {
     this.ownedGeometries = new Set();
     this.ownedMaterials = new Set();
     this.vehicles = [];
+    this.renderPoses = [];
     this.elapsed = 0;
     this.renderElapsed = 1;
     this.trackMaterial = this.material(track.theme.road, 0.58, 0.76);
@@ -29,11 +41,19 @@ export class RaceWorld {
     this.startDarkMaterial = this.material(0x101722, 0.42, 0.5);
     this.buildWorld();
     participants.forEach(participant => {
-      const vehicle = resources.createVehicle({ id: participant.id, color: participant.paintColor });
+      const paint = PAINTS.find(item => item.color.toLowerCase() === participant.paintColor.toLowerCase())
+        ?? { id: participant.vehicleId, color: participant.paintColor };
+      const vehicle = resources.createVehicle(participant.vehicleId, paint, { experimental: participant.isPlayer });
+      vehicle.scale.multiplyScalar(RACE_VEHICLE_SCALE);
+      vehicle.userData.size.multiplyScalar(RACE_VEHICLE_SCALE);
       this.scene.add(vehicle);
       this.vehicles.push(vehicle);
     });
     this.setParticipants(participants);
+    // One set of tire emitters for the player; damage has independent per-car
+    // budgets. Official wheel adapters never depend on the old local experiment.
+    this.smoke = new TireSmoke(this.scene);
+    this.damageEffects = new VehicleDamageEffects(this.scene, { participantCount: participants.length });
     this.scene.updateMatrixWorld(true);
     const playerIndex = participants.findIndex(participant => participant.isPlayer);
     this.cameraRig = new RaceCameraRig({ track: { ...this.track, width: track.width },
@@ -215,15 +235,22 @@ export class RaceWorld {
     }
   }
 
-  setParticipants(participants) {
+  setParticipants(participants, getRenderPose = participant => participant) {
+    if (this.diagnostics) this.participantPoseUpdates += 1;
     participants.forEach((participant, index) => {
       const vehicle = this.vehicles[index];
       if (!vehicle) return;
-      vehicle.position.set(participant.x, participant.y + 0.08, participant.z);
-      vehicle.rotation.y = participant.heading;
+      const renderPose = this.renderPoses[index] ??= {};
+      Object.assign(renderPose, participant);
+      const pose = getRenderPose(participant, renderPose);
+      Object.assign(renderPose, pose);
+      vehicle.position.set(pose.x, pose.y + 0.08, pose.z);
+      vehicle.rotation.y = pose.heading;
     });
     this.participants = participants;
   }
+
+  setCameraFrozen(frozen) { this.cameraFrozen = Boolean(frozen); }
 
   resize(width, height, limits = { width: 1100, height: 620 }) {
     const ratio = Math.min(1, limits.width / width, limits.height / height);
@@ -241,9 +268,27 @@ export class RaceWorld {
     const dt = Math.min(delta / 1000, 0.25);
     this.elapsed += dt;
     this.renderElapsed += dt;
-    const player = this.participants?.find(participant => participant.isPlayer) ?? this.participants?.[0];
-    if (player) {
+    const player = this.renderPoses.find(participant => participant.isPlayer) ?? this.renderPoses[0];
+    this.smoke.update(dt);
+    const animationStart = performance.now();
+    for (let index = 0; index < this.vehicles.length; index += 1) {
+      const vehicle = this.vehicles[index];
+      const pose = this.renderPoses[index];
+      vehicle.visible = !pose.destroyed && (!(pose.respawnProtection > 0)
+        || Math.floor(pose.respawnProtection * 8) % 2 === 0);
+      vehicle.userData.visualAdapter?.update(pose, dt, pose.isPlayer && !pose.destroyed ? this.smoke : null);
+    }
+    this.damageEffects.update(this.renderPoses, this.vehicles, dt);
+    this.lastAnimationMs = performance.now() - animationStart;
+    if (player && !this.cameraFrozen) {
+      if (player.respawnSequence !== this.lastPlayerRespawnSequence) {
+        if (this.lastPlayerRespawnSequence !== undefined) this.cameraRig.resetAfterRespawn(player);
+        this.lastPlayerRespawnSequence = player.respawnSequence;
+      }
       this.cameraRig.update(player, dt);
+      if (this.diagnostics) this.cameraUpdates += 1;
+    }
+    if (player) {
       this.spotlight.position.set(player.x - 4, player.y + 24, player.z + 6);
       this.spotlight.target.position.set(player.x, player.y, player.z);
     }
@@ -258,7 +303,10 @@ export class RaceWorld {
 
   destroy() {
     this.cameraRig.destroy();
+    this.smoke?.destroy();
+    this.damageEffects.destroy();
     for (const vehicle of this.vehicles) {
+      vehicle.userData.visualAdapter?.destroy();
       for (const material of vehicle.userData.ownedMaterials) material.dispose();
       const skeletons = new Set();
       vehicle.traverse(object => { if (object.skeleton) skeletons.add(object.skeleton); });

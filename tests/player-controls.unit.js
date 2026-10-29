@@ -25,7 +25,8 @@ test('WASD e setas geram os mesmos comandos locais ao veículo', () => {
   assert.equal(readVehicleControls(keys('A')).steer, 1);
   assert.equal(readVehicleControls(keys('D')).steer, -1);
   assert.equal(readVehicleControls(keys('A', 'D')).steer, 0);
-  assert.deepEqual(readVehicleControls(keys('W', 'S')), { throttle: 0, brake: 1, steer: 0, handbrake: 0 });
+  assert.deepEqual(readVehicleControls(keys('W', 'S')), { throttle: 0, brake: 1, steer: 0, handbrake: 0, nitro: false });
+  assert.equal(readVehicleControls(keys('SHIFT')).nitro, true);
 });
 
 test('A desloca para a esquerda e D para a direita do carro, inclusive ao dar ré', () => {
@@ -45,7 +46,7 @@ test('A desloca para a esquerda e D para a direita do carro, inclusive ao dar r�
 test('S freia antes de engatar a ré; W freia a ré antes de voltar à frente', () => {
   const race = createRace(), car = race.participants[0];
   setVelocity(car, 10);
-  assert.deepEqual(readVehicleControls(keys('S'), car), { throttle: 0, brake: 1, steer: 0, handbrake: 0 });
+  assert.deepEqual(readVehicleControls(keys('S'), car), { throttle: 0, brake: 1, steer: 0, handbrake: 0, nitro: false });
   for (let i = 0; i < 90; i += 1) race._integrate(car, readVehicleControls(keys('S'), car), 1 / 60);
   assert.ok(signedSpeed(car) < -1);
   assert.ok(Math.abs(signedSpeed(car)) <= car.vehicle.maxSpeed * 0.25 + 1e-6);

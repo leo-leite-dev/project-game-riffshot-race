@@ -12,6 +12,7 @@ export class BotController {
   }
 
   controlsFor(car, participants, dt) {
+    if (car.finished || car.destroyed) return { throttle: 0, brake: 0, steer: 0, handbrake: 0, nitro: false };
     car._aiClock = (car._aiClock ?? 0) + dt;
     const nearest = findNearestTrackPoint(this.track, car.x, car.z);
     if (!nearest) return { throttle: 0, brake: 1, steer: 0, handbrake: 0 };
@@ -19,7 +20,7 @@ export class BotController {
     const target = sampleTrackAtProgress(this.track, nearest.distance + lookahead);
     let desiredLane = car._baseLane;
     for (const rival of participants) {
-      if (rival === car || rival.finished) continue;
+      if (rival === car || rival.finished || rival.destroyed || rival.respawnProtection > 0) continue;
       const dx = rival.x - car.x, dz = rival.z - car.z;
       const forward = dx * Math.sin(car.heading) + dz * Math.cos(car.heading);
       if (forward > 0 && forward < 10 && dx * dx + dz * dz < 13 * 13 && this.difficulty.overtakeDesire > 0.25) {
@@ -47,6 +48,11 @@ export class BotController {
     car._aiSteer = lerp(car._aiSteer, steeringTarget, response);
     car._aiThrottle = lerp(car._aiThrottle, car.speed < targetSpeed ? 1 : 0, response);
     car._aiBrake = lerp(car._aiBrake, car.speed > targetSpeed + 1.5 ? 0.65 : 0, response);
-    return { throttle: car._aiThrottle, brake: car._aiBrake, steer: car._aiSteer, handbrake: 0 };
+    // Exponential smoothing approaches zero without reaching it. Release an
+    // imperceptible residual so the shared physics recognizes powered drift.
+    if (car._aiBrake < 0.001) car._aiBrake = 0;
+    const nitro = car.vehicle.nitroCharges > 0 && car.nitroCharges > 0
+      && car.speed < targetSpeed * 0.72 && Math.abs(steeringTarget) < 0.55;
+    return { throttle: car._aiThrottle, brake: car._aiBrake, steer: car._aiSteer, handbrake: 0, nitro };
   }
 }

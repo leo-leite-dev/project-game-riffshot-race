@@ -38,11 +38,17 @@ async function finishRealSimulation(page) {
 
 test('campeonato: chegada premia uma vez, reload reabre o recibo e MONEY/SCORE reais chegam ao painel', async ({ page }, testInfo) => {
   test.setTimeout(75_000);
+  const seed = { ...createChampionshipState({ id: 'receipt-career', attemptId: 'receipt-attempt' }),
+    ownedVehicleIds: [VEHICLE.id] };
+  await page.addInitScript(({ key, seed }) => {
+    if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(seed));
+  }, { key: CHAMPIONSHIP_SAVE_KEY, seed });
   await openCharacters(page);
   await clickObject(page, 'cards', 1);
   await clickObject(page, 'confirmButton');
   await waitScene(page, 'VehicleSelection');
   await waitPreview(page, 'VehicleSelection');
+  await clickObject(page, 'confirmButton');
   await clickObject(page, 'confirmButton');
   await expect(page.locator('#screen-status')).toContainText('Estação de Equipe', { timeout: 20_000 });
   await waitScene(page, 'RacePreparation');
@@ -93,8 +99,9 @@ test('campeonato: chegada premia uma vez, reload reabre o recibo e MONEY/SCORE r
 });
 
 function attemptReceipt(positions = Array(8).fill(4)) {
-  let state = setSelections(createChampionshipState({ id: 'fixture-career', attemptId: 'fixture-attempt' }), selections);
-  state = { ...state, upgrades: { futureEngine: 2 } }; // fixture only; no shop/purchase is implemented.
+  let state = setSelections({ ...createChampionshipState({ id: 'fixture-career', attemptId: 'fixture-attempt' }),
+    ownedVehicleIds: [selections.vehicleId] }, selections);
+  state = { ...state, upgrades: { futureEngine: 2 } }; // Isolated existing-career fixture, not a purchase.
   for (let race = 1; race <= positions.length; race += 1) {
     state = ensureAssignedTrack(state, () => 0.99);
     state = beginChampionshipRace(state, `fixture-race-${race}`);
@@ -192,17 +199,20 @@ test('campeonato: vitória por SCORE preserva MONEY/upgrades e não inventa outr
     const { game } = await import(document.querySelector('script[src*="/src/main.js"]').src);
     return game.scene.getScene('RaceResults').challengeStatus.text;
   });
-  expect(message).toContain('VITÓRIA DO DESAFIO');
-  expect(message).toContain('Próximo rival em desenvolvimento');
+  expect(message).toContain('META ATINGIDA / PRÊMIO DISPONÍVEL');
+  expect(message).toContain('Farme mais 3 corrida(s)');
   await clickObject(page, 'replayButton');
+  await waitScene(page, 'RaceTrackSelection');
+  expect((await getState(page)).pendingResult).toBeNull();
+  await page.keyboard.press('Escape');
   await waitScene(page, 'RacePreparation');
   expect(await getState(page)).toMatchObject({ score: 1500, money: 9500, racesRun: 5, division: 'B',
     upgrades: { futureEngine: 2 }, attempt: { status: 'qualified' } });
-  await clickObject(page, 'startButton');
-  await expect(page.locator('#screen-status')).toContainText('Próximo rival em desenvolvimento');
-  expect((await getState(page)).activeRace).toBeNull();
   await waitPreview(page, 'RacePreparation');
   await page.screenshot({ path: testInfo.outputPath('championship-qualified.png') });
+  await clickObject(page, 'startButton');
+  await waitScene(page, 'RaceTrackSelection');
+  expect((await getState(page)).activeRace).toBeNull(); // Track selection has not started the next race.
 });
 
 test('campeonato: save desconhecido avisa no canvas e no status acessível sem sobrescrever dados', async ({ page }) => {
