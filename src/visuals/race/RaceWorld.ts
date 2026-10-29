@@ -283,7 +283,9 @@ export class RaceWorld {
     participants.forEach((participant, index) => {
       const vehicle = this.vehicles[index];
       if (!vehicle) return;
-      const renderPose = this.renderPoses[index] ??= participant;
+      // Interpolation writes into this reusable buffer, never the physical car.
+      // Sharing the participant here would undo movement on every rendered frame.
+      const renderPose = this.renderPoses[index] ??= { ...participant };
       Object.assign(renderPose, participant);
       const pose = getRenderPose(participant, renderPose);
       Object.assign(renderPose, pose);

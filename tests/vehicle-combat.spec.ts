@@ -1,5 +1,7 @@
 import { test, expect, openMenu, waitScene } from './helpers.ts';
 import type { Page } from '@playwright/test';
+import type { RaceScene } from '../src/scenes/RaceScene.ts';
+import type { VehicleVisualAdapter } from '../src/visuals/vehicles/VehicleVisualAdapter.ts';
 
 type Dynamic = { [key: string]: Dynamic; [key: number]: Dynamic; (...args: unknown[]): Dynamic };
 import { CHARACTERS } from '../src/data/characters.ts';
@@ -21,7 +23,7 @@ function fixture(vehicleId = 'rift-blaze') {
   });
   return beginChampionshipRace(ensureAssignedTrack(state, () => 0.99), 'combat-race');
 }
-async function openRace(page: Page, vehicleId = 'rift-blaze') {
+async function openRace(page: Page, vehicleId = 'rift-blaze', staticGrid = true) {
   await page.addInitScript(({ key, value }: { key: string; value: ChampionshipState }) => localStorage.setItem(key, JSON.stringify(value)), {
     key: CHAMPIONSHIP_SAVE_KEY, value: fixture(vehicleId),
   });
@@ -32,7 +34,7 @@ async function openRace(page: Page, vehicleId = 'rift-blaze') {
   await waitScene(page, 'Race');
   await expect.poll(() => inspect(page, game => !!game.scene.getScene('Race').ready), { timeout: 90_000 }).toBe(true);
   expect(await inspect(page, game => game.garageResources.modelFailures)).toEqual([]);
-  await inspect(page, game => {
+  if (staticGrid) await inspect(page, game => {
     const scene = game.scene.getScene('Race');
     // Static grid for comparable camera captures, without changing physics rules.
     scene.simulationStarted = true as unknown as Dynamic;
@@ -133,6 +135,47 @@ test('dano integrado: bolinhas, fumaça, explosão única e respawn central com 
   expect(after).toMatchObject({ health: 80, maxHealth: 80, dead: false, sequence: 1, protected: true,
     ...before, central: true });
   await expect.poll(() => inspect(page, game => game.scene.getScene('Race').garageView.damageEffects.explosionCount)).toBe(1);
+});
+
+test('largada natural: jogador e três bots avançam com rodas girando sem apresentação alterar a física', async ({ page }, testInfo) => {
+  await openRace(page, 'rift-blaze', false);
+  const sample = () => page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]');
+    if (!script) throw new Error('Entrada ausente');
+    const { game } = await import(script.src);
+    const scene = game.scene.getScene('Race') as RaceScene;
+    const world = scene.garageView;
+    if (!world) throw new Error('Mundo da corrida ausente');
+    return scene.simulation.participants.map((car, index) => {
+      const vehicle = world.vehicles[index];
+      const adapter = vehicle.userData.visualAdapter as VehicleVisualAdapter | undefined;
+      if (!adapter) throw new Error(`Adaptador de rodas ausente: ${car.id}`);
+      return { id: car.id, x: car.x, z: car.z, speed: car.speed,
+        visualX: vehicle.position.x, visualZ: vehicle.position.z,
+        independent: world.renderPoses[index] !== car,
+        wheels: adapter.wheels.map(wheel => wheel.spin.rotation.x),
+        source: String(vehicle.userData.source) };
+    });
+  });
+  const before = await sample();
+  expect(before).toHaveLength(4);
+  expect(before.every(car => car.independent && car.source === 'vehicle-glb' && car.wheels.length === 4)).toBe(true);
+  await expect(page.locator('#screen-status')).toContainText('Largada', { timeout: 20_000 });
+  await page.keyboard.down('w');
+  try {
+    // Only observe the live Phaser loop: no manual start/advance or physics edits.
+    await expect.poll(async () => (await sample()).every((car, index) =>
+      car.speed > 4 && Math.hypot(car.x - before[index].x, car.z - before[index].z) > 2
+      && Math.hypot(car.visualX - before[index].visualX, car.visualZ - before[index].visualZ) > 1
+      && car.wheels.every((angle, wheel) => Math.abs(angle - before[index].wheels[wheel]) > 0.1)),
+    { timeout: 20_000 }).toBe(true);
+    const after = await sample();
+    expect(after.every(car => car.independent)).toBe(true);
+    await testInfo.attach('movimento-e-rodas', { body: JSON.stringify({ before, after }, null, 2), contentType: 'application/json' });
+    await page.screenshot({ path: 'previews-ui/corrida-movimento-rodas-corrigidos.png' });
+  } finally {
+    await page.keyboard.up('w');
+  }
 });
 
 test('rodas e motores integrados: movimento real, timbres distintos, sinal, mute e descarte na saída', async ({ page }) => {
