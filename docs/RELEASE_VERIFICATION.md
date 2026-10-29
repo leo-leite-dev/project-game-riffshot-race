@@ -30,10 +30,10 @@ Os 12 casos de assets compreendem oito do plugin e quatro do pacote, incluindo e
 Comandos efetivamente executados:
 
 ```powershell
-node scripts/prepareVehicleAssets.js
-node --test --test-timeout=30000 tests/vehicle-assets-plugin.unit.js tests/release-assets.unit.js
-node --test --test-timeout=15000 tests/public-credits.unit.js
-npx.cmd --no-install playwright test tests/public-credits.spec.js --project=desktop --retries=0 --max-failures=1 --timeout=60000
+node --import tsx scripts/prepareVehicleAssets.ts
+node --import tsx --test --test-timeout=30000 tests/vehicle-assets-plugin.unit.ts tests/release-assets.unit.ts
+node --import tsx --test --test-timeout=15000 tests/public-credits.unit.ts
+npx.cmd --no-install playwright test tests/public-credits.spec.ts --project=desktop --retries=0 --max-failures=1 --timeout=60000
 ```
 
 O Playwright teve **4 aprovados em 11,1 s**, sem retries. Usou servidores isolados de dev/preview, sem save real do proprietário; verificou os cinco hashes/tamanhos em URLs de produção local. A página de créditos foi capturada em 1280×800 e 390×844; o botão também foi conferido na largura mínima de 280 px. Isso valida viewports emulados, não aparelhos físicos.

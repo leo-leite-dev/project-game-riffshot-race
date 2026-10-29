@@ -82,7 +82,7 @@ O arquivo local foi preservado em um backup privado fora do repositório antes d
 
 ## Arte procedural do projeto
 
-Garagem, braço mecânico, plataformas, painéis, ícones, veículos procedurais, silhueta de rival, favicon, fundos e retratos são desenhados por código; não há sprites, capturas de tela, fontes ou gravações de outros jogos no build. O logo RIFFSHOT RACING também é desenhado por código. Isso descreve como os arquivos foram criados, mas **não certifica exclusividade jurídica nem ausência de semelhança**.
+Garagem, braço mecânico, plataformas, painéis, ícones, veículos procedurais, favicon, fundos e retratos são desenhados por código; não há sprites, capturas de tela, fontes ou gravações de outros jogos no build. A Estação de Equipe usa fundo industrial, lua vermelha, molduras e título próprios de `StationArt.js`, além do retrato original de **Ravik Ferro, O Fundidor**. A imagem local de layout foi somente referência de composição e não é distribuída, inclusive seu retrato protegido. O logo RIFFSHOT RACING também é desenhado por código. Isso descreve a criação dos arquivos, mas **não certifica exclusividade jurídica nem ausência de semelhança**.
 
 ## Identidade RIFFSHOT RACING
 

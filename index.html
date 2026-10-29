@@ -14,21 +14,6 @@
     <button id="music-toggle" class="music-toggle" type="button" aria-label="Ativar trilha sonora" aria-pressed="false">♫ SOM: ATIVAR</button>
     <a id="public-credits" class="public-credits" href="./credits.html" target="_blank" rel="noopener noreferrer" aria-keyshortcuts="Alt+L" title="Créditos e licenças — Alt+L para focar; Enter para abrir em nova aba">Créditos e licenças<span class="screen-reader"> (abre em nova aba)</span></a>
     <noscript>Ative o JavaScript para abrir RIFFSHOT RACING.</noscript>
-    <script type="module">
-      // Keep native link keys from also activating the game behind it.
-      const credits = document.getElementById('public-credits');
-      for (const type of ['keydown', 'keyup']) {
-        credits.addEventListener(type, event => event.stopPropagation());
-      }
-      // Some game menus capture Tab. Offer a focus shortcut without changing their controls.
-      window.addEventListener('keydown', event => {
-        if (event.altKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'l') {
-          event.preventDefault();
-          event.stopPropagation();
-          credits.focus({ preventScroll: true });
-        }
-      }, true);
-    </script>
-    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

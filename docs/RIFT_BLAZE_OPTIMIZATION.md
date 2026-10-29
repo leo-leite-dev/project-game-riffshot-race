@@ -26,11 +26,11 @@ Fonte do limite: https://developers.cloudflare.com/pages/platform/limits/#file-s
 - Mantidos os **161.868 triângulos**, ordem das superfícies, todos os materiais, texturas, transformações e hierarquia. A serialização JSON normaliza `-0` para `0`, sem mudança da matriz resultante.
 - Autoria, fonte e licença preservadas nos metadados; adicionado aviso das modificações.
 
-Relatório reprodutível: `public/models/cars/rift-blaze/optimization.json`, incluindo hashes do original e do candidato. Comando: `node scripts/optimizeRiftBlaze.js`. O comando lê somente o original indicado e escreve o candidato/relatório, não o original. A preparação não deve ser automatizada no build público, pois o original é privado.
+Relatório reprodutível: `public/models/cars/rift-blaze/optimization.json`, incluindo hashes do original e do candidato. Comando: `node scripts/optimizeRiftBlaze.ts`. O comando lê somente o original indicado e escreve o candidato/relatório, não o original. A preparação não deve ser automatizada no build público, pois o original é privado.
 
 ### Verificações
 
-`node --test tests/rift-optimization.unit.js` verifica:
+`node --import tsx --test tests/rift-optimization.unit.ts` verifica:
 
 1. Identidade de autoria/fonte/licença, tamanho e hash do candidato.
 2. Para cada índice de cada triângulo, correspondência byte a byte dos atributos retidos após remapeamento; materiais/nós/texturas preservados.

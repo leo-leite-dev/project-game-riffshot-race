@@ -6,7 +6,7 @@ Este documento descreve as regras e os componentes integrados. Resultados e capt
 
 ## Catálogo e atributos aprovados
 
-`src/data/vehicles.js` é a fonte dos ratings, na escala 0–100; eles não representam km/h. Os IDs são estáveis para preservar saves.
+`src/data/vehicles.ts` é a fonte dos ratings, na escala 0–100; eles não representam km/h. Os IDs são estáveis para preservar saves.
 
 | Veículo / ID | Velocidade | Aceleração | Controle | Resistência | Vida inicial |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -42,7 +42,7 @@ Na barreira, um novo episódio de impacto conserva 50% do módulo da velocidade 
 
 ## Vida e dano por colisão
 
-As regras puras ficam em `src/race/damageMath.js`; o ciclo de vida fica em `RaceSimulation`.
+As regras puras ficam em `src/race/damageMath.ts`; o ciclo de vida fica em `RaceSimulation`.
 
 - Capacidade: `3 + floor(clamp(resistência − 20, 0, 80) / 20)` bolinhas; cada uma vale **20 HP**.
 - A resistência do veículo aumenta a capacidade, sem aplicar outra redução percentual ao dano. A resistência do piloto reduz o dano de colisão em até 10%.
@@ -74,7 +74,7 @@ O Widowmaker exige extração por volumes cilíndricos específicos das três ma
 
 Os modelos são normalizados para comprimento 3,25, chão y=0 e frente +Z. `RaceWorld` aplica **escala visual ×1,3** na corrida, sem aumentar os parâmetros físicos de colisão. Todos os adaptadores oficiais consideram essa escala. Cada prova começa em terceira pessoa; C mantém a transição suave e Z alterna três aproximações somente nesse modo, fora da transição. Zoom e câmera não são progresso persistido. A câmera é reposicionada após o respawn para não percorrer visualmente o teleporte.
 
-As três aproximações usam FOV-base de **62° / 70° / 80°** em `src/data/raceCameras.js`. `RaceCameraRig` adapta o FOV à proporção da tela e à cobertura horizontal necessária, inclusive em retrato; 70° não é um valor fixo para todo retrato. Os GLBs vêm do pacote `assets/vehicles/`, validado por tamanho/SHA-256/estrutura e sem otimização ou leitura das referências privadas no dev/build normal.
+As três aproximações usam FOV-base de **62° / 70° / 80°** em `src/data/raceCameras.ts`. `RaceCameraRig` adapta o FOV à proporção da tela e à cobertura horizontal necessária, inclusive em retrato; 70° não é um valor fixo para todo retrato. Os GLBs vêm do pacote `assets/vehicles/`, validado por tamanho/SHA-256/estrutura e sem otimização ou leitura das referências privadas no dev/build normal.
 
 ## Fumaça e explosão
 
@@ -90,7 +90,7 @@ Os efeitos usam pontos e shaders próprios, sem texturas externas. O carro fica 
 
 ## Motores e controle global de áudio
 
-`src/audio/RaceEngineAudio.js` sintetiza perfis originais por veículo com osciladores, harmônicos e filtros Web Audio, sem samples externos. As intenções são buggy mais brilhante (Thunder), V8 grave (Camaro), motor pesado (Armored), hot rod áspero (Widowmaker) e esportivo agudo reservado (Race Car 2). **Esses nomes descrevem o desenho dos perfis; a distinção percebida e a qualidade do timbre ainda precisam de escuta humana.**
+`src/audio/RaceEngineAudio.ts` sintetiza perfis originais por veículo com osciladores, harmônicos e filtros Web Audio, sem samples externos. As intenções são buggy mais brilhante (Thunder), V8 grave (Camaro), motor pesado (Armored), hot rod áspero (Widowmaker) e esportivo agudo reservado (Race Car 2). **Esses nomes descrevem o desenho dos perfis; a distinção percebida e a qualidade do timbre ainda precisam de escuta humana.**
 
 Pitch e carga usam velocidade longitudinal e acelerador públicos da simulação; dano atenua o nível e destruição silencia a voz. Há no máximo **quatro vozes**, com prioridade ao jogador e bots atenuados pela distância, totalizando no máximo **33 nós próprios do módulo** (não de todo o áudio do jogo). Frames reutilizam os nós e limitam a fila de automação.
 
@@ -100,11 +100,11 @@ O contexto é o compartilhado do Phaser, sem criar um `AudioContext` por corrida
 
 Os itens abaixo descrevem critérios de revisão. A cobertura da entrega anterior, com seu recorte incremental, está no relatório histórico de verificação; os contratos atuais de pacote e créditos ainda exigem validação própria:
 
-- **Regras:** capacidades por resistência, dano normal, cooldown por par/episódio, perda gradual de condução e igualdade dos limites físicos dos bots; referências em `tests/race-damage.unit.js`, `tests/race-wall.unit.js` e `tests/race-drift.unit.js`.
-- **Respawn/progresso:** tempos, proteção, nitro sem recarga, débito de ré, emenda da pista, gates antes/sobre/depois da morte e chegada física no mesmo passo do impacto; referência em `tests/race-damage.unit.js`.
-- **Apresentação:** HUD parcial, fumaça independente de rodas, explosão única, saturação/descarte, escala, enquadramento com C/Z e rodas assinadas dos cinco modelos; referências em `tests/vehicle-damage-effects.unit.js`, `tests/vehicle-models.unit.js`, `tests/race-camera.unit.js` e `tests/vehicle-combat.spec.js`.
-- **Distribuição:** derivado Thunder abaixo de 25 MiB, pixels/dimensões/UVs usados/triângulos/Fan preservados, original intacto, alias canônico, allowlist técnica fechada e pacote/manifesto íntegros sem referências privadas no build; referências em `tests/thunder-optimization.unit.js`, `tests/vehicle-assets-plugin.unit.js` e `tests/release-assets.unit.js`.
-- **Áudio:** ativação/mute/foco, falha isolada da trilha, limite de vozes/nós, retomada após respawn e descarte; referências em `tests/audio.unit.js` e no caso de motores de `tests/vehicle-combat.spec.js`. Sinal medido não comprova timbre percebido.
+- **Regras:** capacidades por resistência, dano normal, cooldown por par/episódio, perda gradual de condução e igualdade dos limites físicos dos bots; referências em `tests/race-damage.unit.ts`, `tests/race-wall.unit.ts` e `tests/race-drift.unit.ts`.
+- **Respawn/progresso:** tempos, proteção, nitro sem recarga, débito de ré, emenda da pista, gates antes/sobre/depois da morte e chegada física no mesmo passo do impacto; referência em `tests/race-damage.unit.ts`.
+- **Apresentação:** HUD parcial, fumaça independente de rodas, explosão única, saturação/descarte, escala, enquadramento com C/Z e rodas assinadas dos cinco modelos; referências em `tests/vehicle-damage-effects.unit.ts`, `tests/vehicle-models.unit.ts`, `tests/race-camera.unit.ts` e `tests/vehicle-combat.spec.ts`.
+- **Distribuição:** derivado Thunder abaixo de 25 MiB, pixels/dimensões/UVs usados/triângulos/Fan preservados, original intacto, alias canônico, allowlist técnica fechada e pacote/manifesto íntegros sem referências privadas no build; referências em `tests/thunder-optimization.unit.ts`, `tests/vehicle-assets-plugin.unit.ts` e `tests/release-assets.unit.ts`.
+- **Áudio:** ativação/mute/foco, falha isolada da trilha, limite de vozes/nós, retomada após respawn e descarte; referências em `tests/audio.unit.ts` e no caso de motores de `tests/vehicle-combat.spec.ts`. Sinal medido não comprova timbre percebido.
 
 A seleção de casos segue [TESTING.md](TESTING.md) e AGENTS §11, sem exigir todas essas suítes a cada alteração. Os comandos, resultados, ajustes após falhas e capturas da entrega anterior, usando saves isolados, estão em [VEHICLE_COMBAT_VERIFICATION.md](VEHICLE_COMBAT_VERIFICATION.md). Nenhum teste funcional ou build foi executado nesta edição documental.
 

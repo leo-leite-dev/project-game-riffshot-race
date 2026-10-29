@@ -96,7 +96,7 @@ Reinicie o Vite depois da alteração da configuração e abra `http://127.0.0.1
 
 ### Estado da implementação
 
-- Plugin `scripts/localRiftBlazePlugin.js`: endpoint fixo `/__local-models/rift-blaze.glb`, GET/HEAD, no-store e streaming. Bloqueia diretórios redirecionados para fora por junction/symlink e bloqueia acesso genérico do Vite à pasta de referências. Não existe middleware no build/preview de produção.
+- Plugin `scripts/localRiftBlazePlugin.ts`: endpoint fixo `/__local-models/rift-blaze.glb`, GET/HEAD, no-store e streaming. Bloqueia diretórios redirecionados para fora por junction/symlink e bloqueia acesso genérico do Vite à pasta de referências. Não existe middleware no build/preview de produção.
 - `BuggyTemplate`: aplica transforms e normaliza, separa índices e atributos por lado, cria pivôs e compartilha geometrias/texturas. Pinturas clonam somente `main_body` por carro. Não há gravação de GLB derivado.
 - `BuggyVisualAdapter`: recebe telemetria interpolada derivada da física (velocidades longitudinal/lateral assinadas, comando de direção, aceleração e intensidade de impacto). Não escreve em posição física, checkpoints, carteira ou saves. A raiz continua sendo posicionada exclusivamente por `RaceWorld`.
 - Rodas giram por `velocidade longitudinal × dt / raio`, com ré e parada naturais; dianteiras esterçam em pivô separado. Nenhum AnimationMixer ou loop paralelo.
@@ -112,8 +112,8 @@ Antes de permitir mais instâncias, recomenda-se avaliar **cópia de texturas re
 
 ### Verificações disponíveis
 
-- `node --test tests/buggy-visual.unit.js tests/tire-smoke.unit.js tests/local-rift-route.unit.js`.
-- `npm.cmd test -- --project=desktop tests/local-buggy.spec.js --retries=0 --max-failures=1`.
+- `node --import tsx --test tests/buggy-visual.unit.ts tests/tire-smoke.unit.ts tests/local-rift-route.unit.ts`.
+- `npm.cmd test -- --project=desktop tests/local-buggy.spec.ts --retries=0 --max-failures=1`.
 - `npm.cmd run test:race`, `test:controls` e `test:camera` preservam verificações de física/IA/câmeras.
 - Capturas ignoradas em `test-results/.../buggy-garage-blue.png`, `buggy-preparation.png`, `buggy-race-chase.png` e `buggy-race-isometric.png`.
 

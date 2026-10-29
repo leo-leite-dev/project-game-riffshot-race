@@ -40,18 +40,18 @@ Casos fora dos filtros não foram executados e não contam como aprovação. Lis
 Execuções iniciais e recortes após alterações específicas:
 
 ```powershell
-node --test --test-timeout=30000 tests/race-damage.unit.js
-node --test --test-timeout=30000 --test-name-pattern="catálogo|nitro|contato de colisão|barreira|coincidentes|presentation|sequenced geometric|parede:|controle do veículo" tests/race-simulation.unit.js tests/race-wall.unit.js tests/race-drift.unit.js
-node --test --test-timeout=15000 --test-name-pattern="^respawn:|^gates respawn lateral:" tests/race-damage.unit.js
-node --test --test-timeout=30000 --test-name-pattern="^respawn:|gates|bots dano|sequenced geometric" tests/race-damage.unit.js tests/race-simulation.unit.js
-node --test --test-timeout=30000 --test-name-pattern="^nitro respawn:|^gates: chegada|^gates dano:|^respawn:|^telemetria:" tests/race-damage.unit.js
-node --test --test-timeout=30000 --test-name-pattern="^contato: cooldown|^contato letal:|^respawn:|^gates respawn lateral:|^bots dano:" tests/race-damage.unit.js
-node --test --test-timeout=30000 --test-name-pattern="cinco velocidades|^atributos motor:|^bots dano:|nitro consome|bônus limitado a 6%" tests/race-damage.unit.js tests/race-simulation.unit.js tests/race-drift.unit.js
-node --test --test-timeout=15000 --test-name-pattern="^throttle público:" tests/race-damage.unit.js
-node --test --test-timeout=30000 --test-name-pattern="^progresso seguro:|^gates empurrão:|^gates respawn|^gates: chegada|^gates dano:|^respawn:|^contato letal:|^bots dano: completam neon-furnace" tests/race-damage.unit.js
-node --test --test-timeout=15000 --test-name-pattern="^gates empurrão:" tests/race-damage.unit.js
-node --test --test-timeout=15000 --test-name-pattern="^progresso inicial:|^progresso seguro: recuar|^respawn:|^gates respawn lateral:" tests/race-damage.unit.js
-node --test --test-timeout=30000 --test-name-pattern="^guards:|^parede dano:|^respawn:|^bots dano: completam neon-furnace" tests/race-damage.unit.js
+node --test --test-timeout=30000 tests/race-damage.unit.ts
+node --test --test-timeout=30000 --test-name-pattern="catálogo|nitro|contato de colisão|barreira|coincidentes|presentation|sequenced geometric|parede:|controle do veículo" tests/race-simulation.unit.ts tests/race-wall.unit.ts tests/race-drift.unit.ts
+node --test --test-timeout=15000 --test-name-pattern="^respawn:|^gates respawn lateral:" tests/race-damage.unit.ts
+node --test --test-timeout=30000 --test-name-pattern="^respawn:|gates|bots dano|sequenced geometric" tests/race-damage.unit.ts tests/race-simulation.unit.ts
+node --test --test-timeout=30000 --test-name-pattern="^nitro respawn:|^gates: chegada|^gates dano:|^respawn:|^telemetria:" tests/race-damage.unit.ts
+node --test --test-timeout=30000 --test-name-pattern="^contato: cooldown|^contato letal:|^respawn:|^gates respawn lateral:|^bots dano:" tests/race-damage.unit.ts
+node --test --test-timeout=30000 --test-name-pattern="cinco velocidades|^atributos motor:|^bots dano:|nitro consome|bônus limitado a 6%" tests/race-damage.unit.ts tests/race-simulation.unit.ts tests/race-drift.unit.ts
+node --test --test-timeout=15000 --test-name-pattern="^throttle público:" tests/race-damage.unit.ts
+node --test --test-timeout=30000 --test-name-pattern="^progresso seguro:|^gates empurrão:|^gates respawn|^gates: chegada|^gates dano:|^respawn:|^contato letal:|^bots dano: completam neon-furnace" tests/race-damage.unit.ts
+node --test --test-timeout=15000 --test-name-pattern="^gates empurrão:" tests/race-damage.unit.ts
+node --test --test-timeout=15000 --test-name-pattern="^progresso inicial:|^progresso seguro: recuar|^respawn:|^gates respawn lateral:" tests/race-damage.unit.ts
+node --test --test-timeout=30000 --test-name-pattern="^guards:|^parede dano:|^respawn:|^bots dano: completam neon-furnace" tests/race-damage.unit.ts
 ```
 
 A implementação inicial encontrou duas falhas: resíduo numérico no fim da proteção e gate após centralização lateral. Foram investigadas e corrigidas, com repetição direcionada. Revisão posterior encontrou os casos de ré/empurrão/progresso inicial e a parede intangível durante proteção; os respectivos novos asserts/regressões passaram. A última seleção de física acima teve **4 aprovados, 0 falhas e 0 ignorados**, sem repetir todas as aprovações anteriores.
@@ -59,18 +59,18 @@ A implementação inicial encontrou duas falhas: resíduo numérico no fim da pr
 ### Modelos, distribuição, câmeras, áudio e efeitos
 
 ```powershell
-node --test --test-timeout=30000 tests/vehicle-models.unit.js tests/vehicle-assets-plugin.unit.js
-node --test --test-timeout=120000 tests/thunder-optimization.unit.js
-node --test --test-timeout=30000 --test-name-pattern="(GLB real (armored|widowmaker)|inspeção bloqueia)" tests/vehicle-models.unit.js
-node --test --test-timeout=120000 --test-name-pattern="Thunder real:" tests/thunder-optimization.unit.js
-node --test --test-timeout=30000 --test-name-pattern="(GLB real armored|fábrica usa|otimizador Thunder)" tests/vehicle-models.unit.js tests/thunder-optimization.unit.js
-node --test --test-timeout=15000 tests/race-camera.unit.js
-node --test --test-timeout=15000 --test-name-pattern="^(?!isométrica explícita)" tests/race-camera.unit.js
-node --test --test-timeout=15000 --test-name-pattern="zoom preserva carro inteiro" tests/race-camera.unit.js
-node --test --test-timeout=15000 --test-name-pattern="^Thunder real:" tests/race-camera.unit.js
-node --test --test-timeout=15000 tests/audio.unit.js
-node --test --test-timeout=15000 tests/vehicle-damage-effects.unit.js
-node --test --test-timeout=15000 --test-name-pattern="capô|dano maior|respawn limpa fumaça" tests/vehicle-damage-effects.unit.js
+node --test --test-timeout=30000 tests/vehicle-models.unit.ts tests/vehicle-assets-plugin.unit.ts
+node --test --test-timeout=120000 tests/thunder-optimization.unit.ts
+node --test --test-timeout=30000 --test-name-pattern="(GLB real (armored|widowmaker)|inspeção bloqueia)" tests/vehicle-models.unit.ts
+node --test --test-timeout=120000 --test-name-pattern="Thunder real:" tests/thunder-optimization.unit.ts
+node --test --test-timeout=30000 --test-name-pattern="(GLB real armored|fábrica usa|otimizador Thunder)" tests/vehicle-models.unit.ts tests/thunder-optimization.unit.ts
+node --test --test-timeout=15000 tests/race-camera.unit.ts
+node --test --test-timeout=15000 --test-name-pattern="^(?!isométrica explícita)" tests/race-camera.unit.ts
+node --test --test-timeout=15000 --test-name-pattern="zoom preserva carro inteiro" tests/race-camera.unit.ts
+node --test --test-timeout=15000 --test-name-pattern="^Thunder real:" tests/race-camera.unit.ts
+node --test --test-timeout=15000 tests/audio.unit.ts
+node --test --test-timeout=15000 tests/vehicle-damage-effects.unit.ts
+node --test --test-timeout=15000 --test-name-pattern="capô|dano maior|respawn limpa fumaça" tests/vehicle-damage-effects.unit.ts
 ```
 
 Houve ajustes durante o diagnóstico de extensões materiais/UVs dos modelos e enquadramento das câmeras; as seleções relevantes passaram após correção. A suíte de câmeras teve 11 aprovados e depois um novo caso Thunder real aprovado: oito cantos, centro, três zooms, desktop/retrato, quatro orientações e velocidades 0/40, sem repetir os anteriores. O último filtro de efeitos foi repetido após melhorar tamanho/opacidade e depois elevar o emissor: antes ele podia emitir dentro do capô e ficar oculto pelo depth test. **3 aprovados, 0 falhas e 0 ignorados** nesse recorte final.
@@ -86,11 +86,11 @@ Houve ajustes durante o diagnóstico de extensões materiais/UVs dos modelos e e
 Comandos utilizados, sempre zero retries e limite de uma falha:
 
 ```powershell
-npx.cmd --no-install playwright test tests/vehicle-combat.spec.js tests/vehicle-shop.spec.js --project=desktop --grep "Thunder integrado|dano integrado|rodas e motores integrados|produção Thunder|Thunder Bug custa" --retries=0 --max-failures=1 --timeout=150000
-npx.cmd --no-install playwright test tests/vehicle-combat.spec.js tests/vehicle-shop.spec.js --project=desktop --grep "Thunder integrado|Thunder mobile|dano integrado|rodas e motores integrados|produção Thunder|Thunder Bug custa" --retries=0 --max-failures=1 --timeout=210000
-npx.cmd --no-install playwright test tests/vehicle-combat.spec.js tests/vehicle-shop.spec.js --project=desktop --grep "dano integrado|rodas e motores integrados|produção Thunder|Thunder Bug custa" --retries=0 --max-failures=1 --timeout=210000
-npx.cmd --no-install playwright test tests/vehicle-combat.spec.js tests/vehicle-shop.spec.js --config "C:\Users\Sille\AppData\Local\Temp\opencode\rock-racing-existing-build.config.mjs" --project=desktop --grep "rodas e motores integrados|produção Thunder|Thunder Bug custa" --retries=0 --max-failures=1 --timeout=210000
-npx.cmd --no-install playwright test tests/vehicle-combat.spec.js --project=desktop --grep "dano integrado|produção Thunder" --retries=0 --max-failures=1 --timeout=210000
+npx.cmd --no-install playwright test tests/vehicle-combat.spec.ts tests/vehicle-shop.spec.ts --project=desktop --grep "Thunder integrado|dano integrado|rodas e motores integrados|produção Thunder|Thunder Bug custa" --retries=0 --max-failures=1 --timeout=150000
+npx.cmd --no-install playwright test tests/vehicle-combat.spec.ts tests/vehicle-shop.spec.ts --project=desktop --grep "Thunder integrado|Thunder mobile|dano integrado|rodas e motores integrados|produção Thunder|Thunder Bug custa" --retries=0 --max-failures=1 --timeout=210000
+npx.cmd --no-install playwright test tests/vehicle-combat.spec.ts tests/vehicle-shop.spec.ts --project=desktop --grep "dano integrado|rodas e motores integrados|produção Thunder|Thunder Bug custa" --retries=0 --max-failures=1 --timeout=210000
+npx.cmd --no-install playwright test tests/vehicle-combat.spec.ts tests/vehicle-shop.spec.ts --config "C:\Users\Sille\AppData\Local\Temp\opencode\rock-racing-existing-build.config.mjs" --project=desktop --grep "rodas e motores integrados|produção Thunder|Thunder Bug custa" --retries=0 --max-failures=1 --timeout=210000
+npx.cmd --no-install playwright test tests/vehicle-combat.spec.ts --project=desktop --grep "dano integrado|produção Thunder" --retries=0 --max-failures=1 --timeout=210000
 ```
 
 A configuração temporária herda a do projeto, com diretórios absolutos e apenas o comando do preview substituído para não recompilar o `dist` existente. Não modifica outro projeto nem adiciona dependências.

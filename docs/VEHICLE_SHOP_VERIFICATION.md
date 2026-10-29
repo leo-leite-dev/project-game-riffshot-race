@@ -11,14 +11,14 @@ Catálogo/modelos, economia persistente, migração de saves, posse/equipamento,
 ## Comandos Node
 
 ```powershell
-node --test --test-timeout=15000 tests/vehicle-shop.unit.js
-node --test --test-timeout=15000 --test-name-pattern="^(storage |migração de save|migração desconhecida|versão :v2|nenhum backup|falha no backup|falha no principal|conflito entre abas|save rejeita|schema confere)" tests/championship.unit.js
-node --test --test-timeout=15000 --test-name-pattern="^serviço aplica as quatro premiações" tests/championship-service.unit.js
-node --test --test-timeout=30000 tests/vehicle-models.unit.js tests/vehicle-assets-plugin.unit.js
-node --test --test-timeout=30000 --test-name-pattern="GLB real armored_car_death_race" tests/vehicle-models.unit.js
-node --test --test-timeout=30000 --test-name-pattern="^(loader transforma|destroy descarta|cache retém|fábrica usa)" tests/vehicle-models.unit.js
-node --test --test-timeout=15000 --test-name-pattern="^catálogo tem cinco carros, três iniciais e Race Car recebe exatamente duas cargas de nitro$" tests/race-simulation.unit.js
-node --test --test-timeout=15000 --test-name-pattern="^(writer:|merge parcial|loja: corrida ativa e recibo)" tests/championship-writer.unit.js tests/championship.unit.js tests/vehicle-shop.unit.js
+node --import tsx --test --test-timeout=15000 tests/vehicle-shop.unit.ts
+node --import tsx --test --test-timeout=15000 --test-name-pattern="^(storage |migração de save|migração desconhecida|versão :v2|nenhum backup|falha no backup|falha no principal|conflito entre abas|save rejeita|schema confere)" tests/championship.unit.ts
+node --import tsx --test --test-timeout=15000 --test-name-pattern="^serviço aplica as quatro premiações" tests/championship-service.unit.ts
+node --import tsx --test --test-timeout=30000 tests/vehicle-models.unit.ts tests/vehicle-assets-plugin.unit.ts
+node --import tsx --test --test-timeout=30000 --test-name-pattern="GLB real armored_car_death_race" tests/vehicle-models.unit.ts
+node --import tsx --test --test-timeout=30000 --test-name-pattern="^(loader transforma|destroy descarta|cache retém|fábrica usa)" tests/vehicle-models.unit.ts
+node --import tsx --test --test-timeout=15000 --test-name-pattern="^catálogo tem cinco carros, três iniciais e Race Car recebe exatamente duas cargas de nitro$" tests/race-simulation.unit.ts
+node --import tsx --test --test-timeout=15000 --test-name-pattern="^(writer:|merge parcial|loja: corrida ativa e recibo)" tests/championship-writer.unit.ts tests/championship.unit.ts tests/vehicle-shop.unit.ts
 ```
 
 O primeiro teste real de dimensões do Armored teve expectativa numérica corrigida após medição dos vértices reais e passou na repetição direcionada; não se contou a tentativa falha como aprovação. Sintaxe (`node --check`) e whitespace (`git diff --check`) também foram conferidos, sem serem somados como testes funcionais.
@@ -26,9 +26,9 @@ O primeiro teste real de dimensões do Armored teve expectativa numérica corrig
 ## Comandos de navegador e diagnóstico
 
 ```powershell
-npx.cmd --no-install playwright test tests/vehicle-shop.spec.js --project=desktop --retries=0 --max-failures=1 --timeout=120000
+npx.cmd --no-install playwright test tests/vehicle-shop.spec.ts --project=desktop --retries=0 --max-failures=1 --timeout=120000
 
-npx.cmd --no-install playwright test tests/vehicle-shop.spec.js --project=desktop --grep "Camaro custa|cinco opções|meta antes|oitava corrida|economia entre abas|produção da loja" --retries=0 --max-failures=1 --timeout=120000
+npx.cmd --no-install playwright test tests/vehicle-shop.spec.ts --project=desktop --grep "Camaro custa|cinco opções|meta antes|oitava corrida|economia entre abas|produção da loja" --retries=0 --max-failures=1 --timeout=120000
 ```
 
 Histórico sem retries automáticos:
@@ -39,7 +39,7 @@ Histórico sem retries automáticos:
 4. Repetido **apenas “economia entre abas”**: **1 aprovado**. Servidores iniciados com configuração temporária em `C:\Users\Sille\AppData\Local\Temp\opencode\rock-racing-existing-build.config.mjs`, herdando a configuração do projeto e substituindo apenas o comando do preview para reutilizar o `dist` já construído da mesma versão:
 
 ```powershell
-npx.cmd --no-install playwright test tests/vehicle-shop.spec.js --config "C:\Users\Sille\AppData\Local\Temp\opencode\rock-racing-existing-build.config.mjs" --project=desktop --grep "economia entre abas" --retries=0 --max-failures=1 --timeout=120000
+npx.cmd --no-install playwright test tests/vehicle-shop.spec.ts --config "C:\Users\Sille\AppData\Local\Temp\opencode\rock-racing-existing-build.config.mjs" --project=desktop --grep "economia entre abas" --retries=0 --max-failures=1 --timeout=120000
 ```
 
 Nenhum caso foi marcado como skip para esconder incompatibilidade. Os demais testes não executados pelo filtro não contam como aprovação. Nenhum save real do proprietário foi utilizado.

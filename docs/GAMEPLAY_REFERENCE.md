@@ -174,7 +174,7 @@ Essas fontes não permitem afirmar valores exatos de aceleração, frenagem, ade
 
 ### Evidência reproduzível de sincronização
 
-O teste em `tests/race-simulation.unit.js` avançou um segundo de aceleração constante em 30, 60, 120 e 144 Hz de render. Todos resultaram em 60 passos físicos e trajetória dentro de 0,02 unidade. Em 144 renderizações, a pose física crua ficou inalterada em 84 amostras, enquanto a pose apresentada interpolada ficou inalterada em 2. A câmera usa posição, direção e velocidade interpoladas; usar velocidade crua enquanto a posição era interpolada podia alterar o look-ahead em degraus nas acelerações e impactos.
+O teste em `tests/race-simulation.unit.ts` avançou um segundo de aceleração constante em 30, 60, 120 e 144 Hz de render. Todos resultaram em 60 passos físicos e trajetória dentro de 0,02 unidade. Em 144 renderizações, a pose física crua ficou inalterada em 84 amostras, enquanto a pose apresentada interpolada ficou inalterada em 2. A câmera usa posição, direção e velocidade interpoladas; usar velocidade crua enquanto a posição era interpolada podia alterar o look-ahead em degraus nas acelerações e impactos.
 
 Esta é uma medição determinística da aplicação, não uma filmagem do jogo antigo nem uma certificação de fluidez de GPU. Os testes automatizados do navegador neste projeto usam SwiftShader/software em algumas execuções; validação em GPU real ainda é necessária.
 

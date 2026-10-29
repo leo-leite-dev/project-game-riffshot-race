@@ -14,22 +14,42 @@ Estado atual por leitura da implementação integrada. O histórico das etapas a
 
 Carreira nova começa com 2.000 créditos e nenhum carro adquirido. Comprar/equipar é uma transação única; um carro adquirido pode ser reequipado sem nova cobrança. Os preços de 5/10/16 vitórias são referências de valor, não exigências de contagem: qualquer crédito da carteira vale para comprar. Race Car 2 permanece bloqueado mesmo com saldo suficiente; esta etapa não implementa sua liberação nem a fase 2.
 
+### Abas LOJA e MINHA GARAGEM
+
+O módulo **LOJA / GARAGEM** da estação abre a mesma cena com duas abas. LOJA mantém os carros adquiridos visíveis com selo **JÁ VENDIDO**, mas ignora clique, hover, picking 3D e navegação por teclado nesses itens. O bloqueio da fase 2 continua separado e pode ser consultado normalmente.
+
+**MINHA GARAGEM** filtra o catálogo pelo inventário salvo, incluindo o carro recebido como prêmio. Nela, selecionar cor e confirmar equipa sem novo débito. A compra nova mantém o fluxo existente de confirmação/transferência e equipamento inicial; as trocas posteriores de um adquirido são feitas na garagem, não pela loja. Uma garagem vazia informa a ausência e permite voltar à loja, sem criar veículo fictício.
+
+Abas não são salvas no progresso. Alterná-las não compra, equipa ou grava; o shutdown da mesma cena descarta preview e invalida cargas anteriores, preservando o renderizador/cache compartilhados. Os bloqueios existentes de corrida ativa, recibo pendente e falha de armazenamento continuam no serviço. Não houve migração ou mudança de schema.
+
+**Verificação desta separação:** quatro casos distintos de navegador aprovados, zero falhas pendentes e zero ignorados: inventário não contíguo/prêmio, vendidos sem seleção, equipamento persistente sem débito, estado vazio, corrida ativa, alternância rápida e regressão da primeira compra. Não houve testes unitários novos nem repetição de física/bots/saves, pois essas regras não foram alteradas. O primeiro preparo do spec teve erro de escopo da variável `tab`; corrigido no helper antes da execução aprovada, sem alterar a aplicação para contornar o teste.
+
+Comandos executados:
+
+```powershell
+npx.cmd --no-install playwright test tests/owned-garage.spec.ts tests/vehicle-shop.spec.ts --project=desktop --grep "garagem adquiridos|garagem vazia|garagem bloqueada|Thunder Bug custa" --retries=0 --max-failures=1 --timeout=120000
+```
+
+Após corrigir somente o helper, os quatro passaram usando a configuração temporária `rock-racing-existing-build.config.mjs` para reaproveitar o mesmo `dist`, sem repetir build. Depois de um ajuste pequeno no texto de vazio e despacho de teclado, foi executado apenas `tests/owned-garage.spec.ts --grep "garagem vazia"`, com o mesmo projeto/flags: um aprovado, já incluído nos quatro distintos. O build final passou pelo servidor Playwright, com aviso não impeditivo de chunk acima de 500 kB. Não foi executada a suíte completa.
+
+Capturas reais geradas e examinadas: `previews-ui/loja-ja-vendido-desktop.png`, `previews-ui/loja-ja-vendido-mobile.png`, `previews-ui/minha-garagem-desktop.png`, `previews-ui/minha-garagem-mobile.png` e `previews-ui/minha-garagem-vazia.png`. Viewports emulados não validam FPS, toque em aparelho físico ou todos os navegadores. Os testes legados diretamente afetados tiveram expectativas ajustadas, mas não foram todos reexecutados. Sem commit, push ou deploy desta alteração.
+
 Todos os preços são em créditos **fictícios** da carreira. O jogo é gratuito e não vende veículos ou créditos por dinheiro real. Doações opcionais são apenas planejadas, sem pagamento ou QR Code implementado.
 
 Ao alcançar a meta de 1.400 SCORE, o jogador pode continuar disputando as corridas restantes até o limite de oito ou encerrar o desafio escolhendo um prêmio. A escolha é **Widowmaker ou 12.000 créditos**, não ambos. Receber o prêmio encerra o farming deste desafio. A interface informa que a fase 2 ainda está em desenvolvimento. O carro-prêmio entra na garagem sem trocar automaticamente o carro equipado. Quem já comprou o Widowmaker pode receber os créditos, mas não outro exemplar.
 
 ## Responsabilidades e saves
 
-- `src/data/vehicles.js`: catálogo, preços, opções iniciais, bloqueio e atributos aprovados. IDs antigos foram mantidos para preservar as carreiras. A etapa inicial da loja preservava os três perfis anteriores; a integração atual aplica os ratings abaixo à física real.
-- `championshipState.js`: transições puras de compra, propriedade, farming e prêmio único. Corrida ativa e resultado pendente bloqueiam mudanças de seleção/compra/prêmio.
-- `Championship.js`: cenas usam o serviço, nunca uma carteira paralela. Compra e prêmio só são aplicados após gravação bem-sucedida; falha não é apresentada como sucesso temporário.
+- `src/data/vehicles.ts`: catálogo, preços, opções iniciais, bloqueio e atributos aprovados. IDs antigos foram mantidos para preservar as carreiras. A etapa inicial da loja preservava os três perfis anteriores; a integração atual aplica os ratings abaixo à física real.
+- `championshipState.ts`: transições puras de compra, propriedade, farming e prêmio único. Corrida ativa e resultado pendente bloqueiam mudanças de seleção/compra/prêmio.
+- `Championship.ts`: cenas usam o serviço, nunca uma carteira paralela. Compra e prêmio só são aplicados após gravação bem-sucedida; falha não é apresentada como sucesso temporário.
 - Schema 3 acrescenta `ownedVehicleIds` e `rivalRewardChoice`. Migração validada de v1/v2 preserva saldo, SCORE, histórico e recibos e concede o carro previamente selecionado sem cobrança retroativa. A chave histórica do armazenamento e seu backup são mantidos.
 - Fracasso mantém os carros comprados, mas preserva a regra anterior de zerar carteira/SCORE/upgrades. APAGAR PROGRESSO remove também inventário e escolha de prêmio, somente após confirmação.
-- `championshipWriter.js` usa Web Locks para dar a uma única aba a permissão de gravar o progresso. Não usa spinlock em localStorage. Outra aba fica em sessão temporária, sem permissão de comprar, receber prêmio ou apagar. Fechar a aba proprietária e recarregar libera o acesso. Sem Web Locks, a economia falha fechada com aviso; usar navegador atualizado em localhost/HTTPS.
+- `championshipWriter.ts` usa Web Locks para dar a uma única aba a permissão de gravar o progresso. Não usa spinlock em localStorage. Outra aba fica em sessão temporária, sem permissão de comprar, receber prêmio ou apagar. Fechar a aba proprietária e recarregar libera o acesso. Sem Web Locks, a economia falha fechada com aviso; usar navegador atualizado em localhost/HTTPS.
 
 ## Modelos e recursos
 
-O pacote público selecionado para versionamento fica em **`assets/vehicles/`**, com cinco GLBs e `manifest.json`. `scripts/vehicleAssetsPlugin.js` lê esse pacote e disponibiliza/emite somente **cinco assets distintos** da allowlist de `vehicleModels.js`, em `/models/vehicles/`: `thunder_bug.glb`, `race_car.glb`, `camaro.glb`, `armored_car_death_race.glb` e `widowmaker_-_death_race_2000.glb`. O manifesto registra autoria, título, fonte, licença/link, adaptações, URL pública, bytes e SHA-256 do original e do payload distribuído.
+O pacote público selecionado para versionamento fica em **`assets/vehicles/`**, com cinco GLBs e `manifest.json`. `scripts/vehicleAssetsPlugin.ts` lê esse pacote e disponibiliza/emite somente **cinco assets distintos** da allowlist de `vehicleModels.ts`, em `/models/vehicles/`: `thunder_bug.glb`, `race_car.glb`, `camaro.glb`, `armored_car_death_race.glb` e `widowmaker_-_death_race_2000.glb`. O manifesto registra autoria, título, fonte, licença/link, adaptações, URL pública, bytes e SHA-256 do original e do payload distribuído.
 
 **Desenvolvimento/build normais não precisam das referências privadas:** leem os binários já preparados, sem importar o otimizador nem repetir seu processamento de cerca de 30 segundos. Os guards conferem cinco entradas únicas, atribuições obrigatórias, URLs previstas, tamanho e SHA-256, contêiner GLB e ausência de URIs de recursos externos. Cada GLB deve ter **menos de 25 MiB**; pacote ausente, inválido ou divergente impede a emissão, sem fallback para os originais privados. O fallback procedural do jogo é uma regra de apresentação distinta dessa validação do pacote.
 
@@ -41,7 +61,7 @@ O plugin não copia `referencias-locais/` nem `public/` inteira; rotas genérica
 npm run assets:prepare
 ```
 
-`scripts/prepareVehicleAssets.js` lê somente os cinco nomes fixos em `referencias-locais/Vehicles`, sem varrer a pasta, e não edita os originais. Otimiza somente o Thunder, valida todos os payloads antes de escrever em `assets/vehicles/` e grava o manifesto por último. Os demais binários são copiados sem alteração. O comando é usado para regenerar deliberadamente o pacote; não é uma etapa automática de dev, build ou deploy no Pages. A distribuição usa os arquivos do pacote versionado, não as fontes privadas.
+`scripts/prepareVehicleAssets.ts` lê somente os cinco nomes fixos em `referencias-locais/Vehicles`, sem varrer a pasta, e não edita os originais. Otimiza somente o Thunder, valida todos os payloads antes de escrever em `assets/vehicles/` e grava o manifesto por último. Os demais binários são copiados sem alteração. O comando é usado para regenerar deliberadamente o pacote; não é uma etapa automática de dev, build ou deploy no Pages. A distribuição usa os arquivos do pacote versionado, não as fontes privadas.
 
 **Race Car 2:** `modelFile: race_car2.glb` é um alias de catálogo resolvido para o único original `race_car.glb`. Não existe original `race_car2.glb` exigido pelo carregamento e nenhum binário com esse nome é solicitado ou emitido. Na etapa anterior, Race Car e Race Car 2 compartilhavam esse mesmo binário; agora o primeiro perfil (`rift-blaze`) usa Thunder. Geometrias, texturas e templates canônicos são compartilhados entre instâncias. Os modelos são normalizados em memória para chão y=0, frente +Z e comprimento 3,25. Na corrida recebem escala visual ×1,3, sem alterar colisões.
 
@@ -57,7 +77,7 @@ Os cinco binários distintos somam **53.909.488 bytes**, sem compressão HTTP. O
 
 ### Thunder Bug — derivado sem perdas
 
-`scripts/optimizeThunderBug.js` reutiliza as rotinas de `scripts/optimizeRiftBlaze.js`, preservando o original. O valor registrado para o original é **28.914.440 bytes**; o derivado é **25.452.592 bytes (24,27 MiB)**, abaixo do limite de 25 MiB por asset do Pages. Os hashes e o inventário detalhado estão em [CREDITS.md](../CREDITS.md).
+`scripts/optimizeThunderBug.ts` reutiliza as rotinas de `scripts/optimizeRiftBlaze.ts`, preservando o original. O valor registrado para o original é **28.914.440 bytes**; o derivado é **25.452.592 bytes (24,27 MiB)**, abaixo do limite de 25 MiB por asset do Pages. Os hashes e o inventário detalhado estão em [CREDITS.md](../CREDITS.md).
 
 A transformação recompõe PNGs sem perdas, elimina UV sets não usados pelos materiais, compacta índices, une vértices com todos os atributos retidos idênticos e deduplica dados/imagens embutidos. Mantém dimensões e pixels das imagens, UVs usados, 63.181 triângulos e os dados do Fan. O derivado é gerado na preparação explícita e salvo em `assets/vehicles/thunder_bug.glb`, com bytes e SHA-256 no manifesto; dev/build apenas validam e servem/emitem esse payload na URL `/models/vehicles/thunder_bug.glb`. Falha da preparação não entrega o original acima do limite. Redução de transferência não reduz, por si só, a memória das imagens decodificadas.
 
@@ -75,13 +95,13 @@ Ratings na escala 0–100, não km/h. Resistência determina capacidade de vida 
 
 **Procedência:** consulte a [tabela resumida no README](../README.md#créditos-dos-cinco-veículos-atuais), [CREDITS.md](../CREDITS.md) e [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). O Thunder tem título de origem **race car**, autor **Chenchanchong** e fonte `97768c0e69744cd5922ddc5a9fd59266`, registrados nos metadados e na página de origem conforme os créditos. Os **cinco modelos** têm licença declarada **CC BY 4.0, não CC0**, sem endosso ou comprovação independente de todos os direitos. O publicador do Race Car usado pelo Race Car 2 informa não ser dono da malha, e o arquivo chamado Camaro é identificado como veículo extraído de Transformers Universe. As atribuições CC BY declaradas pelos uploaders não resolvem direitos sobre malhas, marcas ou designs dos titulares originais; otimização e extração de rodas tampouco os resolvem. Essas ressalvas ficam registradas para a decisão do proprietário.
 
-O rodapé compartilhado dos menus aponta para `./credits.html`, em nova aba e sem recarregar o jogo. `scripts/publicCreditsPlugin.js` gera a página a partir de `THIRD_PARTY_NOTICES.md`, com escape do conteúdo Markdown, e mantém `THIRD_PARTY_NOTICES.txt` integral. Ambos incluem autores, fontes, licenças e adaptações dos cinco modelos, áudio original **Neon Ignition / RaceEngineAudio** e avisos MIT de **Phaser 3, Three.js e eventemitter3**. Não alteram a licença das criações próprias do projeto.
+O rodapé compartilhado dos menus aponta para `./credits.html`, em nova aba e sem recarregar o jogo. `scripts/publicCreditsPlugin.ts` gera a página a partir de `THIRD_PARTY_NOTICES.md`, com escape do conteúdo Markdown, e mantém `THIRD_PARTY_NOTICES.txt` integral. Ambos incluem autores, fontes, licenças e adaptações dos cinco modelos, áudio original **Neon Ignition / RaceEngineAudio** e avisos MIT de **Phaser 3, Three.js e eventemitter3**. Não alteram a licença das criações próprias do projeto.
 
 ## Verificação direcionada
 
 ### Registro da etapa anterior da loja
 
-Casos novos em `vehicle-shop.unit.js`, `championship-writer.unit.js`, `vehicle-models.unit.js`, `vehicle-assets-plugin.unit.js` e `vehicle-shop.spec.js`. O spec de navegador usa carreiras isoladas, inclusive para qualificação/oitava corrida, sem tocar no save do proprietário. Capturas reais ficam em `previews-ui/`.
+Casos novos em `vehicle-shop.unit.ts`, `championship-writer.unit.ts`, `vehicle-models.unit.ts`, `vehicle-assets-plugin.unit.ts` e `vehicle-shop.spec.ts`. O spec de navegador usa carreiras isoladas, inclusive para qualificação/oitava corrida, sem tocar no save do proprietário. Capturas reais ficam em `previews-ui/`.
 
 O teste de duas abas verifica a proteção no menu da segunda aba: não é necessário carregar dois ambientes 3D para testar uma regra de gravação do serviço. A transferência real do braço leva cerca de sete segundos e tem espera explícita adequada. Testes antigos diretamente afetados tiveram fixtures/expectativas ajustadas, mas não foram todos executados nesta etapa.
 
