@@ -49,11 +49,11 @@ Ao alcançar a meta de 1.400 SCORE, o jogador pode continuar disputando as corri
 
 ## Modelos e recursos
 
-O pacote público selecionado para versionamento fica em **`assets/vehicles/`**, com cinco GLBs e `manifest.json`. `scripts/vehicleAssetsPlugin.ts` lê esse pacote e disponibiliza/emite somente **cinco assets distintos** da allowlist de `vehicleModels.ts`, em `/models/vehicles/`: `thunder_bug.glb`, `race_car.glb`, `camaro.glb`, `armored_car_death_race.glb` e `widowmaker_-_death_race_2000.glb`. O manifesto registra autoria, título, fonte, licença/link, adaptações, URL pública, bytes e SHA-256 do original e do payload distribuído.
+O pacote público selecionado para versionamento fica em **`public/assets/models/vehicles/`**, com cinco GLBs e `manifest.json`. `scripts/vehicleAssetsPlugin.ts` lê esse pacote e disponibiliza/emite somente **cinco assets distintos** da allowlist de `vehicleModels.ts`, em `/assets/models/vehicles/`: `thunder_bug.glb`, `race_car.glb`, `camaro.glb`, `armored_car_death_race.glb` e `widowmaker_-_death_race_2000.glb`. O manifesto registra autoria, título, fonte, licença/link, adaptações, URL pública, bytes e SHA-256 do original e do payload distribuído.
 
 **Desenvolvimento/build normais não precisam das referências privadas:** leem os binários já preparados, sem importar o otimizador nem repetir seu processamento de cerca de 30 segundos. Os guards conferem cinco entradas únicas, atribuições obrigatórias, URLs previstas, tamanho e SHA-256, contêiner GLB e ausência de URIs de recursos externos. Cada GLB deve ter **menos de 25 MiB**; pacote ausente, inválido ou divergente impede a emissão, sem fallback para os originais privados. O fallback procedural do jogo é uma regra de apresentação distinta dessa validação do pacote.
 
-O plugin não copia `referencias-locais/` nem `public/` inteira; rotas genéricas às referências são bloqueadas e a rota de modelos aceita apenas URLs/métodos previstos. `referencias-locais/` e `public/models/` histórico permanecem ignorados e não versionados. **Sci - Fi Buggy e Air Blade não integram a allowlist nem a distribuição.** “Assets aprovados” descreve essa seleção técnica, não aprovação jurídica. Esta documentação não registra deploy da atualização atual.
+O plugin não copia `referencias-locais/` nem `public/` inteira; rotas genéricas às referências são bloqueadas e a rota de modelos aceita apenas URLs/métodos previstos. O modelo experimental antigo foi arquivado sob `referencias-locais/legacy-assets/vehicles/`, fora do Git e da distribuição. **Sci - Fi Buggy e Air Blade não integram a allowlist nem a distribuição.** “Assets aprovados” descreve essa seleção técnica, não aprovação jurídica. Esta documentação não registra deploy da atualização atual.
 
 ### Preparação explícita do pacote
 
@@ -61,7 +61,7 @@ O plugin não copia `referencias-locais/` nem `public/` inteira; rotas genérica
 npm run assets:prepare
 ```
 
-`scripts/prepareVehicleAssets.ts` lê somente os cinco nomes fixos em `referencias-locais/Vehicles`, sem varrer a pasta, e não edita os originais. Otimiza somente o Thunder, valida todos os payloads antes de escrever em `assets/vehicles/` e grava o manifesto por último. Os demais binários são copiados sem alteração. O comando é usado para regenerar deliberadamente o pacote; não é uma etapa automática de dev, build ou deploy no Pages. A distribuição usa os arquivos do pacote versionado, não as fontes privadas.
+`scripts/prepareVehicleAssets.ts` lê somente os cinco nomes fixos em `referencias-locais/Vehicles`, sem varrer a pasta, e não edita os originais. Otimiza somente o Thunder, valida todos os payloads antes de escrever em `public/assets/models/vehicles/` e grava o manifesto por último. Os demais binários são copiados sem alteração. O comando é usado para regenerar deliberadamente o pacote; não é uma etapa automática de dev, build ou deploy no Pages. A distribuição usa os arquivos do pacote versionado, não as fontes privadas.
 
 **Race Car 2:** `modelFile: race_car2.glb` é um alias de catálogo resolvido para o único original `race_car.glb`. Não existe original `race_car2.glb` exigido pelo carregamento e nenhum binário com esse nome é solicitado ou emitido. Na etapa anterior, Race Car e Race Car 2 compartilhavam esse mesmo binário; agora o primeiro perfil (`rift-blaze`) usa Thunder. Geometrias, texturas e templates canônicos são compartilhados entre instâncias. Os modelos são normalizados em memória para chão y=0, frente +Z e comprimento 3,25. Na corrida recebem escala visual ×1,3, sem alterar colisões.
 
@@ -79,7 +79,7 @@ Os cinco binários distintos somam **53.909.488 bytes**, sem compressão HTTP. O
 
 `scripts/optimizeThunderBug.ts` reutiliza as rotinas de `scripts/optimizeRiftBlaze.ts`, preservando o original. O valor registrado para o original é **28.914.440 bytes**; o derivado é **25.452.592 bytes (24,27 MiB)**, abaixo do limite de 25 MiB por asset do Pages. Os hashes e o inventário detalhado estão em [CREDITS.md](../CREDITS.md).
 
-A transformação recompõe PNGs sem perdas, elimina UV sets não usados pelos materiais, compacta índices, une vértices com todos os atributos retidos idênticos e deduplica dados/imagens embutidos. Mantém dimensões e pixels das imagens, UVs usados, 63.181 triângulos e os dados do Fan. O derivado é gerado na preparação explícita e salvo em `assets/vehicles/thunder_bug.glb`, com bytes e SHA-256 no manifesto; dev/build apenas validam e servem/emitem esse payload na URL `/models/vehicles/thunder_bug.glb`. Falha da preparação não entrega o original acima do limite. Redução de transferência não reduz, por si só, a memória das imagens decodificadas.
+A transformação recompõe PNGs sem perdas, elimina UV sets não usados pelos materiais, compacta índices, une vértices com todos os atributos retidos idênticos e deduplica dados/imagens embutidos. Mantém dimensões e pixels das imagens, UVs usados, 63.181 triângulos e os dados do Fan. O derivado é gerado na preparação explícita e salvo em `public/assets/models/vehicles/thunder_bug.glb`, com bytes e SHA-256 no manifesto; dev/build apenas validam e servem/emitem esse payload na URL `/assets/models/vehicles/thunder_bug.glb`. Falha da preparação não entrega o original acima do limite. Redução de transferência não reduz, por si só, a memória das imagens decodificadas.
 
 ### Atributos atuais
 
@@ -109,7 +109,7 @@ O teste de duas abas verifica a proteção no menu da segunda aba: não é neces
 
 - Manter preços, três opções iniciais/cinco na loja, bloqueio do Race Car 2, propriedade sem cobrança duplicada, prêmio único e persistência segura em caso de falha/conflito.
 - Conferir carregamento por subconjunto, alias para `race_car.glb`, cinco assets emitidos pela allowlist e ausência de acesso público genérico aos originais.
-- Conferir o pacote `assets/vehicles/`/manifesto, bytes/SHA-256, limites estritos de tamanho, falhas de integridade e dev/build sem referências privadas ou otimização automática.
+- Conferir o pacote `public/assets/models/vehicles/`/manifesto, bytes/SHA-256, limites estritos de tamanho, falhas de integridade e dev/build sem referências privadas ou otimização automática.
 - Conferir créditos HTML com escape, TXT integral, atribuições atuais e link em nova aba sem recarregar o jogo.
 - Conferir pixels/UVs usados/triângulos/Fan e original intacto na otimização Thunder; revisar rodas e possíveis costuras do Widowmaker em movimento.
 - Conferir a integração de escala, HUD de vida, dano/respawn, câmeras e motores conforme [VEHICLE_COMBAT.md](VEHICLE_COMBAT.md).

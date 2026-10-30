@@ -41,6 +41,7 @@ export class RaceCameraRig {
   transitionElapsed: number;
   aspect = 1;
   heading = 0;
+  chaseRoll = 0;
 
   constructor({ track, vehicleSize, obstacles = [], mode = DEFAULT_RACE_CAMERA_MODE }: {
     track: RaceTrack | (SampledTrack & { width: number }) | null;
@@ -74,6 +75,7 @@ export class RaceCameraRig {
     this.hits = [];
     this.orthoProjection = new THREE.Matrix4();
     this.initialized = false;
+    this.chaseRoll = 0;
     this.transitionElapsed = RACE_CAMERA_SETTINGS.transitionSeconds;
     this.resize(1);
   }
@@ -162,7 +164,8 @@ export class RaceCameraRig {
     const height = Math.max(THREE.MathUtils.lerp(a.height, b.height, amount) * this.size.z + this.size.y * 0.65, this.size.y + 0.45);
     const lookAhead = THREE.MathUtils.lerp(a.lookAhead, b.lookAhead, amount) * this.size.z + speed * 0.035;
     const targetHeight = THREE.MathUtils.lerp(a.targetHeight, b.targetHeight, amount) * this.size.y;
-    this.zoomFov = THREE.MathUtils.lerp(a.fov, b.fov, amount);
+    const baseFov = THREE.MathUtils.lerp(a.fov, b.fov, amount);
+    this.zoomFov = baseFov + speed / 40 * settings.speedFov;
     // The rear roof corners are the widest/closest silhouette in chase view.
     // Reserve 10% horizontal room for them, especially on narrow phone screens.
     const pitch = Math.atan2(height - targetHeight, distance + lookAhead);
@@ -178,8 +181,11 @@ export class RaceCameraRig {
       this.chasePosition.copy(this.desiredPosition);
       this.chaseTarget.copy(this.desiredTarget);
     } else {
-      this.chasePosition.lerp(this.desiredPosition, follow(settings.follow, dt));
-      this.chaseTarget.lerp(this.desiredTarget, follow(settings.follow, dt));
+      // At race speed, track the car more closely instead of letting its
+      // follow-camera lag look like an unwanted zoom-out.
+      const chaseFollow = settings.follow + speed * settings.speedFollow;
+      this.chasePosition.lerp(this.desiredPosition, follow(chaseFollow, dt));
+      this.chaseTarget.lerp(this.desiredTarget, follow(chaseFollow, dt));
     }
     // A roof-level pivot keeps even a fully contracted boom outside the car.
     // Resolve after smoothing too: a rising road must not leave the camera below
@@ -189,6 +195,10 @@ export class RaceCameraRig {
     if (this.mode === 'chase' || this.transitioning) this.constrainPosition(this.chasePosition);
     this.chase.position.copy(this.chasePosition);
     this.chase.lookAt(this.chaseTarget);
+    const lateralSpeed = Number(player.lateralSpeed) || 0;
+    const desiredRoll = THREE.MathUtils.clamp(lateralSpeed / 30, -1, 1) * settings.lateralRoll;
+    this.chaseRoll = first ? desiredRoll : THREE.MathUtils.lerp(this.chaseRoll, desiredRoll, follow(5, dt));
+    this.chase.rotateZ(this.chaseRoll);
     this.initialized = true;
     this.transitionElapsed = Math.min(RACE_CAMERA_SETTINGS.transitionSeconds, this.transitionElapsed + dt);
     this.compose();

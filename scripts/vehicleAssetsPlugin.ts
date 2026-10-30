@@ -18,14 +18,14 @@ export const MAX_VEHICLE_BYTES = 25 * 1024 * 1024;
 
 function invalid(fileName: string, reason: string) {
   // Never include filesystem errors, absolute paths or private source metadata.
-  return new Error(`assets/vehicles/${fileName}: ${reason}. Execute a preparação explícita dos assets antes do build.`);
+  return new Error(`public/assets/models/vehicles/${fileName}: ${reason}. Execute uma preparação explícita dos assets antes do build.`);
 }
 
 async function readApproved(root: string, fileName: string, limit: number) {
   let file;
   try {
     let directory = await realpath(root);
-    for (const part of ['assets', 'vehicles']) {
+    for (const part of ['public', 'assets', 'models', 'vehicles']) {
       const expected = join(directory, part);
       if (await realpath(expected) !== expected) throw invalid(fileName, 'diretório redirecionado');
       directory = expected;
@@ -39,7 +39,7 @@ async function readApproved(root: string, fileName: string, limit: number) {
     if (source.length !== stats.size || source.length >= limit) throw invalid(fileName, 'tamanho inconsistente');
     return source;
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith(`assets/vehicles/${fileName}:`)) throw error;
+    if (error instanceof Error && error.message.startsWith(`public/assets/models/vehicles/${fileName}:`)) throw error;
     throw invalid(fileName, 'arquivo ausente ou indisponível');
   } finally { await file?.close(); }
 }
@@ -110,7 +110,7 @@ function guard(request: IncomingMessage, response: ServerResponse) {
   const raw = request.url ?? '';
   let decoded;
   try { decoded = decodeURIComponent(raw); } catch { decoded = raw; }
-  const relevant = [raw, decoded].some(value => value.replaceAll('\\', '/').startsWith('/models/vehicles'));
+  const relevant = [raw, decoded].some(value => value.replaceAll('\\', '/').startsWith('/assets/models/vehicles'));
   if (!relevant) return undefined;
   const asset = urls.get(raw);
   response.setHeader('Cache-Control', 'no-cache');

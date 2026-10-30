@@ -1,7 +1,7 @@
 import { test, expect, state, waitScene, openMenu } from './helpers.ts';
 import type { Page } from '@playwright/test';
 
-test('trilha espera interação, produz sinal e pode ser silenciada sem mudar de tela', async ({ page }) => {
+test('trilha espera interação, produz sinal e o mute fica somente nas configurações', async ({ page }) => {
   await page.goto('/');
   await expect.poll(async () => (await state(page)).key).toBe('Splash');
   expect((await state(page)).musicStarted).toBe(false);
@@ -23,12 +23,8 @@ test('trilha espera interação, produz sinal e pode ser silenciada sem mudar de
   expect(signal.peak).toBeLessThanOrEqual(0.901);
   expect(signal.volume).toBeLessThanOrEqual(0.2);
   expect(signal.duration).toBeGreaterThan(14);
+  await expect(page.locator('#music-toggle')).toHaveCount(0);
   await page.keyboard.press('m');
-  expect((await state(page)).musicMuted).toBe(true);
-  await expect(page.locator('#music-toggle')).toHaveAttribute('aria-pressed', 'false');
-  expect((await state(page)).key).toBe('MainMenu');
-  await page.locator('#music-toggle').focus();
-  await page.keyboard.press('Enter');
   expect((await state(page)).musicMuted).toBe(false);
   expect((await state(page)).key).toBe('MainMenu');
   const source = await page.evaluateHandle(async () => { const script = document.querySelector('script[src*="/src/main.ts"]'); if (!(script instanceof HTMLScriptElement)) throw new Error('Entrada ausente'); return (await import(script.src)).game.menuMusic.source; });
@@ -49,10 +45,9 @@ test('indisponibilidade de síntese offline mantém controle global e não bloqu
     window.webkitOfflineAudioContext = undefined;
   });
   await openMenu(page);
-  await expect(page.locator('#music-toggle')).toBeEnabled();
+  await expect(page.locator('#music-toggle')).toHaveCount(0);
   await page.keyboard.press('m');
-  expect((await state(page)).musicMuted).toBe(true);
-  await page.keyboard.press('m');
+  expect((await state(page)).musicMuted).toBe(false);
   await page.keyboard.press('Enter');
   await waitScene(page, 'DifficultySelection');
   await page.keyboard.press('Enter');
@@ -70,8 +65,8 @@ test('falha ao gerar a trilha mantém navegação e controle global de som', asy
     };
   });
   await openMenu(page);
-  await expect(page.locator('#music-toggle')).toBeEnabled();
-  await expect(page.locator('#music-toggle')).toHaveText('♫ SOM: ON [M]');
+  await expect(page.locator('#music-toggle')).toHaveCount(0);
+  expect((await state(page)).musicStarted).toBe(true);
   await page.keyboard.press('Enter');
   await waitScene(page, 'DifficultySelection');
   await page.keyboard.press('Enter');

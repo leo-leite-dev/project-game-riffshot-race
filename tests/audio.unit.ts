@@ -106,7 +106,11 @@ class Context extends Events {
 }
 
 type MockGame = { sound: { context: Context | null }; events: EventEmitter; menuMusic?: MenuMusicInspection };
-type MenuMusicInspection = { source: AudioNode | null; output: AudioNode | null; volume: number; muted: boolean; trackUnavailable: boolean; unavailable: boolean; destroy(): void };
+type MenuMusicInspection = { source: AudioNode | null; output: AudioNode | null; volume: number; muted: boolean;
+  trackUnavailable: boolean; unavailable: boolean; setEffectsVolume(value: number): void;
+  setMusicSource(source: 'game' | 'radio' | 'none'): void; toggle(): void;
+  startRaceTrackMusic(trackId: string): void; stopRaceTrackMusic(): void;
+  currentRaceTrackMusicId: string | null; destroy(): void };
 type AudioInspection = { voices: Map<string | number | object, VoiceInspection>; output: AudioNode | null };
 type VoiceInspection = { filter: AudioNode; oscillators: AudioNode[]; harmonicGains: AudioNode[]; pitchHz: number; level: number; profile: (typeof ENGINE_PROFILES)[string] };
 type EnvironmentOptions = { state?: string; offline?: string; context?: Context | null };
@@ -115,7 +119,22 @@ function environment(t: TestContext, { state = 'running', offline = 'missing', c
   const oldKeyboardEvent = globalThis.KeyboardEvent;
   const oldElement = globalThis.Element;
   const window = new Events(), document = new Events(), button = new Events();
+  const trackAudioInstances: Array<EventTarget & { src: string; paused: boolean; volume: number; loop: boolean;
+    playCalls: number; pauseCalls: number; play(): Promise<void>; pause(): void; removeAttribute(name: string): void;
+    load(): void; dispatchEvent(event: Event): boolean }> = [];
   document.getElementById = () => button;
+  (document as unknown as { createElement: (name: string) => unknown }).createElement = ((name: string) => {
+    if (name !== 'audio') return new EventTarget();
+    const audio = new EventTarget() as EventTarget & { src: string; paused: boolean; volume: number; loop: boolean;
+      playCalls: number; pauseCalls: number; play(): Promise<void>; pause(): void; removeAttribute(name: string): void;
+      load(): void; dispatchEvent(event: Event): boolean };
+    Object.assign(audio, { src: '', paused: true, volume: 1, loop: false, playCalls: 0, pauseCalls: 0,
+      play() { audio.playCalls += 1; audio.paused = false; audio.dispatchEvent(new Event('playing')); return Promise.resolve(); },
+      pause() { audio.pauseCalls += 1; audio.paused = true; },
+      removeAttribute(attribute: string) { if (attribute === 'src') this.src = ''; }, load() {} });
+    trackAudioInstances.push(audio);
+    return audio;
+  }) as Document['createElement'];
   if (offline !== 'missing') {
     window.OfflineAudioContext = class extends Context {
       constructor() {
@@ -139,7 +158,7 @@ function environment(t: TestContext, { state = 'running', offline = 'missing', c
     globalThis.KeyboardEvent = oldKeyboardEvent;
     globalThis.Element = oldElement;
   });
-  return { game, context, window, document, button };
+  return { game, context, window, document, button, trackAudioInstances };
 }
 
 type Car = { id: string; vehicleId: string; isPlayer: boolean; heading: number; vx?: number; vz?: number; velocityX?: number; velocityZ?: number; x: number; z: number; vehicle: { maxSpeed: number }; throttle: number; health: number; maxHealth: number; finished?: boolean; destroyed?: boolean; respawnProtection?: number; _aiThrottle?: number };
@@ -230,6 +249,24 @@ test('mixagem: até quatro vozes, prioridade ao jogador e bots atenuados por dis
   assert.equal(context.peakOscillators, 12);
 });
 
+test('mixagem: motores de bot e rival próximos são audíveis sem superar o jogador', t => {
+  const { game } = environment(t);
+  const driver = car();
+  const bot = car('volt-vector', { id: 'bot', isPlayer: false, x: 25 });
+  const rival = car('widowmaker', { id: 'rival', isPlayer: false, x: -25 });
+  const audio = raceAudio(game, [driver, bot, rival]);
+  audio.update();
+  const voices = inspectAudio(audio).voices;
+  const playerLevel = voices.get(driver.id)!.level;
+  for (const id of [bot.id, rival.id]) {
+    const ratio = voices.get(id)!.level / playerLevel;
+    assert.ok(ratio > 0.5 && ratio < 0.75, `25 m: ${id} não pode sumir nem abafar o jogador (${ratio})`);
+  }
+  bot.x = 100;
+  audio.update();
+  assert.ok(voices.get(bot.id)!.level < voices.get(rival.id)!.level / 3);
+});
+
 test('lifecycle: frames reutilizam nós e automação limitada; remoção, troca de carro e respawn não vazam', t => {
   const { game, context } = environment(t);
   assertContext(context);
@@ -257,7 +294,7 @@ test('lifecycle: frames reutilizam nós e automação limitada; remoção, troca
   assertReleased(context);
 });
 
-test('controle compartilhado: gesture desbloqueia; M/botão, blur e visibility silenciam trilha e motores', async t => {
+test('canais separados: mute/volume de efeitos não silenciam música; rádio e blur controlam canais corretamente', async t => {
   const { game, context, window, document, button } = environment(t, { state: 'suspended', offline: 'works' });
   assertContext(context);
   game.menuMusic = menuMusic(game) as unknown as MenuMusicInspection;
@@ -271,18 +308,27 @@ test('controle compartilhado: gesture desbloqueia; M/botão, blur e visibility s
   assert.equal(game.menuMusic.volume, 0.18);
   assert.equal(inspectAudio(audio).output!.gain.target, 0.24);
   assert.ok(states.some(state => state.unlocked && !state.silent));
-  window.dispatch('keydown', { key: 'm' });
+  game.menuMusic.toggle();
   assert.equal(game.menuMusic.muted, true);
   assert.equal(inspectAudio(audio).output!.gain.target, 0);
   const menuOutput = game.menuMusic.output;
   if (!menuOutput) throw new Error('menu output not created');
-  assert.equal(menuOutput.gain.target, 0);
-  window.dispatch('keydown', { key: 'm', repeat: true });
-  assert.equal(game.menuMusic.muted, true);
+  assert.equal(menuOutput.gain.target, 0.18);
   button.dispatch('click');
   assert.equal(game.menuMusic!.muted, false); assert.equal(inspectAudio(audio).output!.gain.target, 0.24);
-  assert.equal(button.attributes['aria-label'], 'Silenciar som');
+  assert.equal(menuOutput.gain.target, 0.18);
+  assert.equal(button.attributes['aria-label'], 'Silenciar efeitos sonoros');
   assert.equal(button.attributes['aria-pressed'], 'true');
+  game.menuMusic.setEffectsVolume(0.25);
+  assert.equal(inspectAudio(audio).output!.gain.target, 0.06);
+  assert.equal(menuOutput.gain.target, 0.18);
+  game.menuMusic.setMusicSource('radio');
+  assert.equal(menuOutput.gain.target, 0);
+  assert.equal(inspectAudio(audio).output!.gain.target, 0.06);
+  game.menuMusic.setMusicSource('none');
+  assert.equal(menuOutput.gain.target, 0);
+  game.menuMusic.setMusicSource('game');
+  assert.equal(menuOutput.gain.target, 0.18);
   for (const hide of ['blur', 'hidden']) {
     if (hide === 'blur') window.dispatch('blur');
     else { document.hidden = true; document.dispatch('visibilitychange'); }
@@ -290,16 +336,68 @@ test('controle compartilhado: gesture desbloqueia; M/botão, blur e visibility s
     audio.update(); assert.equal(audio.diagnostics.silent, true);
     if (hide === 'blur') window.dispatch('focus');
     else { document.hidden = false; document.dispatch('visibilitychange'); }
-    assert.equal(inspectAudio(audio).output!.gain.target, 0.24);
+    assert.equal(inspectAudio(audio).output!.gain.target, 0.06);
   }
   context.setState('suspended'); assert.equal(inspectAudio(audio).output!.gain.target, 0);
   window.dispatch('pointerdown'); await flush();
-  assert.equal(inspectAudio(audio).output!.gain.target, 0.24);
+  assert.equal(inspectAudio(audio).output!.gain.target, 0.06);
   assert.equal(game.menuMusic.source, source); // Original loop is never replaced.
   game.events.emit('destroy');
   assert.equal(window.listenerCount + document.listenerCount + button.listenerCount + context.listenerCount, 0);
   assert.equal(game.events.listenerCount('audio-state'), 1); // Only this test's observer.
   assert.equal(game.events.listenerCount('destroy'), 0);
+  assertReleased(context);
+});
+
+test('Neon Furnace: música da pista substitui temporariamente a trilha do jogo e limpa ao encerrar', async t => {
+  const { game, context, window, trackAudioInstances } = environment(t, { state: 'suspended', offline: 'works' });
+  assertContext(context);
+  game.menuMusic = menuMusic(game) as unknown as MenuMusicInspection;
+  const states: Array<{ active: boolean; trackId: string | null }> = [];
+  game.events.on('race-track-music', state => states.push(state));
+  window.dispatch('pointerdown'); await flush();
+  const music = game.menuMusic!;
+  const gameSource = music.source;
+  const gameOutput = music.output;
+  assert.ok(gameSource && gameOutput);
+  assert.equal((gameOutput as unknown as GainNode).gain.value, 0);
+  music.startRaceTrackMusic('voltage-run');
+  assert.equal(trackAudioInstances.length, 0, 'Voltage Run mantém a seleção musical normal');
+  music.startRaceTrackMusic('neon-furnace');
+  await flush();
+  assert.equal(trackAudioInstances.length, 1);
+  assert.equal(trackAudioInstances[0].src, '/assets/audio/neon-furnace-theme.mp3');
+  assert.equal(trackAudioInstances[0].loop, true);
+  assert.equal(trackAudioInstances[0].paused, false);
+  assert.equal(music.currentRaceTrackMusicId, 'neon-furnace');
+  assert.equal(((gameOutput as unknown as GainNode).gain as unknown as { target: number }).target, 0,
+    'trilha original pausada enquanto toca a da pista');
+  music.stopRaceTrackMusic();
+  assert.equal(trackAudioInstances[0].paused, true);
+  assert.equal(((gameOutput as unknown as GainNode).gain as unknown as { target: number }).target, 0.18,
+    'trilha previamente escolhida fica audível de novo depois da corrida');
+  assert.equal(gameSource.started, true, 'fonte procedural compartilhada não foi duplicada/recriada');
+  assert.equal(music.currentRaceTrackMusicId, null);
+  assert.deepEqual(states, [{ active: true, trackId: 'neon-furnace' }, { active: false, trackId: 'neon-furnace' }]);
+  game.events.emit('destroy');
+  assert.equal(trackAudioInstances[0].src, '');
+  assertReleased(context);
+});
+
+test('Neon Furnace: erro ao carregar a faixa remove o override e deixa a trilha selecionada como fallback', async t => {
+  const { game, context, window, trackAudioInstances } = environment(t, { state: 'suspended', offline: 'works' });
+  assertContext(context);
+  game.menuMusic = menuMusic(game) as unknown as MenuMusicInspection;
+  window.dispatch('pointerdown'); await flush();
+  const music = game.menuMusic!;
+  const output = music.output;
+  if (!output) throw new Error('procedural output ausente');
+  music.startRaceTrackMusic('neon-furnace');
+  trackAudioInstances[0].dispatchEvent(new Event('error'));
+  assert.equal(trackAudioInstances[0].paused, true);
+  assert.equal(music.currentRaceTrackMusicId, null);
+  assert.equal((output as unknown as AudioNode).gain.target, 0.18);
+  game.events.emit('destroy');
   assertReleased(context);
 });
 

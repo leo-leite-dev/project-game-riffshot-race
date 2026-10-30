@@ -376,7 +376,6 @@ const invalidResults: Record<string, (result: ChampionshipResult) => void> = {
   'tempo de chegada negativo': result => { result.standings[0].finishTime = -1; },
   'tempo de chegada NaN': result => { result.standings[0].finishTime = NaN; },
   'chegadas fora de ordem': result => { result.standings[0].finishTime = 35; },
-  'adversário não completou': result => { result.standings[3].lapsCompleted -= 1; },
   'cor inválida': result => { result.standings[0].paintColor = {} as unknown as string; },
   'campo inesperado': result => { asRecord(result).reward = { score: 9999, money: 9999 }; },
   'chave perigosa': result => { result.standings[0] = JSON.parse(`{"__proto__":{},${JSON.stringify(result.standings[0]).slice(1)}`); },
@@ -389,6 +388,15 @@ for (const [name, corrupt] of Object.entries(invalidResults)) {
     assert.equal(applyChampionshipResult(state, result), state);
   });
 }
+
+test('resultado aceita encerrar ao jogador chegar antes dos bots, preservando as voltas deles', () => {
+  const state = freeze(ready());
+  const result = resultFor(state);
+  result.standings[3].lapsCompleted -= 1;
+  const completed = applyChampionshipResult(state, result);
+  assert.equal(completed.racesRun, 1);
+  assert.equal(completed.pendingResult?.standings[3].lapsCompleted, result.laps - 1);
+});
 
 test('registro antigo, vazio ou sem corrida ativa não lança nem concede prêmio', () => {
   const state = ready();

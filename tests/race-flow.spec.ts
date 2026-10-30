@@ -71,7 +71,7 @@ test('dificuldade → piloto → garagem → pista → corrida arcade → result
     };
   });
   expect(initial).toMatchObject({ participants: 4, difficulty: 'hard', track: assigned.id, model: 'vehicle-glb' });
-  expect(initial).toMatchObject({ presentation: 'direct', copies: 0, texture: false, mode: 'chase' });
+   expect(initial).toMatchObject({ presentation: 'direct', copies: 0, texture: false, mode: 'isometric' });
   await expect(page.locator('canvas')).toHaveCount(2);
   await expect(page.locator('.race-three-canvas')).toHaveCSS('pointer-events', 'none');
    expect(new Set(initial.startPositions.map(([x, z]: [number, number]) => `${x.toFixed(1)},${z.toFixed(1)}`)).size).toBe(4);
@@ -257,8 +257,8 @@ test('dificuldade → piloto → garagem → pista → corrida arcade → result
   await waitScene(page, 'Race');
   await expect.poll(() => page.evaluate(async () => {
     const { game } = await import(document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]')!.src);
-    return game.scene.getScene('Race').garageView?.cameraRig.mode;
-  })).toBe('chase');
+     return game.scene.getScene('Race').garageView?.cameraRig.mode;
+   })).toBe('isometric');
   await page.screenshot({ path: testInfo.outputPath(`${secondTrack.id}-chase.png`) });
   await page.keyboard.press('c');
   await expect.poll(() => page.evaluate(async () => {

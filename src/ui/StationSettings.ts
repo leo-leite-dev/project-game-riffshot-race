@@ -2,13 +2,20 @@ const STYLE_ID = 'station-settings-style';
 let styleUsers = 0;
 
 import type Phaser from 'phaser';
+import { RADIO_GENRES } from '../audio/AudioPreferences.ts';
+import type { MusicSource, RadioGenre } from '../audio/AudioPreferences.ts';
+import type { RadioPlayerState } from '../audio/RiffshotRadio.ts';
 
 type EraseHandler = () => void | Promise<void>;
-type StationSettingsOptions = { onErase?: EraseHandler };
+type StationSettingsOptions = { onErase?: EraseHandler; onVehicleTuning?: () => void };
 type StationMusic = {
   activated: boolean;
+  musicMode: MusicSource;
   toggle: () => void;
-  getAudioState: () => { available: boolean; muted: boolean; hidden: boolean; focused: boolean; unlocked: boolean };
+  setMusicSource: (source: MusicSource) => void;
+  setGameMusicVolume: (volume: number) => void;
+  setEffectsVolume: (volume: number) => void;
+  getAudioState: () => { available: boolean; muted: boolean; hidden: boolean; focused: boolean; unlocked: boolean; effectsVolume: number };
 };
 
 const styles = `
@@ -31,7 +38,7 @@ const styles = `
   }
   button[data-station-settings="gear"] svg { display: block; width: 48px; height: 48px; pointer-events: none; }
   dialog[data-station-settings="panel"] {
-    position: fixed; inset: 0; width: min(480px, calc(100vw - 32px));
+    position: fixed; inset: 0; width: min(560px, calc(100vw - 32px));
     max-height: calc(100dvh - 32px); margin: auto; padding: 0; overflow: auto;
     border: 2px solid #a75647; border-radius: 10px; overscroll-behavior: contain;
     background: repeating-linear-gradient(115deg, #ffffff03 0 1px, transparent 1px 7px), #111b2a;
@@ -68,6 +75,27 @@ const styles = `
   [data-station-settings="panel"] button:hover:not(:disabled) { border-color: #ffcc98; background: #34455b; }
   [data-station-settings="panel"] button:disabled { opacity: .5; cursor: not-allowed; }
   [data-station-settings="panel"] .station-settings__status { margin: 0; color: #c4d0de; font-size: 13px; }
+  [data-station-settings="panel"] label { display: grid; gap: 6px; color: #9bb6c7; font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+  [data-station-settings="panel"] select {
+    box-sizing: border-box; width: 100%; min-height: 42px; padding: 8px 10px;
+    border: 1px solid #526a78; border-radius: 3px; background: #0b1420; color: #f2f6fa;
+    font: inherit; font-size: 14px; letter-spacing: normal;
+  }
+  [data-station-settings="panel"] input[type="range"] { width: 100%; accent-color: #ff554c; }
+  [data-station-settings="panel"] .riffshot-radio {
+    display: grid; gap: 12px; padding: 14px; border: 1px solid #526a78;
+    background: linear-gradient(135deg, #0c1823, #101321); box-shadow: inset 0 2px #ff514522;
+  }
+  [data-station-settings="panel"] .riffshot-radio[hidden] { display: none; }
+  [data-station-settings="panel"] .riffshot-radio h3 { margin: 0; color: #ff695d; font-size: 16px; letter-spacing: .1em; }
+  [data-station-settings="panel"] .riffshot-radio__row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: end; }
+  [data-station-settings="panel"] .riffshot-radio__row button { width: auto; min-width: 112px; }
+  [data-station-settings="panel"] .riffshot-radio__transport { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+  [data-station-settings="panel"] .riffshot-radio__transport button { min-width: 0; padding-inline: 8px; }
+  [data-station-settings="panel"] .riffshot-radio__station { margin: 0; color: #f4f7fa; font-size: 15px; font-weight: 700; }
+  [data-station-settings="panel"] .riffshot-radio__license { margin: 0; color: #95a8b8; font-size: 11px; line-height: 1.45; }
+  [data-station-settings="panel"] .riffshot-radio__status[data-state="playing"] { color: #79efb1; }
+  [data-station-settings="panel"] .riffshot-radio__status[data-state="unavailable"] { color: #ff9c91; }
   [data-station-settings="panel"] .station-settings__danger {
     padding-top: 18px; border-top: 1px solid #643c40;
   }
@@ -99,13 +127,29 @@ export class StationSettings {
   private readonly scene: Phaser.Scene;
   private readonly game: Phaser.Game;
   private readonly onErase?: EraseHandler;
+  private readonly onVehicleTuning?: () => void;
   readonly button: HTMLButtonElement;
   private readonly dialog: HTMLDialogElement;
   private readonly soundButton: HTMLButtonElement;
   private readonly eraseButton: HTMLButtonElement;
+  private readonly vehicleTuningButton: HTMLButtonElement | null;
   private readonly closeButton: HTMLButtonElement;
   private readonly audioStatus: HTMLParagraphElement;
   private readonly feedback: HTMLParagraphElement;
+  private readonly musicSourceSelect: HTMLSelectElement;
+  private readonly gameMusicVolume: HTMLInputElement;
+  private readonly effectsVolume: HTMLInputElement;
+  private readonly radioPanel: HTMLElement;
+  private readonly radioGenreSelect: HTMLSelectElement;
+  private readonly radioSearchButton: HTMLButtonElement;
+  private readonly radioStationSelect: HTMLSelectElement;
+  private readonly radioStationName: HTMLParagraphElement;
+  private readonly radioStationLink: HTMLAnchorElement;
+  private readonly radioStatus: HTMLParagraphElement;
+  private readonly radioPreviousButton: HTMLButtonElement;
+  private readonly radioPlayButton: HTMLButtonElement;
+  private readonly radioNextButton: HTMLButtonElement;
+  private readonly radioVolume: HTMLInputElement;
   private destroyed: boolean;
   private erasing: boolean;
   private readonly pendingKeys: Set<string>;
@@ -115,18 +159,32 @@ export class StationSettings {
   private readonly onCancel: (event: Event) => void;
   private readonly onBackdropClick: (event: MouseEvent) => void;
   private readonly onSound: () => void;
+  private readonly onMusicSourceChange: () => void;
+  private readonly onRadioGenreChange: () => void;
+  private readonly onRadioSearch: () => void;
+  private readonly onRadioStationChange: () => void;
+  private readonly onRadioPrevious: () => void;
+  private readonly onRadioPlay: () => void;
+  private readonly onRadioNext: () => void;
+  private readonly onRadioVolume: () => void;
+  private readonly onGameMusicVolume: () => void;
+  private readonly onEffectsVolume: () => void;
+  private readonly onRadioState: (state: RadioPlayerState) => void;
   private readonly onEraseClick: () => void;
+  private readonly onVehicleTuningClick: () => void;
   private readonly onAudioState: () => void;
   private readonly onShutdown: () => void;
   private readonly onKeyDown: (event: KeyboardEvent) => void;
   private readonly onGearKey: (event: KeyboardEvent) => void;
   private readonly onKeyUp: (event: KeyboardEvent) => void;
   private readonly onFocusIn: (event: FocusEvent) => void;
+  private radioOptionsSignature = '';
 
-  constructor(scene: Phaser.Scene, { onErase }: StationSettingsOptions = {}) {
+  constructor(scene: Phaser.Scene, { onErase, onVehicleTuning }: StationSettingsOptions = {}) {
     this.scene = scene;
     this.game = scene.game;
     this.onErase = onErase;
+    this.onVehicleTuning = onVehicleTuning;
     this.destroyed = false;
     this.erasing = false;
     this.pendingKeys = new Set();
@@ -162,17 +220,56 @@ export class StationSettings {
     this.dialog.setAttribute('aria-modal', 'true');
     this.dialog.setAttribute('aria-labelledby', `${dialogId}-title`);
     this.dialog.setAttribute('aria-describedby', `${dialogId}-description`);
+    const vehicleTuningSection = onVehicleTuning ? `
+        <section class="station-settings__section station-settings__dev" aria-label="Balanceamento local">
+          <button type="button" data-action="vehicle-tuning">MODO DESENVOLVEDOR / ATRIBUTOS DOS CARROS</button>
+          <p class="station-settings__status">Disponível apenas no servidor de desenvolvimento local.</p>
+        </section>` : '';
     this.dialog.innerHTML = `
       <header class="station-settings__header">
         <p class="station-settings__kicker">ESTAÇÃO DE EQUIPE / SISTEMAS</p>
         <h2 id="${dialogId}-title">CONFIGURAÇÕES</h2>
       </header>
       <div class="station-settings__body">
-        <p id="${dialogId}-description" class="station-settings__description">Controle o som global e gerencie o progresso da sua carreira.</p>
-        <section class="station-settings__section" aria-label="Som global">
-          <button type="button" data-action="sound" aria-describedby="${dialogId}-audio">SOM: ATIVAR</button>
+        <p id="${dialogId}-description" class="station-settings__description">Escolha sua música, ajuste os efeitos e gerencie o progresso da carreira.</p>
+        <section class="station-settings__section" aria-label="Efeitos sonoros">
+          <button type="button" data-action="sound" aria-describedby="${dialogId}-audio">SOM: EFEITOS ATIVOS</button>
           <p id="${dialogId}-audio" class="station-settings__status" role="status" aria-live="polite"></p>
+          <label>VOLUME DOS EFEITOS <input type="range" data-action="effects-volume" min="0" max="1" step="0.01" aria-label="Volume dos efeitos sonoros"></label>
         </section>
+        <section class="station-settings__section" aria-label="Fonte da música">
+          <label>MÚSICA
+            <select data-action="music-source" aria-label="Fonte da música">
+              <option value="game">TRILHA DO JOGO</option>
+              <option value="radio">RIFFSHOT RADIO</option>
+              <option value="none">SEM MÚSICA</option>
+            </select>
+          </label>
+          <label>VOLUME DA TRILHA DO JOGO <input type="range" data-action="game-music-volume" min="0" max="1" step="0.01" aria-label="Volume da trilha do jogo"></label>
+        </section>
+        <section class="riffshot-radio" data-action="radio-panel" aria-label="RIFFSHOT RADIO" hidden>
+          <h3>RIFFSHOT RADIO</h3>
+          <div class="riffshot-radio__row">
+            <label>GÊNERO
+              <select data-action="radio-genre" aria-label="Gênero da rádio"></select>
+            </label>
+            <button type="button" data-action="radio-search">BUSCAR</button>
+          </div>
+          <label>ESTAÇÃO
+            <select data-action="radio-station" aria-label="Estação de rádio"></select>
+          </label>
+          <p class="riffshot-radio__station" data-action="radio-name">Escolha um gênero e busque estações.</p>
+          <a data-action="radio-homepage" href="" target="_blank" rel="noopener noreferrer" hidden>Site da emissora</a>
+          <p class="station-settings__status riffshot-radio__status" data-action="radio-status" role="status" aria-live="polite"></p>
+          <div class="riffshot-radio__transport" aria-label="Controles da rádio">
+            <button type="button" data-action="radio-previous" aria-label="Estação anterior">◀ ANTERIOR</button>
+          <button type="button" data-action="radio-play" aria-label="Reproduzir rádio">▶ REPRODUZIR</button>
+            <button type="button" data-action="radio-next" aria-label="Próxima estação">PRÓXIMA ▶</button>
+          </div>
+          <label>VOLUME DA RÁDIO <input type="range" data-action="radio-volume" min="0" max="1" step="0.01" aria-label="Volume da rádio"></label>
+          <p class="riffshot-radio__license">Streams externos fornecidos pelas emissoras. Disponibilidade, formatos e direitos da programação dependem de cada emissora; o jogo não grava nem retransmite o áudio.</p>
+        </section>
+        ${vehicleTuningSection}
         <section class="station-settings__section station-settings__danger" aria-label="Progresso da carreira">
           <button type="button" data-action="erase" class="station-settings__erase" aria-describedby="${dialogId}-warning">APAGAR PROGRESSO</button>
           <p id="${dialogId}-warning" class="station-settings__warning">A exclusão é irreversível: apaga a carreira, os veículos adquiridos e os backups do campeonato. Uma confirmação será solicitada antes de apagar.</p>
@@ -181,10 +278,26 @@ export class StationSettings {
         <button type="button" data-action="close" autofocus>FECHAR</button>
       </div>`;
     this.soundButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="sound"]')!;
+    this.musicSourceSelect = this.dialog.querySelector<HTMLSelectElement>('[data-action="music-source"]')!;
+    this.gameMusicVolume = this.dialog.querySelector<HTMLInputElement>('[data-action="game-music-volume"]')!;
+    this.effectsVolume = this.dialog.querySelector<HTMLInputElement>('[data-action="effects-volume"]')!;
+    this.radioPanel = this.dialog.querySelector<HTMLElement>('[data-action="radio-panel"]')!;
+    this.radioGenreSelect = this.dialog.querySelector<HTMLSelectElement>('[data-action="radio-genre"]')!;
+    this.radioSearchButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="radio-search"]')!;
+    this.radioStationSelect = this.dialog.querySelector<HTMLSelectElement>('[data-action="radio-station"]')!;
+    this.radioStationName = this.dialog.querySelector<HTMLParagraphElement>('[data-action="radio-name"]')!;
+    this.radioStationLink = this.dialog.querySelector<HTMLAnchorElement>('[data-action="radio-homepage"]')!;
+    this.radioStatus = this.dialog.querySelector<HTMLParagraphElement>('[data-action="radio-status"]')!;
+    this.radioPreviousButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="radio-previous"]')!;
+    this.radioPlayButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="radio-play"]')!;
+    this.radioNextButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="radio-next"]')!;
+    this.radioVolume = this.dialog.querySelector<HTMLInputElement>('[data-action="radio-volume"]')!;
     this.eraseButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="erase"]')!;
+    this.vehicleTuningButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="vehicle-tuning"]');
     this.closeButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="close"]')!;
     this.audioStatus = this.dialog.querySelector<HTMLParagraphElement>('.station-settings__status')!;
     this.feedback = this.dialog.querySelector<HTMLParagraphElement>('.station-settings__feedback')!;
+    this.radioGenreSelect.replaceChildren(...RADIO_GENRES.map(genre => new Option(genre, genre)));
     this.eraseButton.disabled = typeof onErase !== 'function';
 
     this.onOpen = () => this.open();
@@ -203,7 +316,30 @@ export class StationSettings {
       this.game.menuMusic?.toggle();
       this.updateAudio();
     };
+    this.onMusicSourceChange = () => {
+      const source = this.musicSourceSelect.value as MusicSource;
+      this.game.menuMusic?.setMusicSource(source);
+      if (source === 'radio' && this.game.riffshotRadio.state.stations.length === 0) {
+        void this.game.riffshotRadio.searchStations(this.radioGenreSelect.value as RadioGenre);
+      }
+      this.updateRadio();
+    };
+    this.onRadioGenreChange = () => {
+      this.game.riffshotRadio.setGenre(this.radioGenreSelect.value as RadioGenre);
+    };
+    this.onRadioSearch = () => { void this.game.riffshotRadio.searchStations(this.radioGenreSelect.value as RadioGenre); };
+    this.onRadioStationChange = () => this.game.riffshotRadio.selectStation(this.radioStationSelect.value);
+    this.onRadioPrevious = () => this.game.riffshotRadio.playAdjacent(-1);
+    this.onRadioPlay = () => this.game.riffshotRadio.togglePlayback();
+    this.onRadioNext = () => this.game.riffshotRadio.playAdjacent(1);
+    this.onRadioVolume = () => this.game.riffshotRadio.setVolume(Number(this.radioVolume.value));
+    this.onGameMusicVolume = () => this.game.menuMusic?.setGameMusicVolume(Number(this.gameMusicVolume.value));
+    this.onEffectsVolume = () => this.game.menuMusic?.setEffectsVolume(Number(this.effectsVolume.value));
+    this.onRadioState = () => this.updateRadio();
     this.onEraseClick = () => this.requestErase();
+    this.onVehicleTuningClick = () => {
+      if (!this.destroyed && this.isOpen) this.onVehicleTuning?.();
+    };
     this.onAudioState = () => this.updateAudio();
     this.onShutdown = () => this.destroy();
     this.onKeyDown = (event: KeyboardEvent) => this.onkeydownTrap(event);
@@ -222,16 +358,32 @@ export class StationSettings {
     this.button.addEventListener('click', this.onOpen);
     this.button.addEventListener('keydown', this.onGearKey);
     this.soundButton.addEventListener('click', this.onSound);
+    this.musicSourceSelect.addEventListener('change', this.onMusicSourceChange);
+    this.radioGenreSelect.addEventListener('change', this.onRadioGenreChange);
+    this.radioSearchButton.addEventListener('click', this.onRadioSearch);
+    this.radioStationSelect.addEventListener('change', this.onRadioStationChange);
+    this.radioPreviousButton.addEventListener('click', this.onRadioPrevious);
+    this.radioPlayButton.addEventListener('click', this.onRadioPlay);
+    this.radioNextButton.addEventListener('click', this.onRadioNext);
+    this.radioVolume.addEventListener('input', this.onRadioVolume);
+    this.gameMusicVolume.addEventListener('input', this.onGameMusicVolume);
+    this.effectsVolume.addEventListener('input', this.onEffectsVolume);
     this.eraseButton.addEventListener('click', this.onEraseClick);
+    this.vehicleTuningButton?.addEventListener('click', this.onVehicleTuningClick);
     this.closeButton.addEventListener('click', this.onClose);
     this.dialog.addEventListener('cancel', this.onCancel);
     this.dialog.addEventListener('close', this.onNativeClose);
     this.dialog.addEventListener('click', this.onBackdropClick);
     window.addEventListener('keyup', this.onKeyUp, true);
     this.game.events.on('audio-state', this.onAudioState);
+    this.game.events.on('riffshot-radio-state', this.onRadioState);
     scene.events.once('shutdown', this.onShutdown);
     document.body.append(this.button, this.dialog);
     this.updateAudio();
+    this.updateRadio();
+    if (this.game.menuMusic.musicMode === 'radio' && this.game.riffshotRadio.state.stations.length === 0) {
+      void this.game.riffshotRadio.searchStations(this.game.audioPreferences.value.radioGenre);
+    }
   }
 
   get isOpen() { return !this.destroyed && this.dialog.open; }
@@ -263,8 +415,7 @@ export class StationSettings {
   onkeydownTrap(event: KeyboardEvent) {
     if (!this.isOpen) return;
     this.pendingKeys.add(event.code || event.key);
-    // MenuMusic's earlier window-capture listener owns M. Never toggle it here.
-    // Keep Enter/Space defaults so actual HTML buttons still activate natively.
+    // Keep native keys inside this dialog; the sound button is the only audio toggle.
     event.stopImmediatePropagation();
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -288,18 +439,59 @@ export class StationSettings {
 
   updateAudio() {
     if (this.destroyed) return;
-     const music = this.game.menuMusic as unknown as StationMusic;
+    const music = this.game.menuMusic as unknown as StationMusic;
     const state = music?.getAudioState();
     const available = !!state?.available && typeof music?.toggle === 'function';
-    const enabled = available && music.activated && !state.muted;
     this.soundButton.disabled = !available;
-    this.soundButton.textContent = !available ? 'SOM INDISPONÍVEL' : enabled ? 'SOM: SILENCIAR' : 'SOM: ATIVAR';
+    this.soundButton.textContent = !available ? 'SOM: EFEITOS INDISPONÍVEIS'
+      : state.muted ? 'SOM: ATIVAR EFEITOS' : 'SOM: SILENCIAR EFEITOS';
     this.audioStatus.textContent = !available ? 'O áudio não está disponível neste navegador.'
-      : state.muted ? 'Som global silenciado. Atalho: M.'
-        : !music.activated ? 'Ative o som global de músicas e motores. Atalho: M.'
-          : state.hidden || !state.focused ? 'Som pausado enquanto o jogo está em segundo plano. Atalho: M.'
-            : !state.unlocked ? 'O navegador está aguardando a liberação do áudio. Atalho: M.'
-              : 'Som global ativo: músicas e motores. Atalho: M.';
+      : state.hidden || !state.focused ? 'Os efeitos ficam silenciados quando o jogo está em segundo plano.'
+        : !state.unlocked ? 'O navegador aguarda uma interação para liberar os efeitos.'
+          : state.muted ? 'Efeitos sonoros silenciados; música e rádio têm controles separados.'
+            : `Efeitos ativos · volume ${Math.round(state.effectsVolume * 100)}%.`;
+    this.musicSourceSelect.value = music.musicMode;
+    this.gameMusicVolume.value = String(this.game.audioPreferences.value.gameMusicVolume);
+    this.effectsVolume.value = String(this.game.audioPreferences.value.effectsVolume);
+    this.radioPanel.hidden = music.musicMode !== 'radio';
+    this.updateRadio();
+  }
+
+  updateRadio(state = this.game.riffshotRadio.state) {
+    if (this.destroyed) return;
+    this.radioGenreSelect.value = state.genre;
+    const signature = state.stations.map(station => `${station.stationuuid}:${station.name}`).join('|');
+    if (signature !== this.radioOptionsSignature) {
+      this.radioOptionsSignature = signature;
+      this.radioStationSelect.replaceChildren(new Option('Selecione uma emissora', ''));
+      for (const station of state.stations) {
+        const detail = [station.codec, station.bitrate > 0 ? `${station.bitrate} kbps` : ''].filter(Boolean).join(' · ');
+        this.radioStationSelect.add(new Option(detail ? `${station.name} — ${detail}` : station.name, station.stationuuid));
+      }
+    }
+    this.radioStationSelect.value = state.station?.stationuuid ?? '';
+    this.radioStationSelect.disabled = state.searching || state.stations.length === 0;
+    this.radioSearchButton.disabled = state.searching;
+    this.radioSearchButton.textContent = state.searching ? 'BUSCANDO…' : 'BUSCAR';
+    this.radioStationName.textContent = state.station?.name ?? 'Nenhuma estação selecionada';
+    this.radioStationLink.hidden = !state.station?.homepage;
+    this.radioStationLink.href = state.station?.homepage ?? '';
+    this.radioStatus.dataset.state = state.status;
+    this.radioStatus.textContent = state.searchError || state.playbackError || (state.searching ? 'Consultando Radio Browser…'
+      : state.status === 'playing' ? 'REPRODUZINDO'
+        : state.status === 'connecting' ? 'CONECTANDO À TRANSMISSÃO…'
+          : state.status === 'unavailable' ? 'RÁDIO INDISPONÍVEL'
+            : state.status === 'paused' ? state.resumeAfterGesture ? 'PAUSADA · toque em Continuar para retomar.' : 'PAUSADA'
+              : state.station ? 'PRONTA · pressione Reproduzir para iniciar.'
+                : 'Escolha um gênero e busque estações.');
+    this.radioPlayButton.disabled = !state.station || state.searching;
+    this.radioPlayButton.textContent = state.status === 'playing' || state.status === 'connecting' ? 'Ⅱ PAUSAR'
+      : state.resumeAfterGesture ? '▶ CONTINUAR' : '▶ REPRODUZIR';
+    this.radioPlayButton.setAttribute('aria-label', state.status === 'playing' || state.status === 'connecting'
+      ? 'Pausar rádio' : state.resumeAfterGesture ? 'Continuar rádio' : 'Reproduzir rádio');
+    this.radioPreviousButton.disabled = !state.previousAvailable;
+    this.radioNextButton.disabled = !state.nextAvailable;
+    this.radioVolume.value = String(state.volume);
   }
 
   async requestErase() {
@@ -346,11 +538,23 @@ export class StationSettings {
     this.button.removeEventListener('click', this.onOpen);
     this.button.removeEventListener('keydown', this.onGearKey);
     this.soundButton.removeEventListener('click', this.onSound);
+    this.musicSourceSelect.removeEventListener('change', this.onMusicSourceChange);
+    this.radioGenreSelect.removeEventListener('change', this.onRadioGenreChange);
+    this.radioSearchButton.removeEventListener('click', this.onRadioSearch);
+    this.radioStationSelect.removeEventListener('change', this.onRadioStationChange);
+    this.radioPreviousButton.removeEventListener('click', this.onRadioPrevious);
+    this.radioPlayButton.removeEventListener('click', this.onRadioPlay);
+    this.radioNextButton.removeEventListener('click', this.onRadioNext);
+    this.radioVolume.removeEventListener('input', this.onRadioVolume);
+    this.gameMusicVolume.removeEventListener('input', this.onGameMusicVolume);
+    this.effectsVolume.removeEventListener('input', this.onEffectsVolume);
     this.eraseButton.removeEventListener('click', this.onEraseClick);
+    this.vehicleTuningButton?.removeEventListener('click', this.onVehicleTuningClick);
     this.closeButton.removeEventListener('click', this.onClose);
     this.dialog.removeEventListener('cancel', this.onCancel);
     this.dialog.removeEventListener('click', this.onBackdropClick);
     this.game.events.off('audio-state', this.onAudioState);
+    this.game.events.off('riffshot-radio-state', this.onRadioState);
     this.scene.events.off('shutdown', this.onShutdown);
     this.pendingKeys.clear();
     this.button.remove();

@@ -58,7 +58,7 @@ export async function prepareVehicleAssets({ root = projectRoot, optimizeThunder
   root?: string; optimizeThunder?: (source: Buffer) => { output: Buffer };
 } = {}) {
   const sourceDirectory = await fixedDirectory(root, ['referencias-locais', 'Vehicles']);
-  const destination = await fixedDirectory(root, ['assets', 'vehicles']);
+  const destination = await fixedDirectory(root, ['public', 'assets', 'models', 'vehicles']);
   const payloads = [], entries = [];
   for (const asset of VEHICLE_MODEL_ASSETS) {
     const sourcePath = join(sourceDirectory, asset.fileName);

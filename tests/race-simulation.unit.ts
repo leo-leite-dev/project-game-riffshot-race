@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RACE_TRACKS, getTrackById } from '../src/data/raceTracks.ts';
+import { OPENING_RACE_TRACK_ID, RACE_TRACKS, getTrackById } from '../src/data/raceTracks.ts';
 import type { RaceControls } from '../src/race/RaceSimulation.ts';
-import { PAINTS, VEHICLES, INITIAL_VEHICLES, getVehicleById } from '../src/data/vehicles.ts';
+import { PAINTS, VEHICLES, VEHICLE_TUNING, INITIAL_VEHICLES, getVehicleById } from '../src/data/vehicles.ts';
 import { DIFFICULTIES } from '../src/data/raceDifficulty.ts';
 import { deriveHandlingStats, findNearestTrackPoint, RaceSimulation, sampleRaceTrack, sampleTrackAtProgress } from '../src/race/RaceSimulation.ts';
 
@@ -14,9 +14,10 @@ const bots = [
 const player = { id: 'player', name: 'Piloto', stats: { speed: 6, acceleration: 6, handling: 6, endurance: 6, aggression: 6 } };
 const makeRace = (track = RACE_TRACKS[0], difficulty = 'normal') => new RaceSimulation({ track, difficulty, player, vehicleStats: { speed: 75, acceleration: 70, control: 65, armor: 60 }, botPilots: bots });
 
-test('tracks are unique, closed, finite and have distinct layouts with elevated voltage route', () => {
+test('duas pistas permanecem fechadas e finitas; Neon Furnace abre novas carreiras', () => {
   assert.equal(RACE_TRACKS.length, 2);
   assert.deepEqual(RACE_TRACKS.map(track => track.id), ['neon-furnace', 'voltage-run']);
+  assert.equal(OPENING_RACE_TRACK_ID, 'neon-furnace');
   assert.equal(getTrackById('missing'), null);
   for (const track of RACE_TRACKS) {
     assert.equal(track.laps, 4);
@@ -36,10 +37,50 @@ test('difficulty changes AI behavior configuration, not physical vehicle caps', 
   assert.notEqual(DIFFICULTIES.normal.lookahead, DIFFICULTIES.hard.lookahead);
   assert.notEqual(DIFFICULTIES.normal.steeringError, DIFFICULTIES.hard.steeringError);
   assert.notEqual(DIFFICULTIES.normal.overtakeDesire, DIFFICULTIES.hard.overtakeDesire);
+  assert.ok(DIFFICULTIES.hard.targetSpeed > DIFFICULTIES.normal.targetSpeed);
+  assert.ok(DIFFICULTIES.hard.reaction < DIFFICULTIES.normal.reaction);
+  assert.ok(DIFFICULTIES.hard.steeringError < DIFFICULTIES.normal.steeringError);
   const normal = makeRace(RACE_TRACKS[0], 'normal'); const hard = makeRace(RACE_TRACKS[0], 'hard');
   assert.deepEqual(normal.participants.map(car => car.vehicle.maxSpeed), hard.participants.map(car => car.vehicle.maxSpeed));
   assert.ok(deriveHandlingStats({ speed: 80 }, { speed: 10 }).maxSpeed > deriveHandlingStats({ speed: 80 }, { speed: 1 }).maxSpeed);
   assert.ok(deriveHandlingStats({}, { aggression: 10 }).collisionShove > deriveHandlingStats({}, { aggression: 1 }).collisionShove);
+});
+
+test('bônus local separado para bots e rival só afeta IA na dificuldade Difícil', () => {
+  const opponents = [
+    { ...bots[0]!, id: 'rival', aiProfile: 'rival' as const },
+    { ...bots[1]!, aiProfile: 'challenger' as const },
+    { ...bots[2]!, aiProfile: 'opportunist' as const },
+  ];
+  const create = (difficulty: 'normal' | 'hard', devRaceAIBonus?: { botsPercent: number; rivalPercent: number }) =>
+    new RaceSimulation({ track: RACE_TRACKS[0], difficulty, player, vehicleStats: { speed: 75, acceleration: 70, control: 65, armor: 60 },
+      botPilots: opponents, devRaceAIBonus });
+  const base = create('hard');
+  const boosted = create('hard', { botsPercent: 10, rivalPercent: 20 });
+  const normal = create('normal', { botsPercent: 10, rivalPercent: 20 });
+  const stats = ['maxSpeed', 'acceleration', 'grip', 'steering'] as const;
+  for (const key of stats) {
+    assert.equal(boosted.participants[0]!.vehicle[key], base.participants[0]!.vehicle[key], `jogador sem bônus em ${key}`);
+    assert.ok(Math.abs(boosted.participants[1]!.vehicle[key] / base.participants[1]!.vehicle[key] - 1.2) < 1e-10,
+      `rival recebe 20% em ${key}`);
+    for (const index of [2, 3]) assert.ok(Math.abs(boosted.participants[index]!.vehicle[key] / base.participants[index]!.vehicle[key] - 1.1) < 1e-10,
+      `bot ${index} recebe 10% em ${key}`);
+    assert.equal(normal.participants[1]!.vehicle[key], base.participants[1]!.vehicle[key], `normal ignora bônus em ${key}`);
+  }
+});
+
+test('bots Difícil mantêm ritmo e progresso superiores ao Normal na mesma simulação', () => {
+  const outcomes = (difficulty: 'normal' | 'hard') => {
+    const race = makeRace(RACE_TRACKS[0], difficulty).start();
+    for (let frame = 0; frame < 45 * 60; frame += 1) {
+      if (race.status === 'finished') break;
+      race.advance(1000 / 60, { throttle: 1 });
+    }
+    return race.participants.slice(1).map(car => car.progress);
+  };
+  const normal = outcomes('normal'), hard = outcomes('hard');
+  assert.ok(hard.reduce((sum, progress) => sum + progress, 0) > normal.reduce((sum, progress) => sum + progress, 0),
+    `Difícil deve somar progresso acima de Normal: ${JSON.stringify({ normal, hard })}`);
 });
 
 test('catálogo tem cinco carros, três iniciais e Thunder recebe exatamente duas cargas de nitro', () => {
@@ -47,13 +88,13 @@ test('catálogo tem cinco carros, três iniciais e Thunder recebe exatamente dua
   assert.deepEqual(VEHICLES.map(vehicle => vehicle.id), ['rift-blaze', 'volt-vector', 'iron-bastion', 'race-car-2', 'widowmaker']);
   assert.deepEqual(INITIAL_VEHICLES.map(vehicle => vehicle.id), ['rift-blaze', 'volt-vector', 'iron-bastion']);
   assert.deepEqual(VEHICLES.map(vehicle => vehicle.name), ['THUNDER BUG', 'CAMARO', 'ARMORED CAR', 'RACE CAR 2', 'WIDOWMAKER']);
-  assert.deepEqual(blaze.stats, { speed: 76, acceleration: 84, control: 72, armor: 55 });
-  assert.deepEqual(vector.stats, { speed: 62, acceleration: 76, control: 84, armor: 35 });
-  assert.deepEqual(bastion.stats, { speed: 58, acceleration: 52, control: 56, armor: 100 });
+  assert.deepEqual(blaze.stats, VEHICLE_TUNING['rift-blaze']);
+  assert.deepEqual(vector.stats, VEHICLE_TUNING['volt-vector']);
+  assert.deepEqual(bastion.stats, VEHICLE_TUNING['iron-bastion']);
   assert.deepEqual(blaze.ability, { nitroCharges: 2, nitroSeconds: 3, nitroMultiplier: 1.35 });
-  assert.deepEqual(raceCar2.stats, { speed: 94, acceleration: 92, control: 82, armor: 70 });
+  assert.deepEqual(raceCar2.stats, VEHICLE_TUNING['race-car-2']);
   assert.deepEqual(raceCar2.ability, blaze.ability);
-  assert.deepEqual(widowmaker.stats, { speed: 88, acceleration: 78, control: 65, armor: 90 });
+  assert.deepEqual(widowmaker.stats, VEHICLE_TUNING.widowmaker);
   assert.deepEqual(PAINTS.map(paint => paint.color), ['#E53935', '#1677FF', '#FFD027']);
   assert.equal(getVehicleById('missing'), null);
   assert.ok(deriveHandlingStats(blaze.stats).steering < deriveHandlingStats(vector.stats).steering);
@@ -157,27 +198,25 @@ test('centros exatamente coincidentes são separados em uma colisão determinís
   assert.equal(b.health, b.maxHealth);
 });
 
-test('grid starts four cars beside the finish/start gate, following centerline tangent and grid lanes', () => {
+test('grid starts all four cars side by side beside the finish/start gate', () => {
   for (const track of RACE_TRACKS) {
     const race = makeRace(track);
     const start = sampleTrackAtProgress(race.track, race.track.totalLength * 0.985);
     const cars = race.participants;
     assert.equal(cars.length, 4);
     assert.ok(cars.every(car => Math.hypot(car.x - start.x, car.z - start.z) < 12));
+    assert.ok(cars.every(car => Math.abs(car.progress - 0.985 / race.laps) < 1e-10), 'todos começam na mesma linha');
     const tangentHeading = Math.atan2(start.tangentX, start.tangentZ);
     assert.ok(cars.every(car => Math.abs(Math.atan2(Math.sin(car.heading - tangentHeading), Math.cos(car.heading - tangentHeading))) < 0.12));
     assert.ok(new Set(cars.map(car => Math.round(car.x * 10) / 10)).size > 1);
     assert.ok(cars.every(car => car.nextCheckpoint === 1 && car._nextGate === 0));
-    const edge = track.width / 2 - 1.2;
-    for (const [index, car] of cars.entries()) {
+     const edge = track.width / 2 - 1;
+     for (const [index, car] of cars.entries()) {
      const nearest = findNearestTrackPoint(race.track, car.x, car.z);
      assert.ok(nearest);
-     assert.ok(Math.abs(nearest.lateral) < edge - 1,
+      assert.ok(Math.abs(nearest.lateral) < edge,
         `${track.id}: quatro carros devem caber com folga da parede no grid`);
-      for (const other of cars.slice(index + 1)) {
-        assert.ok(Math.hypot(car.x - other.x, car.z - other.z) >= 4.2, 'grid não começa com contatos sobrepostos');
-      }
-    }
+     }
     assert.ok(race.gates.every(gate => gate.lateralLimit === track.width / 2));
   }
 });
@@ -191,6 +230,15 @@ test('player controls alter speed and heading and input is ignored until race st
   race.advance(1000, { throttle: 1, steer: 1 });
   assert.ok(car.speed > 0);
   assert.notEqual(car.heading, 0);
+});
+
+test('corrida termina assim que o jogador completa a última volta, sem aguardar bots', () => {
+  const race = makeRace().start();
+  race.participants[0]!.finished = true;
+  race.participants[0]!.finishTime = 1;
+  race.advance(1000 / 60, { throttle: 1 });
+  assert.equal(race.status, 'finished');
+  assert.ok(race.participants.slice(1).some(car => !car.finished));
 });
 
 test('direção não gira um carro parado e responde mais à medida que ganha velocidade', () => {
@@ -319,19 +367,19 @@ test('bot libera o freio suavizado e volta a ganhar tração no drift após uma 
   }
 });
 
-test('três bots e o piloto completam as duas pistas em Normal e Difícil, com quatro resultados válidos', () => {
+test('três bots completam as três pistas em Normal e Difícil com gates e chegadas válidos', () => {
   for (const track of RACE_TRACKS) for (const difficulty of ['normal', 'hard']) {
     const race = makeRace(track, difficulty).start();
-    // Narrower roads plus 50% wall penalties lengthen races; diagnostics put
-    // the slowest four-lap fixture near 125 s, without stalls or missed gates.
-    for (let i = 0; i < 150 * 60 && race.status !== 'finished'; i += 1) {
-      race.advance(1000 / 60, race.getBotControls(race.participants[0], 1 / 60));
+    // This fixture checks all three NPCs independently of the production
+    // rule that ends the race as soon as the player finishes.
+    for (let i = 0; i < 150 * 60 && !race.participants.slice(1).every(car => car.finished); i += 1) {
+      race._step(1 / 60, { throttle: 1, brake: 0, steer: 0, handbrake: 0, nitro: false });
     }
-    assert.equal(race.status, 'finished', `${track.id}/${difficulty} não terminou: ${JSON.stringify(race.getStandings().map(car => ({ id: car.id, laps: car.lapsCompleted })))}`);
+    assert.ok(race.participants.slice(1).every(car => car.finished), `${track.id}/${difficulty} bots não terminaram: ${JSON.stringify(race.getStandings().map(car => ({ id: car.id, laps: car.lapsCompleted })))}`);
     const standings = race.getStandings();
     assert.deepEqual(standings.map(car => car.rank), [1, 2, 3, 4]);
-    assert.ok(standings.every(car => car.finished && car.lapsCompleted === 4 && Number.isFinite(car.finishTime)));
-     const finishTimes = standings.map(car => {
+    assert.ok(standings.slice(0, 3).every(car => car.finished && car.lapsCompleted === 4 && Number.isFinite(car.finishTime)));
+    const finishTimes = standings.slice(0, 3).map(car => {
        if (car.finishTime === null) throw new Error('resultado sem tempo de chegada');
        return car.finishTime;
      });

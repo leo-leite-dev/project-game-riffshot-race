@@ -14,7 +14,7 @@ A referência local orientou a composição: título laranja em placa de metal, 
 
 O botão textual de apagar foi retirado da interface principal. A engrenagem é um botão HTML de **48×48 px**, somente ícone, com nome acessível **Configurações** e destaque na navegação por teclado.
 
-`StationSettings.ts` monta um diálogo nativo local à estação com som global (o mesmo `MenuMusic`/`audio-state` de M e dos motores), **APAGAR PROGRESSO** com aviso e confirmação nativa existentes, e FECHAR. Não há controles fictícios, segundo mute ou preferências novas no save. Abrir/fechar ou mudar som não grava progresso.
+`StationSettings.ts` monta um diálogo nativo local à estação com seleção de trilha, RIFFSHOT RADIO ou sem música, pesquisa/seleção de emissoras e controles separados para volume de rádio, trilha e efeitos; **APAGAR PROGRESSO** mantém o aviso e confirmação nativa existentes. As preferências de áudio ficam em uma chave localStorage própria, sem alterar campeonato, SCORE, MONEY ou saves. A rádio é um serviço único da sessão que continua ao trocar de cena; na corrida há controles compactos minimizáveis. Abrir/fechar configurações não grava progresso.
 
 Tab/Shift+Tab ficam no diálogo; Escape fecha e devolve foco à engrenagem. Enter/espaço ativam uma ação sem chegar ao jogo ao fundo. O diálogo começa em FECHAR, não na operação destrutiva. DOM/listeners são removidos no shutdown.
 

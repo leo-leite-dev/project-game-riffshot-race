@@ -3,7 +3,7 @@
   "assets": [
     {
       "fileName": "thunder_bug.glb",
-      "url": "/models/vehicles/thunder_bug.glb",
+      "url": "/assets/models/vehicles/thunder_bug.glb",
       "author": "Chenchanchong",
       "title": "race car",
       "source": "https://sketchfab.com/3d-models/race-car-97768c0e69744cd5922ddc5a9fd59266",
@@ -18,7 +18,7 @@
     },
     {
       "fileName": "race_car.glb",
-      "url": "/models/vehicles/race_car.glb",
+      "url": "/assets/models/vehicles/race_car.glb",
       "author": "Tasneem",
       "title": "Race Car",
       "source": "https://sketchfab.com/3d-models/race-car-517dfa8823394b178c9c313d7e68fb7f",
@@ -33,7 +33,7 @@
     },
     {
       "fileName": "camaro.glb",
-      "url": "/models/vehicles/camaro.glb",
+      "url": "/assets/models/vehicles/camaro.glb",
       "author": "Primus03",
       "title": "Transformers Universe: Drive-By's Vehicle Form",
       "source": "https://sketchfab.com/3d-models/transformers-universe-drive-bys-vehicle-form-1eee5b31a3dd46ef9b91a95b9261e7f8",
@@ -48,7 +48,7 @@
     },
     {
       "fileName": "armored_car_death_race.glb",
-      "url": "/models/vehicles/armored_car_death_race.glb",
+      "url": "/assets/models/vehicles/armored_car_death_race.glb",
       "author": "jaack",
       "title": "Armored car (death race)",
       "source": "https://sketchfab.com/3d-models/armored-car-death-race-ea76bac506f04676b8514951b67994f8",
@@ -63,7 +63,7 @@
     },
     {
       "fileName": "widowmaker_-_death_race_2000.glb",
-      "url": "/models/vehicles/widowmaker_-_death_race_2000.glb",
+      "url": "/assets/models/vehicles/widowmaker_-_death_race_2000.glb",
       "author": "Brian Trepanier",
       "title": "Widowmaker - Death Race 2000",
       "source": "https://sketchfab.com/3d-models/widowmaker-death-race-2000-15b6eb31787446879f063bb9b25cbc5c",

@@ -140,7 +140,16 @@ export class RaceTrackSelectionScene extends TitleScene {
 
   startRace(): void {
     if (this.transitioning) return;
-    if (this.game.championship.startRace(this.specialChoice ? this.assignedTrack.id : undefined)) this.goTo(SCENES.race);
+    const race = this.game.championship.startRace(this.specialChoice ? this.assignedTrack.id : undefined);
+    if (race) {
+      // Start the selected circuit theme directly inside the confirm-key/click
+      // gesture, before the scene fade, so browser autoplay rules are satisfied.
+      this.game.menuMusic.startRaceTrackMusic(race.trackId);
+      // The track narration is a separate one-shot, scheduled from the confirm
+      // gesture; RaceScene waits for this same promise before starting simulation.
+      this.game.menuMusic.scheduleRaceAnnouncer(race.trackId, race.id, 2000);
+      this.goTo(SCENES.race);
+    }
   }
 
   layout(w: number, h: number): void {

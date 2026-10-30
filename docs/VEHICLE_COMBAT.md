@@ -18,7 +18,7 @@ Este documento descreve as regras e os componentes integrados. Resultados e capt
 
 THUNDER BUG custa **2.000 créditos** e substitui a apresentação anterior de `rift-blaze`. RACE CAR 2 continua bloqueado para a fase 2; ter atributos, modelo e perfil de áudio definidos não o libera para compra. THUNDER BUG e RACE CAR 2 têm duas cargas de nitro, três segundos por carga e multiplicador máximo ×1,35. Os demais não têm nitro.
 
-Velocidade, aceleração e controle alimentam a mesma física para jogador e bots, com modificadores do piloto. Normal/Difícil altera decisões da IA, não os limites físicos dos veículos.
+Velocidade, aceleração e controle alimentam a mesma física para jogador e bots, com modificadores do piloto. Normal/Difícil altera decisões da IA. Opcionalmente, no servidor local de desenvolvimento, os controles da aba **DIFICULDADE IA** permitem bônus de 0–20% para bots e rival, aplicados a velocidade máxima, aceleração, aderência e direção apenas na próxima corrida Difícil. O padrão é 0%; valores são salvos neste navegador e não alteram catálogo, save da carreira ou build de produção.
 
 ## Controles e condução arcade
 
@@ -31,7 +31,7 @@ Velocidade, aceleração e controle alimentam a mesma física para jogador e bot
 | Shift | Acionar uma carga disponível de nitro |
 | C | Alternar terceira pessoa/isométrica |
 | Z | Percorrer PRÓXIMA → MAIS PRÓXIMA → BEM PRÓXIMA, somente em terceira pessoa |
-| M / botão de som | Ativar/silenciar globalmente trilha e motores |
+| Configurações da Estação de Equipe | Escolher a trilha procedural, RIFFSHOT RADIO ou sem música; ajustar separadamente música e efeitos |
 | Escape / EQUIPE | Abandonar e retornar à equipe, sem premiar ou consumir a pista |
 
 `RaceSimulation` usa passos fixos de 1/60 s; isso é frequência da simulação, **não uma medição de FPS**. A apresentação interpola poses sem realimentar a física. A direção não gira um carro parado e os comandos não mudam com a câmera.
@@ -74,7 +74,7 @@ O Widowmaker exige extração por volumes cilíndricos específicos das três ma
 
 Os modelos são normalizados para comprimento 3,25, chão y=0 e frente +Z. `RaceWorld` aplica **escala visual ×1,3** na corrida, sem aumentar os parâmetros físicos de colisão. Todos os adaptadores oficiais consideram essa escala. Cada prova começa em terceira pessoa; C mantém a transição suave e Z alterna três aproximações somente nesse modo, fora da transição. Zoom e câmera não são progresso persistido. A câmera é reposicionada após o respawn para não percorrer visualmente o teleporte.
 
-As três aproximações usam FOV-base de **62° / 70° / 80°** em `src/data/raceCameras.ts`. `RaceCameraRig` adapta o FOV à proporção da tela e à cobertura horizontal necessária, inclusive em retrato; 70° não é um valor fixo para todo retrato. Os GLBs vêm do pacote `assets/vehicles/`, validado por tamanho/SHA-256/estrutura e sem otimização ou leitura das referências privadas no dev/build normal.
+As três aproximações usam FOV-base de **62° / 70° / 80°** em `src/data/raceCameras.ts`. `RaceCameraRig` adapta o FOV à proporção da tela e à cobertura horizontal necessária, inclusive em retrato; 70° não é um valor fixo para todo retrato. Os GLBs vêm do pacote `public/assets/models/vehicles/`, validado por tamanho/SHA-256/estrutura e sem otimização ou leitura das referências privadas no dev/build normal.
 
 ## Fumaça e explosão
 
@@ -94,7 +94,7 @@ Os efeitos usam pontos e shaders próprios, sem texturas externas. O carro fica 
 
 Pitch e carga usam velocidade longitudinal e acelerador públicos da simulação; dano atenua o nível e destruição silencia a voz. Há no máximo **quatro vozes**, com prioridade ao jogador e bots atenuados pela distância, totalizando no máximo **33 nós próprios do módulo** (não de todo o áudio do jogo). Frames reutilizam os nós e limitam a fila de automação.
 
-O contexto é o compartilhado do Phaser, sem criar um `AudioContext` por corrida. `MenuMusic` publica o estado global: gesto de ativação, M/botão, perda de foco e página oculta afetam trilha e motores. Ausência ou falha de `OfflineAudioContext` indisponibiliza apenas a geração da trilha; motores continuam possíveis com o contexto de reprodução disponível. Falhas de áudio não bloqueiam a navegação. Ao sair/destruir, vozes, conexões, osciladores e listeners próprios são liberados, sem fechar o contexto pertencente ao jogo.
+O contexto é o compartilhado do Phaser, sem criar um `AudioContext` por corrida. `MenuMusic` mantém as opções musicais; mute e volume dos efeitos continuam em um canal separado, sem interromper a rádio. Gesto de ativação, perda de foco e página oculta afetam os efeitos do jogo. Ausência ou falha de `OfflineAudioContext` indisponibiliza apenas a geração da trilha; motores continuam possíveis com o contexto de reprodução disponível. Falhas de áudio não bloqueiam a navegação. Ao sair/destruir, vozes, conexões, osciladores e listeners próprios são liberados, sem fechar o contexto pertencente ao jogo.
 
 ## Critérios de aceite e limitações pendentes
 

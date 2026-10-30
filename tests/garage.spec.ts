@@ -507,10 +507,10 @@ test.describe('oficina 3D e preparação', () => {
     const experimentalRequests: string[] = [];
     page.on('request', request => {
       const path = new URL(request.url()).pathname;
-      if (path.startsWith('/models/vehicles/')) modelRequests.push(path);
+      if (path.startsWith('/assets/models/vehicles/')) modelRequests.push(path);
       if (path.startsWith('/__local-models/') || path.startsWith('/models/cars/')) experimentalRequests.push(path);
     });
-    for (const asset of VEHICLE_MODEL_ASSETS) expect(existsSync(resolve(DIST_DIRECTORY, `models/vehicles/${asset.fileName}`))).toBe(true);
+    for (const asset of VEHICLE_MODEL_ASSETS) expect(existsSync(resolve(DIST_DIRECTORY, `assets/models/vehicles/${asset.fileName}`))).toBe(true);
     // Production has no Vite source export. Observe actual canvas text rendering for loader readiness.
     await page.addInitScript(() => {
       window.__garageOnlinePaints = 0;

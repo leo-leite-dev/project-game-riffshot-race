@@ -1,4 +1,4 @@
-import { RACE_TRACKS, getTrackById } from '../data/raceTracks.ts';
+import { OPENING_RACE_TRACK_ID, RACE_TRACKS, getTrackById } from '../data/raceTracks.ts';
 import type Phaser from 'phaser';
 
 export const TRACK_ASSIGNMENT_KEY = 'trackAssignment';
@@ -24,8 +24,13 @@ export function assignTrack(state: TrackAssignmentState = createTrackAssignmentS
   let remainingTrackIds = state.remainingTrackIds;
   if (!remainingTrackIds.length) {
     remainingTrackIds = RACE_TRACKS.map(track => track.id);
-    for (let i = remainingTrackIds.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(rng() * (i + 1));
+    const openingRace = state.completedRaceIds.length === 0 && state.lastCompletedTrackId === null;
+    if (openingRace) {
+      const openingIndex = remainingTrackIds.indexOf(OPENING_RACE_TRACK_ID);
+      if (openingIndex > 0) [remainingTrackIds[0], remainingTrackIds[openingIndex]] = [remainingTrackIds[openingIndex]!, remainingTrackIds[0]!];
+    }
+    for (let i = remainingTrackIds.length - 1; i > (openingRace ? 1 : 0); i -= 1) {
+      const j = openingRace ? 1 + Math.floor(rng() * i) : Math.floor(rng() * (i + 1));
       [remainingTrackIds[i], remainingTrackIds[j]] = [remainingTrackIds[j], remainingTrackIds[i]];
     }
     if (remainingTrackIds.length > 1 && remainingTrackIds[0] === state.lastCompletedTrackId) {

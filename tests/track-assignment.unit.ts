@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { ModuleKind, ScriptTarget, transpileModule } from 'typescript';
-import { RACE_TRACKS } from '../src/data/raceTracks.ts';
+import { OPENING_RACE_TRACK_ID, RACE_TRACKS } from '../src/data/raceTracks.ts';
 import { CHARACTERS, getSelectedCharacter } from '../src/data/characters.ts';
 import { VEHICLE, PAINTS, getSelectedVehicle } from '../src/data/vehicles.ts';
 import { DIFFICULTIES } from '../src/data/raceDifficulty.ts';
@@ -58,11 +58,15 @@ test('cada ciclo contém todas as pistas, sem repetição interna ou entre ciclo
   }
 });
 
-test('RNG injetável determina a ordem; atribuição pendente não sorteia novamente', () => {
+test('NEON FURNACE fica fixa na abertura; atribuição pendente não sorteia novamente', () => {
   const initial = freezeState(createTrackAssignmentState());
   const first = assignTrack(initial, () => 0);
   const second = assignTrack(initial, () => 0.999999);
-  assert.notEqual(first.pendingTrackId, second.pendingTrackId);
+  assert.equal(OPENING_RACE_TRACK_ID, 'neon-furnace');
+  assert.equal(first.pendingTrackId, OPENING_RACE_TRACK_ID, 'a primeira corrida apresenta o circuito de abertura');
+  assert.equal(second.pendingTrackId, OPENING_RACE_TRACK_ID);
+  assert.deepEqual(first.remainingTrackIds, ['neon-furnace', 'voltage-run']);
+  assert.deepEqual(second.remainingTrackIds, first.remainingTrackIds);
   assert.deepEqual(assignTrack(initial, seededRng(42)), assignTrack(initial, seededRng(42)));
   assert.equal(first.remainingTrackIds.length, RACE_TRACKS.length);
   assert.equal(assignTrack(freezeState(first), () => assert.fail('não deve sortear')), first);
@@ -217,7 +221,10 @@ interface ButtonOptions {
 interface SceneDouble extends Omit<Shell, 'layout'> {
   registry: Registry;
   game: { championship: { state: { pendingResult: unknown }; canRace: boolean; specialTrackChoice: boolean;
-    assignedTrack: () => Track; startRace: () => { trackId: string } } };
+    assignedTrack: () => Track; startRace: () => { trackId: string } };
+    menuMusic: { startRaceTrackMusic: (_trackId: string) => void;
+      scheduleRaceAnnouncer: (_trackId: string, _raceId: string, _delayMs: number) => void };
+  };
   buttons: Button[];
   add: { graphics: () => Display };
   content: Display & { add: (items: unknown) => void };
@@ -261,7 +268,7 @@ function openSelection(registry: Registry = makeRegistry()): SceneDouble {
       registry.set('selectedTrackId', active.trackId);
       return active;
     },
-  } };
+  }, menuMusic: { startRaceTrackMusic() {}, scheduleRaceAnnouncer() {} } };
   scene.buttons = [];
   scene.add = { graphics: () => new Display() };
   scene.content = Object.assign(new Display(), { add() {} });

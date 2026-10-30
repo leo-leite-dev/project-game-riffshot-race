@@ -258,14 +258,14 @@ export function optimizeGlb(source: Buffer) {
 
 async function main() {
   const input = resolve('referencias-locais/Vehicles/sci_-_fi_buggy.glb');
-  const output = resolve('public/models/cars/rift-blaze/rift-blaze.glb');
+  const output = resolve('referencias-locais/legacy-assets/vehicles/rift-blaze/rift-blaze.glb');
   const source = await readFile(input);
   const { output: result, report } = optimizeGlb(source);
   const metadata = decodeGlb(result).json.asset.extras;
   if (!metadata?.source?.includes('085bd97876a64eacbc041299ac945e9c') || !metadata?.license?.includes('CC-BY-4.0')) throw new Error('Autoria/licença não correspondem à inspeção');
   await mkdir(dirname(output), { recursive: true });
   await writeFile(output, result);
-  await writeFile(resolve('public/models/cars/rift-blaze/optimization.json'), `${JSON.stringify(report, null, 2)}\n`);
+  await writeFile(resolve('referencias-locais/legacy-assets/vehicles/rift-blaze/optimization.json'), `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));
 }
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) await main();

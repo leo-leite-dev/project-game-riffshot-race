@@ -13,7 +13,7 @@ type OutputAsset = { type: 'asset'; fileName: string; source: string | Uint8Arra
 type PluginContext = { emitFile(asset: OutputAsset): string };
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const directory = join(root, 'assets', 'vehicles');
+const directory = join(root, 'public', 'assets', 'models', 'vehicles');
 const sha256 = (source: Buffer): string => createHash('sha256').update(source).digest('hex');
 
 const callConfigResolved = (plugin: Plugin, config: ResolvedConfig): void => {
@@ -105,7 +105,7 @@ async function preparationFixture(t: TestContext) {
   const temporary = await mkdtemp(join(base, 'release-assets-'));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const sources = join(temporary, 'referencias-locais', 'Vehicles');
-  const destination = join(temporary, 'assets', 'vehicles');
+  const destination = join(temporary, 'public', 'assets', 'models', 'vehicles');
   await mkdir(sources, { recursive: true }); await mkdir(destination, { recursive: true });
   const originals = new Map();
   for (const asset of VEHICLE_MODEL_ASSETS) {

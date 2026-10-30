@@ -1,5 +1,14 @@
 export interface TrackWaypoint { x: number; z: number; y?: number }
-export interface TrackPath { waypoints: readonly TrackWaypoint[] }
+export interface TrackJump {
+  id: string; takeoff: number; landingStart: number; landingEnd: number;
+  launchAngleDegrees: number; minimumSpeed: number; maximumVerticalSpeed: number;
+}
+export interface TrackEdgeSpikes { spacing: number; height: number; baseWidth: number }
+export interface TrackPath {
+  waypoints: readonly TrackWaypoint[];
+  jumps?: readonly TrackJump[];
+  edgeSpikes?: TrackEdgeSpikes;
+}
 export interface TrackPoint { x: number; z: number; y: number; distance: number; tangentX: number; tangentZ: number }
 export interface SampledTrack { points: TrackPoint[]; totalLength: number }
 export interface NearestTrackPoint extends TrackPoint { lateral: number; distanceSq: number }

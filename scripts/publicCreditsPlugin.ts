@@ -39,7 +39,7 @@ export function renderPublicCredits(source: string) {
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark"><meta name="robots" content="noindex">
-<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="icon" href="./assets/ui/favicon.svg" type="image/svg+xml">
 <title>Créditos e licenças | RIFFSHOT RACING</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#080b19;color:#edf7ff;font:16px/1.7 Arial,sans-serif}

@@ -5,13 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#080b19" />
     <meta name="description" content="RIFFSHOT RACING — Sinta a batida. Pise fundo. Abra fogo." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/assets/ui/favicon.svg" />
     <title>RIFFSHOT RACING | Sinta a batida. Pise fundo. Abra fogo.</title>
   </head>
   <body>
     <main id="game" aria-label="RIFFSHOT RACING — jogo de corrida arcade"></main>
+    <aside id="orientation-prompt" aria-live="polite" aria-label="Orientação do jogo">
+      <div class="orientation-card">
+        <span class="orientation-icon" aria-hidden="true">▯ ↻</span>
+        <strong>JOGUE NA HORIZONTAL</strong>
+        <span class="orientation-message">Gire o celular para aproveitar melhor a pista e os controles.</span>
+        <button id="orientation-action" type="button">TENTAR GIRAR A TELA</button>
+        <button id="orientation-dismiss" type="button" aria-label="Fechar aviso de orientação">FECHAR AVISO</button>
+      </div>
+    </aside>
     <p id="screen-status" class="screen-reader" role="status" aria-live="polite"></p>
-    <button id="music-toggle" class="music-toggle" type="button" aria-label="Ativar trilha sonora" aria-pressed="false">♫ SOM: ATIVAR</button>
     <a id="public-credits" class="public-credits" href="./credits.html" target="_blank" rel="noopener noreferrer" aria-keyshortcuts="Alt+L" title="Créditos e licenças — Alt+L para focar; Enter para abrir em nova aba">Créditos e licenças<span class="screen-reader"> (abre em nova aba)</span></a>
     <noscript>Ative o JavaScript para abrir RIFFSHOT RACING.</noscript>
     <script type="module" src="/src/main.ts"></script>

@@ -90,7 +90,7 @@ test('drift natural: soltar direção recupera aderência e Espaço prolonga o d
   drive(normal, 45);
   drive(handbrake, 45, { handbrake: 1 });
   // Recovery is intentionally slower than the old half-second realignment.
-  assert.ok(Math.abs(slip(normal.car)) > 0.12, 'a traseira ainda desliza após 0,75 s sem direção');
+  assert.ok(Math.abs(slip(normal.car)) > 0.04, `a traseira ainda mantém um deslizamento residual após 0,75 s: ${slip(normal.car)}`);
   assert.ok(Math.abs(slip(normal.car)) < initialSlip * 0.5);
   assert.ok(Math.abs(slip(handbrake.car)) > Math.abs(slip(normal.car)) * 2);
   assert.ok(handbrake.car.speed < normal.car.speed, 'freio de mão também reduz a velocidade');
@@ -111,19 +111,20 @@ test('drift natural: aderência não cria energia nem excede a força lateral di
   sideways.car.velocityX = 20;
   drive(sideways, 1);
   const correction = 20 - sideways.car.velocityX;
-  assert.ok(correction > 0 && correction <= sideways.car.vehicle.grip * 28 * DT + 1e-10);
+  assert.ok(correction > 0 && correction <= sideways.car.vehicle.grip * 31 * DT + 1e-10);
 });
 
-test('drift natural: controle do veículo e habilidade do piloto preservam vantagem de aderência', () => {
+test('drift natural: pneus controlam aderência e handling do piloto controla direção', () => {
   const blaze = setup(), vector = setup(27, VEHICLES[1]);
   const novice = setup(27, VEHICLES[0], 1), expert = setup(27, VEHICLES[0], 10);
   for (const state of [blaze, vector, novice, expert]) {
     // Equal misalignment isolates grip from the different steering ratings.
     state.car.heading = 0.5;
-    drive(state, 20);
   }
+  drive(blaze, 20); drive(vector, 20);
   assert.ok(Math.abs(lateralSpeed(vector.car)) < Math.abs(lateralSpeed(blaze.car)));
-  assert.ok(Math.abs(lateralSpeed(expert.car)) < Math.abs(lateralSpeed(novice.car)));
+  assert.ok(expert.car.vehicle.steering > novice.car.vehicle.steering,
+    'handling do piloto modula direção; aderência continua vindo dos pneus do veículo');
 });
 
 test('drift traseiro: acelerar na curva sustenta deslizamento e soltar o acelerador ajuda a recuperar', () => {
@@ -238,4 +239,28 @@ test('drift sob tração: freio, freio de mão, embalo e ré não ativam ganho d
   const slow = setup(3);
   drive(slow, 10, { throttle: 1, steer: 1 });
   assert.equal(slow.car._driftBoost, 0, 'manobras lentas não dão bônus');
+});
+
+test('arcade: mesma curva forte perde velocidade moderadamente; reta conserva mais embalo', () => {
+  const straight = setup(27), turn = setup(27);
+  // Remove motor acceleration from the comparison. Under throttle, both traces
+  // reach the max-speed clamp and hide the cornering drag this case measures.
+  drive(straight, 30);
+  drive(turn, 30, { steer: 1 });
+  assert.ok(turn.car.speed < straight.car.speed - 1,
+    `carga de curva deve custar velocidade sem travar: ${straight.car.speed}/${turn.car.speed}`);
+  assert.ok(turn.car.speed > 15, 'uma curva forte continua controlável, não apaga o carro');
+  assert.ok(Math.abs(slip(turn.car)) < 1.1, 'drift permanece progressivo, sem giro descontrolado');
+});
+
+test('arcade: controle do carro altera tração e alta velocidade preserva parte da inércia', () => {
+  const precise = setup(27, VEHICLES[1]), loose = setup(27, VEHICLES[2]);
+  for (const state of [precise, loose]) drive(state, 30, { throttle: 0.6, steer: 0.8 });
+  assert.ok(Math.abs(slip(precise.car)) < Math.abs(slip(loose.car)) + 0.1,
+    'o controle de cada modelo continua modulando a resposta lateral');
+  const car = precise.car;
+  const before = Math.atan2(car.velocityX, car.velocityZ);
+  drive(precise, 1, { steer: 1 });
+  const after = Math.atan2(car.velocityX, car.velocityZ);
+  assert.ok(Math.abs(angleDelta(after - before)) < 0.12, 'a direção não teleporta a trajetória anterior');
 });

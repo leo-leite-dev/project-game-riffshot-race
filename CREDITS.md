@@ -2,7 +2,7 @@
 
 ## Modelos GLB atuais — cinco veículos / cinco assets distintos
 
-Os modelos abaixo são disponibilizados pela fábrica compartilhada. A seleção inicial e as regras da loja pertencem ao catálogo. O plugin emite exclusivamente os cinco arquivos da allowlist em `/models/vehicles/`, a partir de cópias de distribuição versionadas em `assets/vehicles/`, com tamanhos e SHA-256 conferidos pelo manifesto. “Allowlist” é aprovação técnica de empacotamento, não certificação jurídica. A pasta `referencias-locais/` não é publicada; os originais locais permanecem inalterados. **THUNDER BUG** substitui a apresentação anterior de `rift-blaze`, preservando esse ID e os saves. **Race Car 2** usa `modelFile: race_car2.glb` como alias para `race_car.glb` (SHA-256 `71e361015328d4a1eb8e556890665294730bb09b401c1ba11ce66983968a5e2f`); não depende de um arquivo `race_car2.glb`, nem o publica.
+Os modelos abaixo são disponibilizados pela fábrica compartilhada. A seleção inicial e as regras da loja pertencem ao catálogo. O plugin emite exclusivamente os cinco arquivos da allowlist em `/assets/models/vehicles/`, a partir do pacote versionado em `public/assets/models/vehicles/`, com tamanhos e SHA-256 conferidos pelo manifesto. “Allowlist” é aprovação técnica de empacotamento, não certificação jurídica. A pasta `referencias-locais/` não é publicada; os originais locais permanecem inalterados. **THUNDER BUG** substitui a apresentação anterior de `rift-blaze`, preservando esse ID e os saves. **Race Car 2** usa `modelFile: race_car2.glb` como alias para `race_car.glb` (SHA-256 `71e361015328d4a1eb8e556890665294730bb09b401c1ba11ce66983968a5e2f`); não depende de um arquivo `race_car2.glb`, nem o publica.
 
 | IDs no jogo | Arquivo publicado | Título e autoria declarados no GLB | Fonte |
 | --- | --- | --- | --- |
@@ -30,7 +30,7 @@ O adaptador próprio anima giro no eixo local +X, esterço dianteiro Y e, soment
 
 - Original: **28.914.440 bytes**, SHA-256 `4f642d8d02b8669e85f69e6e89ec0868bb5b6da3b745446c4b65649d1ee44644`.
 - Derivado: **25.452.592 bytes (24,27 MiB)**, abaixo de 25 MiB; SHA-256 `1fb69db423f5a360dadb17fbbc073e2f02729c6776bc04c20fae64fcd3930feb`.
-- Preparado explicitamente por `npm run assets:prepare` e versionado em `assets/vehicles/thunder_bug.glb`. Dev e build conferem esse payload pelo manifesto, sem depender das referências privadas nem repetir a otimização. O original privado nunca é sobrescrito; falha de preparação não entrega o original acima do limite.
+- Preparado explicitamente por `npm run assets:prepare` e versionado em `public/assets/models/vehicles/thunder_bug.glb`. Dev e build conferem esse payload pelo manifesto, sem depender das referências privadas nem repetir a otimização. O original privado nunca é sobrescrito; falha de preparação não entrega o original acima do limite.
 - Recompressão PNG reduz transferência, não a memória RGBA8 decodificada. Não houve redimensionamento ou compressão com perdas.
 
 ### Inventário técnico / custo estimado
@@ -50,7 +50,7 @@ Total transferido sem compressão HTTP ao carregar todos: **53.909.488 bytes**, 
 O registro abaixo documenta a etapa anterior. O modelo padrão atual do ID `rift-blaze` é **Thunder Bug**, listado acima; o candidato otimizado do buggy não integra a allowlist de produção.
 
 - Original local preservado: `referencias-locais/Vehicles/sci_-_fi_buggy.glb` (nome diferente de `sci_fi_buggy.glb`).
-- Candidato criado: `public/models/cars/rift-blaze/rift-blaze.glb`, 27.208.448 bytes. Ainda excede o limite de 25 MiB do Pages; não foi incluído em `dist`, publicado ou ligado como modelo padrão. Relatório em `docs/RIFT_BLAZE_OPTIMIZATION.md`.
+- Candidato criado: `referencias-locais/legacy-assets/vehicles/rift-blaze/rift-blaze.glb`, 27.208.448 bytes. Ainda excede o limite de 25 MiB do Pages; não foi incluído em `dist`, publicado ou ligado como modelo padrão. Relatório em `docs/RIFT_BLAZE_OPTIMIZATION.md`.
 - Título declarado no GLB: **Sci - Fi Buggy**.
 - Autor declarado: **TiyaMakes** — https://sketchfab.com/tiyamakes
 - Fonte: https://sketchfab.com/3d-models/sci-fi-buggy-085bd97876a64eacbc041299ac945e9c
@@ -58,10 +58,10 @@ O registro abaixo documenta a etapa anterior. O modelo padrão atual do ID `rift
 - A identidade de título, autoria e URL coincide entre o arquivo e a página; não foi feita comparação de hash com um download independente.
 - A licença permite compartilhar e adaptar, inclusive comercialmente, sob suas condições: manter atribuição e avisos fornecidos, linkar a licença, indicar modificações e não sugerir endosso do autor. Não impor restrições jurídicas/tecnológicas incompatíveis com os direitos licenciados.
 - A licença não garante direitos de terceiros sobre eventuais marcas/designs representados. Não foram localizados documentos de licença adicionais junto ao arquivo; não há comprovação jurídica independente de originalidade.
-- Modificações aplicadas ao candidato: otimização **SEM PERDAS** das imagens PNG, compactação de índices, união de vértices com atributos idênticos e remoção de conjuntos UV não utilizados. O original local permanece preservado; hashes registrados em `public/models/cars/rift-blaze/optimization.json`.
+- Modificações aplicadas ao candidato: otimização **SEM PERDAS** das imagens PNG, compactação de índices, união de vértices com atributos idênticos e remoção de conjuntos UV não utilizados. O original local permanece preservado; hashes registrados em `referencias-locais/legacy-assets/vehicles/rift-blaze/optimization.json`.
 - Adaptações da integração em memória: separação de rodas/aros por lado, aplicação das matrizes em geometrias de apresentação, normalização da escala para 3,25 unidades de comprimento, pivôs independentes, pintura do material `main_body`, animações próprias de rodas e carroceria e partículas originais do projeto.
 - O modelo não possui clipes embutidos. As animações/partículas adicionadas são código próprio, não material criado pelo autor do GLB.
-- Estado atual: histórico de experimento anterior, não distribuído nesta versão. Não integra `assets/vehicles/` nem a allowlist atual; THUNDER BUG é o modelo oficial do ID preservado.
+- Estado atual: histórico de experimento anterior, não distribuído nesta versão. Não integra `public/assets/models/vehicles/` nem a allowlist atual; THUNDER BUG é o modelo oficial do ID preservado.
 - Histórico: a integração começou em testes locais opt-in via `?localRiftBlaze=1`. O código do adaptador não contém os buffers do modelo. Registro técnico dessa etapa: `docs/LOCAL_BUGGY_INSPECTION.md`.
 - Crédito acessível ao jogador: link HTML “Créditos e licenças” no shell, para `credits.html`; a página também oferece os avisos completos em `THIRD_PARTY_NOTICES.txt`. Ambos são gerados da mesma fonte `THIRD_PARTY_NOTICES.md`.
 
@@ -98,8 +98,9 @@ Antes de distribuição pública, o proprietário deve confirmar que pode usar R
 
 ## Áudio e fontes
 
-- A trilha é sintetizada em tempo de execução pelo código original de `src/audio/rockLoop.js`; não há arquivos de música, samples ou gravações externas.
-- Motores são perfis sintéticos originais de `src/audio/RaceEngineAudio.js`; não usam gravações de veículos ou samples externos. Os créditos públicos identificam trilha, motores e efeitos, sem atribuí-los indevidamente aos autores dos GLBs.
+- A trilha é sintetizada em tempo de execução pelo código original de `src/audio/rockLoop.ts`; ela não utiliza gravações externas.
+- Motores são perfis sintéticos originais de `src/audio/RaceEngineAudio.ts`; não usam gravações de veículos ou samples externos. Explosões, colisões e fallback de efeitos também são sínteses do projeto.
+- Disparo do Widowmaker, impacto de tiro e derrapagem usam localmente `canhão_disparo_windowmaker.mp3`, `impacto_disparo.mp3` e `pneu_derrapando.mp3`, fornecidos pelo proprietário em `referencias-locais/audio/`. Autoria, origem e licença não foram informadas; não são declarados como originais nem como recursos livres de direitos. Até a confirmação de autorização, esses MP3 não são publicados: o build usa os efeitos procedurais existentes como fallback. O arquivo do disparo preserva o nome e os bytes originais.
 - A interface usa fontes de sistema (“Arial”, “Arial Black”, “Consolas” e alternativas genéricas). Nenhum arquivo de fonte é distribuído.
 - O modelo de terceiros Sci - Fi Buggy e suas texturas estão identificados na seção do Rift Blaze acima, com atribuição oficial preparada; este inventário não confirma sua publicação.
 

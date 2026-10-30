@@ -23,7 +23,11 @@ function fixture(vehicleId = 'rift-blaze') {
   });
   return beginChampionshipRace(ensureAssignedTrack(state, () => 0.99), 'combat-race');
 }
-async function openRace(page: Page, vehicleId = 'rift-blaze', staticGrid = true) {
+async function openRace(page: Page, vehicleId = 'rift-blaze', staticGrid = true, captureLoading = false) {
+  if (captureLoading) await page.route('**/assets/models/vehicles/*.glb', async route => {
+    await new Promise(resolve => setTimeout(resolve, 700));
+    await route.continue();
+  });
   await page.addInitScript(({ key, value }: { key: string; value: ChampionshipState }) => localStorage.setItem(key, JSON.stringify(value)), {
     key: CHAMPIONSHIP_SAVE_KEY, value: fixture(vehicleId),
   });
@@ -32,6 +36,11 @@ async function openRace(page: Page, vehicleId = 'rift-blaze', staticGrid = true)
   // Isolated valid active race: open only the affected screen, not a championship.
   await inspect(page, game => game.scene.getScenes(true)[0].scene.start('Race'));
   await waitScene(page, 'Race');
+  expect(await inspect(page, game => {
+    const scene = game.scene.getScene('Race');
+    return scene.ready || (scene.loadingLabel.visible && String(scene.loadingLabel.text) === 'CARREGANDO CARROS E PISTA…');
+  })).toBe(true);
+  if (captureLoading) await page.screenshot({ path: 'previews-ui/corrida-carregando-carros.png' });
   await expect.poll(() => inspect(page, game => !!game.scene.getScene('Race').ready), { timeout: 90_000 }).toBe(true);
   expect(await inspect(page, game => game.garageResources.modelFailures)).toEqual([]);
   if (staticGrid) await inspect(page, game => {
@@ -49,18 +58,22 @@ async function settle(page: Page) {
   await inspect(page, game => new Promise(resolve => game.events.once('postrender', resolve)));
 }
 
-test('Thunder integrado: escala maior, três aproximações com Z e isométrica', async ({ page }) => {
+test('Thunder integrado: vista arcade inicial, três aproximações com Z e terceira pessoa', async ({ page }) => {
   await openRace(page);
   const setup = await inspect(page, game => {
     const world = game.scene.getScene('Race').garageView;
     return { model: world.vehicles[0].userData.modelFile, length: world.vehicles[0].userData.size.z,
-      capacity: game.scene.getScene('Race').simulation.participants.map((car: Dynamic) => car.healthOrbs) };
+      capacity: game.scene.getScene('Race').simulation.participants.map((car: Dynamic) => car.healthOrbs),
+      initialMode: world.cameraRig.mode };
   });
   expect(setup.model).toBe('thunder_bug.glb');
+  expect(setup.initialMode).toBe('isometric');
   expect(setup.length).toBeCloseTo(4.225, 6);
-  expect(setup.capacity).toEqual([4, 6, 3, 7]);
+  expect(setup.capacity).toEqual([4, 6, 4, 4]);
   await settle(page);
-  await page.screenshot({ path: 'previews-ui/thunder-camera-proxima.png' });
+  await page.screenshot({ path: 'previews-ui/camera-arcade-inicial.png' });
+  await page.keyboard.press('c'); await settle(page);
+  expect(await inspect(page, game => game.scene.getScene('Race').garageView.cameraRig.mode)).toBe('chase');
   const distances = [];
   for (let level = 0; level < 3; level++) {
     if (level) await page.keyboard.press('z');
@@ -77,9 +90,10 @@ test('Thunder integrado: escala maior, três aproximações com Z e isométrica'
   expect(distances[1].distance).toBeLessThan(distances[0].distance);
   await page.keyboard.press('z'); await settle(page);
   expect(await inspect(page, game => game.scene.getScene('Race').garageView.cameraRig.zoomIndex)).toBe(0);
+  await expect.poll(() => inspect(page, game => game.scene.getScene('Race').garageView.cameraRig.mode)).toBe('chase');
+  await page.screenshot({ path: 'previews-ui/camera-terceira-pessoa.png' });
   await page.keyboard.press('c'); await settle(page);
   expect(await inspect(page, game => game.scene.getScene('Race').garageView.cameraRig.mode)).toBe('isometric');
-  await page.screenshot({ path: 'previews-ui/thunder-camera-isometrica.png' });
 });
 
 test('Thunder mobile: enquadramento estável nas duas câmeras e zoom próximo', async ({ page }) => {
@@ -87,12 +101,201 @@ test('Thunder mobile: enquadramento estável nas duas câmeras e zoom próximo',
   await openRace(page);
   await expect.poll(() => inspect(page, game => game.scale.width)).toBe(390);
   await settle(page);
-  await page.screenshot({ path: 'previews-ui/thunder-terceira-mobile.png' });
-  await page.keyboard.press('z'); await settle(page);
-  await page.keyboard.press('z'); await settle(page);
-  await page.screenshot({ path: 'previews-ui/thunder-zoom-mobile.png' });
+  expect(await inspect(page, game => game.scene.getScene('Race').garageView.cameraRig.mode)).toBe('isometric');
+  await page.screenshot({ path: 'previews-ui/camera-arcade-mobile.png' });
   await page.keyboard.press('c'); await settle(page);
-  await page.screenshot({ path: 'previews-ui/thunder-isometrica-mobile.png' });
+  await page.keyboard.press('z'); await settle(page);
+  await page.keyboard.press('z'); await settle(page);
+  await page.screenshot({ path: 'previews-ui/camera-terceira-mobile.png' });
+  expect(await inspect(page, game => game.scene.getScene('Race').garageView.cameraRig.mode)).toBe('chase');
+  await page.keyboard.press('c'); await settle(page);
+});
+
+test('corrida mobile em paisagem: orientação e controles touch alimentam o controlador', async ({ page }, testInfo) => {
+  if (testInfo.project.name !== 'landscape') {
+    await page.goto('/');
+    test.skip(true, 'Este caso valida a tela e os controles de um dispositivo touch.');
+  }
+  await page.setViewportSize({ width: 844, height: 390 });
+  await openRace(page);
+  await expect(page.locator('#orientation-prompt')).not.toBeVisible();
+  const result = await inspect(page, game => {
+    const scene = game.scene.getScene('Race');
+    const controls = scene.touchControls.list as unknown as Dynamic[];
+    scene.playerController.setAnalogControl(-0.75, -0.8, true);
+    const driven = scene.playerController.read(scene.simulation.participants[0]);
+    scene.playerController.setAnalogControl(0, 0, false);
+    const released = scene.playerController.read(scene.simulation.participants[0]);
+    controls[2].emit('pointerdown', { event: { preventDefault() {} } });
+    const handbrake = scene.playerController.read(scene.simulation.participants[0]).handbrake;
+    controls[2].emit('pointerup');
+    return { visible: scene.touchControls.visible, count: controls.length,
+      throttle: driven.throttle, steer: driven.steer, released: released.throttle, handbrake,
+      map: scene.minimap.visible, resources: scene.weaponLabels.map((label: Dynamic) => label.text),
+      vehicleStatus: scene.vehicleStatus.text,
+      mapX: scene.hudLayout.map.x, lapRight: Number(scene.hudLayout.lap.x) + Number(scene.hudLayout.lap.width),
+      pilotBottom: Number(scene.hudLayout.pilot.y) + Number(scene.hudLayout.pilot.height),
+      worldScale: scene.content.scaleX, hudScale: scene.hudLayer.scaleX,
+      bounds: controls.filter(control => typeof control.getBounds === 'function').map(control => control.getBounds())
+        .every((bounds: Dynamic) => Number(bounds.left) >= 0
+        && Number(bounds.right) <= Number(game.scale.width) && Number(bounds.top) >= 0
+        && Number(bounds.bottom) <= Number(game.scale.height)) };
+  });
+  expect(result).toMatchObject({ visible: true, count: 4, throttle: 0.8, steer: 0.75, released: 0, handbrake: 1,
+    map: true, resources: ['0', '0', '0'], vehicleStatus: 'VIDA 4/4   NITRO 2/2', bounds: true, hudScale: 1 });
+  expect(result.mapX).toBeLessThan(30);
+  expect(result.lapRight).toBeGreaterThan(814);
+  expect(result.pilotBottom).toBeGreaterThan(370);
+  await page.screenshot({ path: 'previews-ui/corrida-mobile-paisagem-controles.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('#orientation-prompt')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'TENTAR GIRAR A TELA' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fechar aviso de orientação' })).toBeVisible();
+  await page.screenshot({ path: 'previews-ui/orientacao-mobile-retrato.png' });
+  await page.getByRole('button', { name: 'Fechar aviso de orientação' }).click();
+  await expect(page.locator('#orientation-prompt')).not.toBeVisible();
+});
+
+test('HUD desktop: mapa, recursos do veículo, vida em orbes e N/A para carro sem nitro', async ({ page }, testInfo) => {
+  if (testInfo.project.name !== 'desktop') {
+    await page.goto('/');
+    test.skip(true, 'Este caso valida a HUD sem controles touch.');
+  }
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await openRace(page, 'volt-vector');
+  const hud = await inspect(page, game => {
+    const scene = game.scene.getScene('Race');
+    const player = scene.simulation.participants[0];
+    const pilot = scene.hudLayout.pilot;
+    const ratio = (value: unknown, origin: unknown, size: unknown) => (Number(value) - Number(origin)) / Number(size);
+    return { mapVisible: scene.minimap.visible, mapFrameVisible: scene.minimapFrame.visible,
+      resources: scene.weaponLabels.map((label: Dynamic) => label.text),
+      resourceNames: scene.weaponNames.map((label: Dynamic) => label.text), status: scene.vehicleStatus.text,
+      weaponStats: scene.vehicleSelection.vehicle.stats,
+      weaponIcons: scene.weaponIcons.map((icon: Dynamic) => icon.texture.key),
+      playerHudTextureLoaded: game.textures.exists('race-hud-player'),
+      pilotPortrait: scene.playerHudPortrait.visible,
+      lifeDisplay: { text: scene.lifeValue.text, visible: scene.lifeValue.visible },
+      nitroDisplay: { text: scene.nitroValue.text, visible: scene.nitroValue.visible },
+       difficulty: { text: scene.difficultyLabel.text, visible: scene.difficultyLabel.visible },
+       controlKeys: scene.controlKeys.map((label: Dynamic) => label.text),
+       controlCaptions: scene.controlCaptions.map((label: Dynamic) => label.text),
+       controlAlphas: scene.controlKeys.concat(scene.controlCaptions).map((label: Dynamic) => label.alpha),
+       controlFrameAlpha: scene.controlsFrame.alpha,
+       botVehicles: scene.simulation.participants.slice(2).map((car: Dynamic) => car.vehicleId),
+      totalHealthOrbs: player.healthOrbs, nitro: player.vehicle.nitroCharges,
+      hudAnchors: { nameX: ratio(scene.playerLabel.x, pilot.x, pilot.width),
+        nameOriginX: Number(scene.playerLabel.originX),
+        healthX: ratio(scene.healthOrbs.x, pilot.x, pilot.width),
+        healthY: ratio(scene.healthOrbs.y, pilot.y, pilot.height),
+        nitroX: ratio(scene.nitroBars.x, pilot.x, pilot.width),
+        nitroY: ratio(scene.nitroBars.y, pilot.y, pilot.height),
+        speedX: ratio(scene.speedBars.x, pilot.x, pilot.width),
+        speedY: ratio(scene.speedBars.y, pilot.y, pilot.height) },
+      minimap: scene.minimapLayout, hintOrigin: scene.controlsHint.originX,
+      map: scene.hudLayout.map, lap: scene.hudLayout.lap, pilot: scene.hudLayout.pilot,
+      lapsLabel: scene.lapLabel.text, lapsCount: scene.positionLabel.text,
+      hudScale: scene.hudLayer.scaleX };
+  });
+  expect(hud.mapVisible).toBe(true);
+  expect(hud.mapFrameVisible).toBe(true);
+  expect(hud.resources).toEqual(['shotCount', 'bombCount', 'oilSlickCount']
+    .map(key => String(hud.weaponStats[key] ?? 0)));
+  expect(hud.resourceNames).toEqual(['TIROS', 'BOMBAS', 'ÓLEO']);
+  expect(hud.weaponIcons).toEqual([
+    'race-hud-weapon-shots', 'race-hud-weapon-bomb', 'race-hud-weapon-oil',
+  ]);
+  expect(hud.playerHudTextureLoaded).toBe(false);
+  expect(hud.status).toContain(`VIDA ${hud.totalHealthOrbs}/${hud.totalHealthOrbs}`);
+  expect(hud.status).toContain('NITRO N/A');
+  expect(hud.totalHealthOrbs).toBeGreaterThan(0);
+  expect(hud.nitro).toBe(0);
+  expect(hud.pilotPortrait).toBe(true);
+  expect(hud.lifeDisplay).toEqual({ text: `${hud.totalHealthOrbs}/${hud.totalHealthOrbs}`, visible: true });
+  expect(hud.nitroDisplay).toEqual({ text: 'N/A', visible: true });
+  expect(hud.hudAnchors.nameOriginX).toBe(0.5);
+  for (const [anchor, expected] of Object.entries({ nameX: 0.625, healthX: 0.56, healthY: 0.445,
+    nitroX: 0.52, nitroY: 0.595, speedX: 0.52, speedY: 0.79 })) {
+    expect(hud.hudAnchors[anchor]).toBeCloseTo(expected, 5);
+  }
+  expect(hud.difficulty).toEqual({ text: 'NORMAL', visible: true });
+  expect(hud.controlKeys).toEqual(['W', 'S', 'A', 'D', 'C', 'Z', 'SHIFT', 'SPACE']);
+  expect(hud.controlCaptions.slice(4, 6)).toEqual(['CÂMERA', 'ZOOM']);
+  const hintTransition = await inspect(page, game => {
+    const scene = game.scene.getScene('Race');
+    const gaps = scene.controlCaptions.slice(0, 7).map((caption: Dynamic, index: number) =>
+      Number(scene.controlKeys[index + 1].getBounds().left) - Number(caption.getBounds().right));
+    Object.assign(scene, { simulationStarted: false });
+    scene.setControlHintOpacity();
+    const beforeStart = { frame: scene.controlsFrame.alpha,
+      text: scene.controlKeys.concat(scene.controlCaptions).map((item: Dynamic) => item.alpha) };
+    Object.assign(scene, { simulationStarted: true });
+    scene.setControlHintOpacity();
+    const afterStart = { frame: scene.controlsFrame.alpha,
+      text: scene.controlKeys.concat(scene.controlCaptions).map((item: Dynamic) => item.alpha) };
+    return { beforeStart, afterStart, gaps };
+  });
+  expect(hintTransition.beforeStart.frame).toBe(1);
+  expect(hintTransition.beforeStart.text).toEqual(Array(16).fill(1));
+  expect(hintTransition.afterStart.frame).toBe(0.35);
+  expect(hintTransition.afterStart.text).toEqual(Array(16).fill(0.35));
+  expect(Math.min(...hintTransition.gaps)).toBeGreaterThan(0);
+  expect(hud.botVehicles).toEqual(['rift-blaze', 'rift-blaze']);
+  expect(Number(hud.minimap.x)).toBeGreaterThan(0);
+  expect(Number(hud.minimap.y)).toBeGreaterThan(0);
+  expect(hud.hintOrigin).toBe(1);
+  expect(hud.hudScale).toBe(1);
+  expect(hud.lapsLabel).toBe('LAPS');
+  expect(hud.lapsCount).toBe('4');
+  expect(hud.map.x).toBeLessThanOrEqual(24);
+  expect(hud.map.y).toBeLessThanOrEqual(24);
+  expect(hud.lap.x + hud.lap.width).toBe(1896);
+  expect(hud.pilot.y + hud.pilot.height).toBe(1056);
+  await inspect(page, game => game.scene.getScene('Race').cameraNotice.setAlpha(0));
+   await page.evaluate(async () => {
+     const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]');
+     if (!script) throw new Error('Entrada ausente');
+     const { game } = await import(script.src);
+     const scene = game.scene.getScene('Race');
+     scene.simulationStarted = true;
+     scene.setControlHintOpacity();
+   });
+   await page.screenshot({ path: 'previews-ui/corrida-hud-teclas-desktop.png' });
+  const liveCounts = await inspect(page, async game => {
+    const scene = game.scene.getScene('Race');
+    const { getVehicleById } = await import(new URL('/src/data/vehicles.ts', location.origin).href);
+    scene.vehicleSelection.vehicle = getVehicleById('widowmaker');
+    scene.updateHud();
+    return scene.weaponLabels.map((label: Dynamic) => label.text);
+  });
+  expect(liveCounts).toEqual(['5', '1', '1']);
+  const speedMeter = await inspect(page, game => {
+    const scene = game.scene.getScene('Race');
+    const player = scene.simulation.participants[0];
+    Object.assign(player, { speed: Number(player.vehicle.maxSpeed) / 2 });
+    scene.updateHud();
+    return { speed: scene.speedValue.text, filledSegments: scene.speedBarSegments };
+  });
+  expect(speedMeter.speed).not.toBe('000');
+  expect(speedMeter.filledSegments).toBeGreaterThan(0);
+  await page.screenshot({ path: 'previews-ui/hud-vida-nitro-velocidade.png' });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect.poll(() => inspect(page, game => Number(game.scene.getScene('Race').hudLayout.lap.x)
+    + Number(game.scene.getScene('Race').hudLayout.lap.width))).toBe(1416);
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await expect.poll(() => inspect(page, game => Number(game.scene.getScene('Race').hudLayer.scaleX)))
+    .toBeCloseTo(4 / 3, 5);
+  const qhd = await inspect(page, game => {
+    const scene = game.scene.getScene('Race');
+    return { scale: scene.hudLayer.scaleX, mapX: scene.hudLayout.map.x,
+      lapRight: Number(scene.hudLayout.lap.x) + Number(scene.hudLayout.lap.width),
+      pilotBottom: Number(scene.hudLayout.pilot.y) + Number(scene.hudLayout.pilot.height) };
+  });
+  expect(Number(qhd.scale)).toBeCloseTo(4 / 3, 5);
+  expect(Number(qhd.mapX) * Number(qhd.scale)).toBeCloseTo(32, 4);
+  expect(Number(qhd.lapRight) * Number(qhd.scale)).toBeCloseTo(2528, 4);
+  expect(Number(qhd.pilotBottom) * Number(qhd.scale)).toBeCloseTo(1408, 4);
+  await page.screenshot({ path: 'previews-ui/corrida-hud-qhd.png' });
 });
 
 test('dano integrado: bolinhas, fumaça, explosão única e respawn central com vida cheia', async ({ page }) => {
@@ -138,7 +341,7 @@ test('dano integrado: bolinhas, fumaça, explosão única e respawn central com 
 });
 
 test('largada natural: jogador e três bots avançam com rodas girando sem apresentação alterar a física', async ({ page }, testInfo) => {
-  await openRace(page, 'rift-blaze', false);
+  await openRace(page, 'rift-blaze', false, true);
   const sample = () => page.evaluate(async () => {
     const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]');
     if (!script) throw new Error('Entrada ausente');
@@ -173,6 +376,50 @@ test('largada natural: jogador e três bots avançam com rodas girando sem apres
     expect(after.every(car => car.independent)).toBe(true);
     await testInfo.attach('movimento-e-rodas', { body: JSON.stringify({ before, after }, null, 2), contentType: 'application/json' });
     await page.screenshot({ path: 'previews-ui/corrida-movimento-rodas-corrigidos.png' });
+  } finally {
+    await page.keyboard.up('w');
+  }
+});
+
+test('sensação de velocidade: perseguição amplia FOV e acompanha drift, C mantém câmera isométrica', async ({ page }) => {
+  // Preserve a deterministic visible loading state for the separate loading test.
+  await page.route('**/assets/models/vehicles/*.glb', async route => {
+    await new Promise(resolve => setTimeout(resolve, 350));
+    await route.continue();
+  });
+  await openRace(page);
+  await inspect(page, game => {
+    const scene = game.scene.getScene('Race');
+    scene.simulation.start();
+    scene.simulationStarted = true as unknown as Dynamic;
+    scene.lastSimulationTime = null as unknown as Dynamic;
+  });
+  const baseline = await inspect(page, game => {
+    const rig = game.scene.getScene('Race').garageView.cameraRig;
+    return { fov: rig.zoomFov, roll: rig.chaseRoll };
+  });
+  await page.keyboard.down('w');
+  try {
+    await expect.poll(() => inspect(page, game => {
+      const scene = game.scene.getScene('Race'), rig = scene.garageView.cameraRig;
+      const pose = rig.chase;
+      return { speed: scene.simulation.participants[0].speed, fov: rig.zoomFov,
+        roll: rig.chaseRoll, finite: pose.position.toArray().every(Number.isFinite) };
+    }), { timeout: 8_000 }).toMatchObject({ finite: true });
+    await expect.poll(() => inspect(page, game => Number(game.scene.getScene('Race').simulation.participants[0].speed)),
+      { timeout: 8_000 }).toBeGreaterThan(15);
+    const feedback = await inspect(page, game => {
+      const scene = game.scene.getScene('Race'), rig = scene.garageView.cameraRig;
+      return { speed: scene.simulation.participants[0].speed, lateralSpeed: scene.garageView.renderPoses[0].lateralSpeed,
+        roll: rig.chaseRoll, fov: rig.zoomFov };
+    });
+    expect(feedback.fov).toBeGreaterThan(62.1);
+    await page.screenshot({ path: 'previews-ui/dirigibilidade-chase-feedback.png' });
+    await page.keyboard.press('c');
+    await expect.poll(() => inspect(page, game => game.scene.getScene('Race').garageView.cameraRig.mode)).toBe('isometric');
+    await expect.poll(() => inspect(page, game => game.scene.getScene('Race').garageView.cameraRig.transitioning)).toBe(false);
+    await page.screenshot({ path: 'previews-ui/dirigibilidade-isometrica-feedback.png' });
+    expect(baseline).toMatchObject({ fov: 62, roll: 0 });
   } finally {
     await page.keyboard.up('w');
   }
@@ -221,9 +468,18 @@ test('rodas e motores integrados: movimento real, timbres distintos, sinal, mute
   });
   await expect.poll(signal).toBeGreaterThan(0.001);
   await page.keyboard.press('m');
+  await page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]');
+    if (!script) throw new Error('Entrada ausente');
+    (await import(script.src)).game.menuMusic.toggle();
+  });
   await expect.poll(() => inspect(page, game => game.scene.getScene('Race').engineAudio.diagnostics.silent)).toBe(true);
   await expect.poll(signal).toBeLessThan(0.0001);
-  await page.locator('#music-toggle').click();
+  await page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]');
+    if (!script) throw new Error('Entrada ausente');
+    (await import(script.src)).game.menuMusic.toggle();
+  });
   await expect.poll(signal).toBeGreaterThan(0.001);
   // Return keyboard focus from the native sound button to the game canvas.
   await page.locator('canvas:not(.race-three-canvas)').focus();
@@ -248,7 +504,7 @@ test('produção Thunder: derivado abaixo de 25 MiB, modelo e instruções de zo
   const status = page.locator('#screen-status');
   let thunderBytes = 0;
   page.on('response', response => {
-    if (response.ok() && response.url().endsWith('/models/vehicles/thunder_bug.glb')) {
+    if (response.ok() && response.url().endsWith('/assets/models/vehicles/thunder_bug.glb')) {
       thunderBytes = Number(response.headers()['content-length']);
     }
   });

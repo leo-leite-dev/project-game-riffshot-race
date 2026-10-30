@@ -14,8 +14,8 @@ type TestJson = {
 type TestDocument = { json: TestJson; bin: Buffer };
 
 const sourceUrl = new URL('../referencias-locais/Vehicles/sci_-_fi_buggy.glb', import.meta.url);
-const outputUrl = new URL('../public/models/cars/rift-blaze/rift-blaze.glb', import.meta.url);
-const reportUrl = new URL('../public/models/cars/rift-blaze/optimization.json', import.meta.url);
+const outputUrl = new URL('../referencias-locais/legacy-assets/vehicles/rift-blaze/rift-blaze.glb', import.meta.url);
+const reportUrl = new URL('../referencias-locais/legacy-assets/vehicles/rift-blaze/optimization.json', import.meta.url);
 const viewBytes = (json: TestJson, bin: Buffer, index: number): Buffer => {
   const view = json.bufferViews[index];
   return bin.subarray(view.byteOffset ?? 0, (view.byteOffset ?? 0) + view.byteLength);

@@ -5,9 +5,11 @@ import { DEFAULT_RACE_CAMERA_MODE } from '../../data/raceCameras.ts';
 import { PAINTS } from '../../data/vehicles.ts';
 import { TireSmoke } from '../vehicles/TireSmoke.ts';
 import { VehicleDamageEffects } from './VehicleDamageEffects.ts';
+import { RivalCannonEffects } from './RivalCannonEffects.ts';
+import { CANNON_MOUNT, type RivalCannon, type CannonEvent } from '../../race/RivalCannon.ts';
 import type { GarageResources } from '../garage/GarageResources.ts';
 
-type TrackData = RaceTrack & { width: number; theme: { sky: THREE.ColorRepresentation; road: THREE.ColorRepresentation; edge: THREE.ColorRepresentation; glow: THREE.ColorRepresentation }; scenery: readonly { width: number; height: number; depth: number; x: number; z: number }[] };
+type TrackData = RaceTrack & { width: number; theme: { sky: THREE.ColorRepresentation; road: THREE.ColorRepresentation; edge: THREE.ColorRepresentation; glow: THREE.ColorRepresentation; accent: THREE.ColorRepresentation }; scenery: readonly { width: number; height: number; depth: number; x: number; z: number }[] };
 type Pose = RenderPose & Partial<RaceParticipant>;
 type Vec3 = [number, number, number, number?];
 type VehicleObject = THREE.Group & { userData: { size: THREE.Vector3; ownedMaterials?: THREE.Material[]; visualAdapter?: { destroy(): void } } };
@@ -39,6 +41,10 @@ export class RaceWorld {
   startDarkMaterial!: THREE.MeshStandardMaterial;
   smoke!: TireSmoke;
   damageEffects!: VehicleDamageEffects;
+  cannonEffects: RivalCannonEffects;
+  private cannon: RivalCannon | null = null;
+  private cannonElapsed = 0;
+  private cannonAlpha = 0;
   cameraRig!: RaceCameraRig;
   camera!: THREE.Camera;
   spotlight!: THREE.SpotLight;
@@ -52,7 +58,8 @@ export class RaceWorld {
   lastRenderMs = 0;
   renderFrames = 0;
   lastPlayerRespawnSequence?: number;
-  constructor(resources: GarageResources, { track, participants, cameraMode = DEFAULT_RACE_CAMERA_MODE, diagnostics = false }: {
+  constructor(resources: GarageResources, { track, participants, cameraMode = DEFAULT_RACE_CAMERA_MODE, diagnostics = false,
+    }: {
     track: TrackData; participants: readonly RaceParticipant[]; cameraMode?: 'isometric' | 'chase'; diagnostics?: boolean;
   }) {
     this.resources = resources;
@@ -97,6 +104,7 @@ export class RaceWorld {
     // budgets. Official wheel adapters never depend on the old local experiment.
     this.smoke = new TireSmoke(this.scene);
     this.damageEffects = new VehicleDamageEffects(this.scene, { participantCount: participants.length });
+    this.cannonEffects = new RivalCannonEffects(this.scene);
     this.scene.updateMatrixWorld(true);
     const playerIndex = participants.findIndex(participant => participant.isPlayer);
     this.cameraRig = new RaceCameraRig({ track: { ...this.track, width: track.width },
@@ -214,18 +222,58 @@ export class RaceWorld {
     const fasciaMaterial = this.material(0x253345, 0.72, 0.52);
     fasciaMaterial.side = THREE.DoubleSide;
     this.obstacles.push(this.mesh(fascia, fasciaMaterial));
-    this.addTube(leftEdge, this.borderMaterial, 0.26);
-    this.addTube(rightEdge, this.borderMaterial, 0.26);
-    const railLeft = leftEdge.map(point => point.clone().add(new THREE.Vector3(0, 1.15, 0)));
-    const railRight = rightEdge.map(point => point.clone().add(new THREE.Vector3(0, 1.15, 0)));
-    this.obstacles.push(this.addTube(railLeft, this.steelMaterial, 0.22));
-    this.obstacles.push(this.addTube(railRight, this.steelMaterial, 0.22));
+    const leftSegments = [leftEdge], rightSegments = [rightEdge];
+    for (const [sideIndex, segments] of [leftSegments, rightSegments].entries()) {
+      for (const segment of segments) {
+        const edgeTube = this.addTube(segment, this.borderMaterial, 0.26, true);
+        this.obstacles.push(edgeTube);
+        const rail = segment.map(point => point.clone().add(new THREE.Vector3(0, 1.15, 0)));
+        this.obstacles.push(this.addTube(rail, this.steelMaterial, 0.22, true));
+      }
+      const spikeConfig = this.trackData.edgeSpikes;
+      if (spikeConfig) this.addPointedSpikes(segments, sideIndex === 0 ? 1 : -1, spikeConfig);
+    }
     this.addStartLine(points[0], halfWidth);
   }
 
-  addTube(points: THREE.Vector3[], material: THREE.Material, radius: number): THREE.Mesh {
-    const curve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
-    return this.mesh(new THREE.TubeGeometry(curve, points.length, radius, 6, true), material);
+  addTube(points: THREE.Vector3[], material: THREE.Material, radius: number, closed = true): THREE.Mesh {
+    const curve = new THREE.CatmullRomCurve3(points, closed, 'centripetal');
+    return this.mesh(new THREE.TubeGeometry(curve, points.length, radius, 6, closed), material);
+  }
+
+  private addPointedSpikes(segments: THREE.Vector3[][], side: 1 | -1,
+    config: NonNullable<TrackData['edgeSpikes']>): void {
+    const spacing = Math.max(1, config.spacing), step = Math.max(1, Math.round(spacing / (this.track.totalLength / this.track.points.length)));
+    const transforms: { position: THREE.Vector3; direction: THREE.Vector3 }[] = [];
+    for (const segment of segments) {
+      for (let i = 0; i < segment.length; i += step) {
+        const before = segment[Math.max(0, i - 1)]!, after = segment[Math.min(segment.length - 1, i + 1)]!;
+        const tangent = new THREE.Vector3(after.x - before.x, 0, after.z - before.z).normalize();
+        const normal = new THREE.Vector3(-tangent.z * side, 0.28, tangent.x * side).normalize();
+        transforms.push({
+          position: segment[i]!.clone().addScaledVector(normal, config.baseWidth * 0.34),
+          direction: normal,
+        });
+      }
+    }
+    if (!transforms.length) return;
+    const create = (radius: number, height: number, material: THREE.Material, offset: number) => {
+      const geometry = new THREE.ConeGeometry(radius, height, 4, 1);
+      this.ownedGeometries.add(geometry);
+      const mesh = new THREE.InstancedMesh(geometry, material, transforms.length);
+      const object = new THREE.Object3D(), up = new THREE.Vector3(0, 1, 0);
+      transforms.forEach(({ position, direction }, index) => {
+        object.position.copy(position).addScaledVector(direction, offset);
+        object.quaternion.setFromUnitVectors(up, direction);
+        object.updateMatrix();
+        mesh.setMatrixAt(index, object.matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      this.scene.add(mesh);
+    };
+    create(config.baseWidth * 0.5, config.height, this.steelMaterial, 0);
+    const tip = this.glow(this.trackData.theme.accent, 1.7);
+    create(config.baseWidth * 0.16, config.height * 0.42, tip, config.height * 0.28);
   }
 
   addStartLine(point: ReturnType<typeof sampleRaceTrack>['points'][number], halfWidth: number): void {
@@ -297,6 +345,21 @@ export class RaceWorld {
 
   setCameraFrozen(frozen: boolean): void { this.cameraFrozen = Boolean(frozen); }
 
+  setCannon(cannon: RivalCannon, elapsed: number, alpha: number): void {
+    this.cannon = cannon;
+    this.cannonElapsed = elapsed;
+    this.cannonAlpha = alpha;
+  }
+
+  private resolveMuzzle = (event: CannonEvent, target: THREE.Vector3): void => {
+    const index = this.participants.findIndex(car => car.id === event.ownerId);
+    const pose = this.renderPoses[index];
+    if (!pose) { target.set(event.x, event.y, event.z); return; }
+    const sin = Math.sin(pose.heading), cos = Math.cos(pose.heading);
+    target.set(pose.x + CANNON_MOUNT.x * cos + CANNON_MOUNT.z * sin,
+      pose.y + CANNON_MOUNT.y, pose.z - CANNON_MOUNT.x * sin + CANNON_MOUNT.z * cos);
+  };
+
   resize(width: number, height: number, limits = { width: 1100, height: 620 }): void {
     const ratio = Math.min(1, limits.width / width, limits.height / height);
     const nextWidth = Math.max(2, Math.round(width * ratio));
@@ -319,12 +382,23 @@ export class RaceWorld {
     for (let index = 0; index < this.vehicles.length; index += 1) {
       const vehicle = this.vehicles[index];
       const pose = this.renderPoses[index];
+      // Short body shudder communicates an impact; these transforms never feed physics.
+      const hit = pose.shotImpactRemaining ?? 0;
+      vehicle.rotation.z = hit > 0 ? Math.sin(hit * 65) * 0.055 * hit / 0.35 : 0;
+      const verticalVelocity = pose.verticalVelocity ?? 0;
+      const flightPitch = !pose.airborne ? 0 : verticalVelocity >= 0
+        ? -0.16 - THREE.MathUtils.clamp(verticalVelocity / Math.max(1, pose.speed) * 0.2, 0, 0.12)
+        : 0.18 + THREE.MathUtils.clamp(-verticalVelocity / Math.max(1, pose.speed) * 0.28, 0, 0.16);
+      vehicle.rotation.x = THREE.MathUtils.clamp(flightPitch, -0.3, 0.34);
+      vehicle.position.y = pose.y + 0.08 + (hit > 0 ? Math.abs(Math.sin(hit * 40)) * 0.07 * hit / 0.35 : 0);
       const protection = pose.respawnProtection ?? 0;
       vehicle.visible = !pose.destroyed && (!(protection > 0) || Math.floor(protection * 8) % 2 === 0);
       const adapter = vehicle.userData.visualAdapter as { update(pose: Pose, dt: number, smoke: TireSmoke | null): void } | undefined;
       adapter?.update(pose, dt, pose.isPlayer && !pose.destroyed ? this.smoke : null);
     }
     this.damageEffects.update(this.renderPoses, this.vehicles, dt);
+    if (this.cannon) this.cannonEffects.update(this.cannon.projectiles,
+      this.cannon.consumeEvents(), this.cannonElapsed, this.cannonAlpha, dt, this.resolveMuzzle);
     this.lastAnimationMs = performance.now() - animationStart;
     if (player && !this.cameraFrozen) {
       if (player.respawnSequence !== this.lastPlayerRespawnSequence) {
@@ -351,6 +425,7 @@ export class RaceWorld {
     this.cameraRig.destroy();
     this.smoke?.destroy();
     this.damageEffects.destroy();
+    this.cannonEffects.destroy();
     for (const vehicle of this.vehicles) {
       vehicle.userData.visualAdapter?.destroy();
       for (const material of vehicle.userData.ownedMaterials ?? []) material.dispose();

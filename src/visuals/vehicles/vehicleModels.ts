@@ -10,7 +10,7 @@ export interface VehicleModelAsset {
 }
 
 const asset = (fileName: string, yaw: number, triangles: number, meshes: number): Readonly<VehicleModelAsset> => Object.freeze({
-  fileName, url: `/models/vehicles/${fileName}`, yaw, triangles, meshes,
+  fileName, url: `/assets/models/vehicles/${fileName}`, yaw, triangles, meshes,
   // These files use mixed atlases, not isolated body-paint materials. Preserve
   // their authored maps until an actual body mask/material has been identified.
   paintMaterialNames: Object.freeze([]) as readonly string[],

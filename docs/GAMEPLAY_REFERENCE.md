@@ -102,7 +102,7 @@ Essas fontes não permitem afirmar valores exatos de aceleração, frenagem, ade
 
 ### Adaptação proposta e situação atual
 
-- RIFFSHOT tem duas pistas próprias, com centerline fechado, largura, alturas visuais, scenery e checkpoints sequenciais.
+- RIFFSHOT tem duas pistas próprias, com centerline fechado, largura, alturas visuais, cenário e checkpoints sequenciais; NEON FURNACE é a abertura de carreiras novas.
 - `findNearestTrackPoint` escolhe entre amostras discretas da linha central; as barreiras são representadas como limite lateral na física e como meshes/rails na cena.
 - Não há tipos de superfície com física distinta, pickups, armadilhas, saltos, recuperação após queda ou alinhamento entre altura visual e gravidade.
 
@@ -125,7 +125,7 @@ Essas fontes não permitem afirmar valores exatos de aceleração, frenagem, ade
 ### Situação atual e proposta
 
 - `BotController` escolhe ponto de mira por lookahead, linha de ultrapassagem, correção de posição, pequena variação, frenagem em curvas e aceleração.
-- Normal/Difícil altera antecipação, velocidade-alvo, tempo de reação e erro de direção. Bots usam o mesmo integrador físico e catálogo de veículos; bots do Rift Blaze podem gastar nitro.
+- Normal/Difícil altera antecipação, velocidade-alvo, tempo de reação e erro de direção. Bots usam o mesmo integrador físico e catálogo de veículos; bots do Rift Blaze podem gastar nitro. No servidor local de desenvolvimento há bônus opcionais por porcentagem, separados para bots e rival, aplicados apenas ao iniciar corridas Difíceis.
 - Não atacam, não procuram pickups e não reagem especificamente a minas, destruição ou danos. Esses comportamentos permanecem para etapas futuras.
 
 ### Critérios de aceitação

@@ -9,7 +9,7 @@ O modelo foi aprovado visualmente pelo proprietário. A promoção do carregamen
 | Arquivo | Bytes | MiB aproximados |
 | --- | ---: | ---: |
 | Original privado `referencias-locais/Vehicles/sci_-_fi_buggy.glb` | 29.082.948 | 27,74 |
-| Candidato `public/models/cars/rift-blaze/rift-blaze.glb` | 27.208.448 | 25,95 |
+| Candidato privado `referencias-locais/legacy-assets/vehicles/rift-blaze/rift-blaze.glb` | 27.208.448 | 25,95 |
 | Limite de um asset no Cloudflare Pages | 26.214.400 | 25,00 |
 
 Redução: **1.874.500 bytes (~6,45%)**. O candidato ainda excede o limite em **994.048 bytes**. Não foi adicionado à lista de emissão do Vite e **não aparece em `dist`**. A presença em `public/` permite inspeção local, mas não autoriza publicação; `copyPublicDir: false` continua protegendo o build.
@@ -26,7 +26,7 @@ Fonte do limite: https://developers.cloudflare.com/pages/platform/limits/#file-s
 - Mantidos os **161.868 triângulos**, ordem das superfícies, todos os materiais, texturas, transformações e hierarquia. A serialização JSON normaliza `-0` para `0`, sem mudança da matriz resultante.
 - Autoria, fonte e licença preservadas nos metadados; adicionado aviso das modificações.
 
-Relatório reprodutível: `public/models/cars/rift-blaze/optimization.json`, incluindo hashes do original e do candidato. Comando: `node scripts/optimizeRiftBlaze.ts`. O comando lê somente o original indicado e escreve o candidato/relatório, não o original. A preparação não deve ser automatizada no build público, pois o original é privado.
+Relatório reprodutível: `referencias-locais/legacy-assets/vehicles/rift-blaze/optimization.json`, incluindo hashes do original e do candidato. Comando: `node scripts/optimizeRiftBlaze.ts`. O comando lê somente o original indicado e escreve o candidato/relatório, não o original. A preparação não deve ser automatizada no build público, pois o original é privado.
 
 ### Verificações
 

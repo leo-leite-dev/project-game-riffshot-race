@@ -41,7 +41,7 @@ type Voice = {
   speedRatio: number;
   load: number;
 };
-type AudioState = { muted?: boolean; silent?: boolean; available?: boolean; focused?: boolean; hidden?: boolean };
+type AudioState = { muted?: boolean; silent?: boolean; available?: boolean; focused?: boolean; hidden?: boolean; effectsVolume?: number };
 type AudioGame = Phaser.Game & { menuMusic?: { getAudioState(): AudioState } };
 
 // Original, procedural timbres. No samples, assets or additional AudioContext.
@@ -151,7 +151,7 @@ export class RaceEngineAudio {
   applyMaster() {
     if (!this.output || this.destroyed || this.unavailable) return;
     try {
-      this.target(this.output.gain, this.silent ? 0 : 0.24, 0.025);
+      this.target(this.output.gain, this.silent ? 0 : 0.24 * clamp(finite(this.audioState?.effectsVolume, 1), 0, 1), 0.025);
     } catch { this.fail(); }
   }
 
@@ -216,7 +216,9 @@ export class RaceEngineAudio {
     const health = clamp(finite(car.health, 100) / Math.max(1, finite(car.maxHealth, 100)), 0, 1);
     const dead = car.destroyed || health <= 0;
     const distance = player ? Math.hypot(finite(car.x) - finite(player.x), finite(car.z) - finite(player.z)) : 0;
-    const attenuation = car.isPlayer ? 1 : 0.28 / (1 + (distance / 28) ** 2);
+    // Nearby opponents used to start at only 28% and halve again at 28 m.
+    // Keep them present during a pass without making distant cars drown the player.
+    const attenuation = car.isPlayer ? 1 : 0.72 / (1 + (distance / 42) ** 2);
     voice.speedRatio = speed;
     voice.load = load;
     voice.pitchHz = sound.idleHz + sound.rangeHz * speed + sound.loadHz * load;

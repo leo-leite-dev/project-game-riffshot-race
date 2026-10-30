@@ -1,10 +1,15 @@
 import { DIFFICULTIES } from '../data/raceDifficulty.ts';
 import { VEHICLE, VEHICLES, getVehicleById } from '../data/vehicles.ts';
 import { BotController } from './BotController.ts';
+import { RivalCannon } from './RivalCannon.ts';
 import { damageHandling, healthCapacity, impactDamage, DESTRUCTION_SECONDS, RESPAWN_PROTECTION_SECONDS } from './damageMath.ts';
 import { findNearestTrackPoint, sampleRaceTrack, sampleTrackAtProgress } from './trackMath.ts';
 import type { VehicleAbility, VehicleStats } from '../data/vehicles.ts';
-import type { TrackPath, SampledTrack, NearestTrackPoint } from './trackMath.ts';
+import type { TrackPath, TrackJump, SampledTrack, NearestTrackPoint } from './trackMath.ts';
+import type { BotProfileId } from '../data/botProfiles.ts';
+import type { PilotAttribute } from '../data/characters.ts';
+import { applyDevRaceAIBonus } from './DevRaceAIBonus.ts';
+import type { DevRaceAIBonus } from './DevRaceAIBonus.ts';
 
 export { findNearestTrackPoint, sampleRaceTrack, sampleTrackAtProgress } from './trackMath.ts';
 
@@ -16,7 +21,11 @@ export interface RaceTrack extends TrackPath {
 export type RaceDifficulty = (typeof DIFFICULTIES)[keyof typeof DIFFICULTIES];
 export interface PilotStats { speed?: number; acceleration?: number; handling?: number; endurance?: number; aggression?: number }
 export interface RaceVehicle { id: string; stats: Readonly<VehicleStats>; ability: Readonly<VehicleAbility> }
-export interface RacePilot { id: string; name: string; stats?: PilotStats; vehicleId?: string; vehicleStats?: VehicleStats; paintColor?: string }
+export interface RacePilot {
+  id: string; name: string; stats?: PilotStats; specialties?: readonly PilotAttribute[];
+  vehicleId?: string; vehicleStats?: VehicleStats; paintColor?: string;
+  aiProfile?: BotProfileId; aiSeed?: number;
+}
 export interface RaceOptions {
   track?: RaceTrack;
   difficulty?: string | RaceDifficulty;
@@ -27,18 +36,23 @@ export interface RaceOptions {
   botPilots?: RacePilot[];
   laps?: number;
   diagnostics?: boolean;
+  devRaceAIBonus?: DevRaceAIBonus;
 }
 export interface RaceControls { throttle?: number; brake?: number; steer?: number; handbrake?: number; nitro?: boolean }
 interface NormalizedControls { throttle: number; brake: number; steer: number; handbrake: number; nitro?: boolean }
 export interface HandlingStats {
   maxSpeed: number; acceleration: number; grip: number; steering: number; endurance: number;
-  collisionShove: number; braking: number; collisionDamageMultiplier: number; nitroCharges: number;
+  collisionShove: number; impactResistance: number; wallSpeedRetention: number;
+  braking: number; collisionDamageMultiplier: number; nitroCharges: number;
   nitroSeconds: number; nitroMultiplier: number; nitroRecoverySeconds: number;
 }
 export interface RaceParticipant {
+  aiProfile?: BotProfileId; aiSeed?: number;
+  specialties?: readonly PilotAttribute[];
   id: string; name: string; isPlayer: boolean; paintColor: string; vehicleId: string;
   x: number; y: number; z: number; heading: number; velocityX: number; velocityZ: number;
-  speed: number; throttle: number; lapsCompleted: number; nextCheckpoint: number;
+  speed: number; throttle: number; airborne: boolean; verticalVelocity: number;
+  lapsCompleted: number; nextCheckpoint: number;
   finished: boolean; finishTime: number | null; progress: number; rank: number; vehicle: HandlingStats;
   nitroCharges: number; nitroActive: boolean; nitroRemaining: number; nitroRecoveryRemaining: number;
   healthOrbs: number; maxHealth: number; health: number; destroyed: boolean; respawnProtection: number;
@@ -47,6 +61,7 @@ export interface RaceParticipant {
   _wallContactSide: number; _distance: number; _lastPathDistance: number; _progressDebt: number;
   _nextGate: number; _prevX: number; _prevZ: number; _trackWidth: number; _lane: number; _baseLane: number;
   _aiSteer: number; _aiThrottle: number; _aiBrake: number; _aiClock: number;
+  _activeJumpId: string | null; _airborneElapsed: number;
   _renderPreviousX?: number; _renderPreviousY?: number; _renderPreviousZ?: number;
   _renderPreviousHeading?: number; _renderPreviousSpeed?: number;
   _visualPreviousVX?: number; _visualPreviousVZ?: number; _visualPreviousSteer?: number;
@@ -54,12 +69,14 @@ export interface RaceParticipant {
   _visualAcceleration?: number; _visualImpact?: number; _pendingWallDamage?: number;
   _respawnPoint?: NearestTrackPoint | null; _destructionGateSide?: number; _respawnGateOffset?: number;
   _finishOrder?: number;
+  shotImpactSequence?: number; shotImpactRemaining?: number;
 }
-export interface RenderPose { x: number; y: number; z: number; heading: number; speed: number }
+export interface RenderPose { x: number; y: number; z: number; heading: number; speed: number; lateralSpeed?: number }
 export interface VisualTelemetry extends RenderPose {
   longitudinalSpeed: number; lateralSpeed: number; steer: number; longitudinalAcceleration: number;
   impactSpeed: number; health: number; maxHealth: number; healthOrbs: number; destroyed: boolean;
   respawnProtection: number; destructionSequence: number; respawnSequence: number; throttle: number; nitroActive: boolean;
+  airborne: boolean;
 }
 interface Gate { x: number; z: number; tangentX: number; tangentZ: number; lateralLimit: number; distance: number }
 
@@ -71,32 +88,50 @@ const WALL_RESTITUTION = 0.18;
 const WALL_SPEED_RETAINED = 0.5;
 const WALL_CONTACT_RELEASE = 0.15;
 const CONTACT_NORMAL_EPSILON = 0.001;
-// Grip redirects momentum progressively, with a finite lateral acceleration.
-// At race speed the body can turn faster than the trajectory: natural drift.
-const LATERAL_RESPONSE = 5.5;
-const LATERAL_ACCELERATION = 28;
-const HIGH_SPEED_GRIP_LOSS = 1.8;
-const HIGH_SPEED_STEERING_LOSS = 0.3;
-const POWER_OVERSTEER = 0.5;
-const DRIFT_SPEED_BONUS = 0.06;
-const DRIFT_ACCELERATION = 0.15;
+const AIR_GRAVITY = 18;
+const MAX_AIRBORNE_SECONDS = 3.5;
+const SAFE_RAMP_LANDING_DAMAGE_SCALE = 0.2;
+/** Shared arcade tuning for players and bots; not a difficulty modifier. */
+export const RACE_HANDLING_TUNING = Object.freeze({
+  lateralResponse: 6.1,
+  lateralAcceleration: 31,
+  highSpeedGripLoss: 1.45,
+  highSpeedSteeringLoss: 0.24,
+  steeringSpeedRamp: 3.6,
+  powerOversteer: 0.42,
+  corneringSpeedDrag: 0.12,
+  driftSpeedBonus: 0.06,
+  driftAcceleration: 0.12,
+});
+/** A pilot rating may adjust each active vehicle stat by at most one point on 0–100. */
+export const PILOT_SPECIALTY_BONUS_POINTS = 1;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const lerp = (a: number, b: number, amount: number) => a + (b - a) * amount;
 const angleDelta = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
 
-export function deriveHandlingStats(vehicleStats: Partial<VehicleStats> = {}, pilotStats: PilotStats = {}, ability: VehicleAbility = {}): HandlingStats {
-  const rating = (key: keyof PilotStats) => clamp(Number(pilotStats[key] ?? 5), 1, 10);
-  const relative = (key: keyof PilotStats) => (rating(key) - 5) / 5;
-  const vehicle = (key: keyof VehicleStats) => clamp(Number(vehicleStats[key] ?? 60), 0, 100) / 100;
+export function deriveHandlingStats(vehicleStats: Partial<VehicleStats> = {}, pilotStats: PilotStats = {}, ability: VehicleAbility = {},
+  specialties?: readonly PilotAttribute[]): HandlingStats {
+  const rating = (key: keyof PilotStats) => clamp(Number(specialties && !specialties.includes(key)
+    ? 5 : pilotStats[key] ?? 5), 1, 10);
+  const specialtyPoints = (key: keyof PilotStats) => specialties && !specialties.includes(key) ? 0
+    : clamp((rating(key) - 5) / 5, -1, 1) * PILOT_SPECIALTY_BONUS_POINTS;
+  const vehicle = (key: keyof VehicleStats, pilotKey?: keyof PilotStats) =>
+    clamp(Number(vehicleStats[key] ?? 60) + (pilotKey ? specialtyPoints(pilotKey) : 0), 0, 100) / 100;
+  const tires = clamp(Number(vehicleStats.tires ?? vehicleStats.control ?? 60), 0, 100) / 100;
+  const suspension = clamp(Number(vehicleStats.suspension ?? 50), 0, 100);
   return {
-    maxSpeed: (16 + vehicle('speed') * 20) * (1 + relative('speed') * 0.08),
-    acceleration: (6 + vehicle('acceleration') * 12) * (1 + relative('acceleration') * 0.12),
-    grip: 0.35 + vehicle('control') * 0.6 + relative('handling') * 0.16,
-    steering: 1.35 + vehicle('control') * 0.9 + relative('handling') * 0.34,
-    endurance: 0.75 + rating('endurance') * 0.05,
-    collisionShove: 1 + (rating('aggression') - 1) / 9 * 0.45,
+    maxSpeed: 16 + vehicle('speed', 'speed') * 20,
+    acceleration: 6 + vehicle('acceleration', 'acceleration') * 12,
+    grip: 0.35 + tires * 0.6,
+    steering: 1.35 + vehicle('control', 'handling') * 0.9,
+    endurance: 1 + specialtyPoints('endurance') / 100,
+    // A specialty has a bounded, visible one-stat-point effect: up to +/-1%.
+    // Aggression increases force delivered to the other car, not self-resistance.
+    collisionShove: 1 + specialtyPoints('aggression') / 100,
+    impactResistance: 0.85 + suspension * 0.003,
+    wallSpeedRetention: clamp(WALL_SPEED_RETAINED + (suspension - 50) * 0.001, 0.4, 0.6),
     braking: 22,
-    collisionDamageMultiplier: 1 - (rating('endurance') - 1) / 9 * 0.1,
+    collisionDamageMultiplier: 1 - specialtyPoints('endurance') / 100,
     nitroCharges: Math.max(0, Math.floor(Number(ability.nitroCharges) || 0)),
     nitroSeconds: Math.max(0, Number(ability.nitroSeconds) || 0),
     nitroMultiplier: Math.max(1, Number(ability.nitroMultiplier) || 1),
@@ -130,7 +165,8 @@ function crossesGate(car: RaceParticipant, gate: Gate, planeOffset = 0) {
 }
 
 export class RaceSimulation {
-  declare track: SampledTrack & { width: number; laps: number };
+  declare cannon: RivalCannon;
+  declare track: SampledTrack & { width: number; laps: number; jumps?: readonly TrackJump[] };
   declare difficulty: RaceDifficulty;
   declare botController: BotController;
   declare laps: number;
@@ -150,15 +186,16 @@ export class RaceSimulation {
   declare lastAdvanceContactCorrections: number;
 
   constructor({ track, difficulty = 'normal', player, playerVehicle = VEHICLE, vehicleStats,
-    playerPaint = '#e53935', botPilots = [], laps = track?.laps, diagnostics = false }: RaceOptions = {}) {
+    playerPaint = '#e53935', botPilots = [], laps = track?.laps, diagnostics = false, devRaceAIBonus }: RaceOptions = {}) {
     if (!track?.waypoints || !Array.isArray(track.startGrid)) throw new TypeError('track com waypoints e startGrid é obrigatório.');
     if (!player?.id || !player?.name) throw new TypeError('player precisa de id e name.');
     if (!Array.isArray(botPilots) || botPilots.length !== 3) throw new RangeError('A corrida requer exatamente três botPilots.');
     const sampled = sampleRaceTrack(track);
-    this.track = { ...sampled, width: track.width, laps: laps ?? track.laps };
+    this.track = { ...sampled, width: track.width, laps: laps ?? track.laps, jumps: track.jumps };
     this.difficulty = typeof difficulty === 'string' ? DIFFICULTIES[difficulty as keyof typeof DIFFICULTIES] : difficulty;
     if (!this.difficulty) throw new RangeError('Dificuldade desconhecida.');
     this.botController = new BotController(this.track, this.difficulty);
+    this.cannon = new RivalCannon({ track: this.track, difficulty: this.difficulty.id });
     this.laps = Math.max(1, Math.floor(this.track.laps));
     this.gates = [0.25, 0.5, 0.75, 1].map(fraction => createGate(sampled, fraction, track.width));
     this.gates[3].distance = sampled.totalLength;
@@ -176,18 +213,23 @@ export class RaceSimulation {
     this.participants = entrants.map((entry, index) => {
       const grid = track.startGrid[index];
       if (!grid) throw new RangeError('startGrid deve conter quatro posições.');
-      const startProgress = sampled.totalLength * (index < 2 ? 0.985 : 0.965);
+      const startProgress = sampled.totalLength * 0.985;
       const center = sampleTrackAtProgress(sampled, startProgress);
       const lane = Number(grid.lane ?? (index % 2 ? 1.5 : -1.5));
       const x = center.x - center.tangentZ * lane; const z = center.z + center.tangentX * lane;
       const capacity = healthCapacity(entry.vehicleStats.armor);
+      const handling = deriveHandlingStats(entry.vehicleStats, entry.stats, entry.vehicle.ability, entry.specialties);
+      const bonusPercent = this.difficulty.id !== 'hard' || entry.isPlayer ? 0
+        : entry.aiProfile === 'rival' ? devRaceAIBonus?.rivalPercent ?? 0 : devRaceAIBonus?.botsPercent ?? 0;
       return {
         id: entry.id, name: entry.name, isPlayer: entry.isPlayer, paintColor: entry.paintColor,
+        aiProfile: entry.aiProfile, aiSeed: entry.aiSeed, specialties: entry.specialties,
         vehicleId: entry.vehicle.id,
         x, z, y: center.y, heading: Math.atan2(center.tangentX, center.tangentZ), velocityX: 0, velocityZ: 0, speed: 0, throttle: 0,
+        airborne: false, verticalVelocity: 0,
         lapsCompleted: 0, nextCheckpoint: 1, finished: false, finishTime: null,
         progress: startProgress / (this.laps * sampled.totalLength), rank: index + 1,
-        vehicle: deriveHandlingStats(entry.vehicleStats, entry.stats, entry.vehicle.ability),
+        vehicle: bonusPercent > 0 ? applyDevRaceAIBonus(handling, bonusPercent) : handling,
         nitroCharges: entry.vehicle.ability.nitroCharges ?? 0, nitroActive: false,
         nitroRemaining: 0, nitroRecoveryRemaining: 0, _nitroWasRequested: false,
         ...capacity, health: capacity.maxHealth, destroyed: false, respawnProtection: 0,
@@ -196,6 +238,7 @@ export class RaceSimulation {
         _distance: startProgress, _lastPathDistance: startProgress, _progressDebt: 0,
         _nextGate: 0, _prevX: x, _prevZ: z, _trackWidth: track.width, _lane: lane, _baseLane: lane,
         _aiSteer: 0, _aiThrottle: 0, _aiBrake: 0, _aiClock: 0,
+        _activeJumpId: null, _airborneElapsed: 0,
       };
     });
     this.contactCooldowns = new Map();
@@ -262,12 +305,14 @@ export class RaceSimulation {
     output.destructionSequence = car.destructionSequence; output.respawnSequence = car.respawnSequence;
     output.throttle = car.finished || car.destroyed ? 0 : car.throttle;
     output.nitroActive = !car.finished && !car.destroyed && car.nitroActive;
+    output.airborne = car.airborne;
     return output as VisualTelemetry;
   }
 
   _step(dt: number, playerControls: NormalizedControls) {
     this.elapsedTime += dt;
     for (const car of this.participants) {
+      if (car.shotImpactRemaining) car.shotImpactRemaining = Math.max(0, car.shotImpactRemaining - dt);
       car.throttle = 0;
       if (car.finished) continue;
       if (car.destroyed) {
@@ -302,7 +347,12 @@ export class RaceSimulation {
       car._pendingWallDamage = 0;
     }
     if (this.vehicleContactsEnabled) this._resolveVehicleContacts(dt);
-    if (this.participants.every(car => car.finished)) this.status = 'finished';
+    // A legitimate final gate wins over incoming damage in the same step.
+    if (!this.participants[0]?.finished) {
+      this.cannon.step(dt, this.participants, this.elapsedTime,
+        (car, damage, dirX, dirZ) => this.applyProjectileHit(car, damage, dirX, dirZ));
+    }
+    if (this.participants[0]?.finished || this.participants.every(car => car.finished)) this.status = 'finished';
   }
 
   getBotControls(car: RaceParticipant, dt = FIXED_DT) { return this.botController.controlsFor(car, this.participants, dt); }
@@ -312,9 +362,27 @@ export class RaceSimulation {
   // Controlled simulation/debug API: raw HP before the pilot's small reduction.
   // Normal protection/finished/destruction guards always apply.
   applyDamage(car: RaceParticipant, amount: number) {
+    return this.applyRawDamage(car, amount * car.vehicle.collisionDamageMultiplier);
+  }
+
+  applyProjectileHit(car: RaceParticipant, damage: number, dirX: number, dirZ: number) {
+    const applied = this.applyRawDamage(car, damage);
+    if (applied <= 0) return 0;
+    car.shotImpactSequence = (car.shotImpactSequence ?? 0) + 1;
+    car.shotImpactRemaining = 0.35;
+    if (!car.destroyed) {
+      car.velocityX = car.velocityX * 0.82 + dirX * 3;
+      car.velocityZ = car.velocityZ * 0.82 + dirZ * 3;
+      car.speed = Math.hypot(car.velocityX, car.velocityZ);
+      car._visualImpact = Math.max(car._visualImpact ?? 0, 6);
+    }
+    return applied;
+  }
+
+  private applyRawDamage(car: RaceParticipant, amount: number) {
     if (car.finished || car.destroyed || car.respawnProtection > 0 || !Number.isFinite(amount) || amount <= 0) return 0;
     const previous = car.health;
-    car.health = Math.max(0, previous - amount * car.vehicle.collisionDamageMultiplier);
+    car.health = Math.max(0, previous - amount);
     if (car.health === 0) {
       car.destroyed = true;
       car.destructionSequence += 1;
@@ -329,6 +397,8 @@ export class RaceSimulation {
 
   _resetMotion(car: RaceParticipant) {
     car.velocityX = 0; car.velocityZ = 0; car.speed = 0; car.throttle = 0;
+    car.airborne = false; car.verticalVelocity = 0; car._activeJumpId = null;
+    car._airborneElapsed = 0;
     car._driftBoost = 0; car._wallContactSide = 0; car._pendingWallDamage = 0;
     car._aiSteer = 0; car._aiThrottle = 0; car._aiBrake = 0; car._aiClock = 0;
     car._lane = car._baseLane;
@@ -399,16 +469,18 @@ export class RaceSimulation {
       ? car.nitroRecoveryRemaining / v.nitroRecoverySeconds : 0, 0, 1);
     const speedMultiplier = car.nitroActive ? v.nitroMultiplier
       : 1 + (v.nitroMultiplier - 1) * recoveryFraction;
-    const carriedSpeedLimit = v.maxSpeed * Math.max(speedMultiplier, 1 + DRIFT_SPEED_BONUS * car._driftBoost);
+    const carriedSpeedLimit = v.maxSpeed * Math.max(speedMultiplier,
+      1 + RACE_HANDLING_TUNING.driftSpeedBonus * car._driftBoost);
     longitudinal = clamp(longitudinal, -v.maxSpeed * 0.25, carriedSpeedLimit);
     // Apply drive/braking along the OLD heading. Steering must not rotate the
     // existing world velocity, otherwise even a late turn instantly redirects it.
     let velocityX = forwardX * longitudinal + lateralX;
     let velocityZ = forwardZ * longitudinal + lateralZ;
     const speedRatio = Math.hypot(velocityX, velocityZ) / v.maxSpeed;
-    const steeringAuthority = 1 / (1 + speedRatio * speedRatio * HIGH_SPEED_STEERING_LOSS);
+    const steeringAuthority = 1 / (1 + speedRatio * speedRatio * RACE_HANDLING_TUNING.highSpeedSteeringLoss);
+    const previousHeading = car.heading;
     car.heading += controls.steer * v.steering * damage.steering * steeringAuthority
-      * clamp(Math.abs(longitudinal) / 5, 0, 1) * dt * Math.sign(longitudinal || 1);
+      * clamp(Math.abs(longitudinal) / RACE_HANDLING_TUNING.steeringSpeedRamp, 0, 1) * dt * Math.sign(longitudinal || 1);
     const sideX = Math.cos(car.heading), sideZ = -Math.sin(car.heading);
     const sidewaysSpeed = velocityX * sideX + velocityZ * sideZ;
     // Arcade rear-wheel drive: under cornering load, acceleration spends part
@@ -416,11 +488,13 @@ export class RaceSimulation {
     // into line. The effect fades at low speed and does not destabilize straights.
     const cornerLoad = clamp(Math.abs(sidewaysSpeed) / 6 + Math.abs(controls.steer) * 0.7, 0, 1);
     const powerSlip = Math.max(0, controls.throttle) * clamp(Math.abs(longitudinal) / v.maxSpeed, 0, 1)
-      * cornerLoad * POWER_OVERSTEER;
+      * cornerLoad * RACE_HANDLING_TUNING.powerOversteer;
     const grip = clamp(v.grip * damage.grip * (1 - powerSlip) * (1 - controls.handbrake * 0.72), 0, 0.98);
-    const lateralResponse = grip * LATERAL_RESPONSE / (1 + speedRatio * speedRatio * HIGH_SPEED_GRIP_LOSS);
+    const lateralResponse = grip * RACE_HANDLING_TUNING.lateralResponse
+      / (1 + speedRatio * speedRatio * RACE_HANDLING_TUNING.highSpeedGripLoss);
     const lateralCorrection = clamp(sidewaysSpeed * (1 - Math.exp(-lateralResponse * dt)),
-      -grip * LATERAL_ACCELERATION * dt, grip * LATERAL_ACCELERATION * dt);
+      -grip * RACE_HANDLING_TUNING.lateralAcceleration * dt,
+      grip * RACE_HANDLING_TUNING.lateralAcceleration * dt);
     // With no drive, tire scrub still dissipates energy naturally.
     velocityX -= sideX * lateralCorrection;
     velocityZ -= sideZ * lateralCorrection;
@@ -434,11 +508,16 @@ export class RaceSimulation {
     car._driftBoost += (driftDrive - car._driftBoost) * boostResponse;
     // Drift has a small bounded bonus; it never stacks on top of nitro. Decay
     // the bonus progressively on exit instead of abruptly cutting the speed.
-    const speedLimit = v.maxSpeed * Math.max(speedMultiplier, 1 + DRIFT_SPEED_BONUS * car._driftBoost);
+    const speedLimit = v.maxSpeed * Math.max(speedMultiplier, 1 + RACE_HANDLING_TUNING.driftSpeedBonus * car._driftBoost);
     const speed = Math.hypot(velocityX, velocityZ);
+    const cornerYawRate = Math.abs(angleDelta(car.heading - previousHeading)) / dt;
+    const lateralDemand = Math.abs(longitudinal) * cornerYawRate;
+    const lateralCapacity = grip * RACE_HANDLING_TUNING.lateralAcceleration;
+    const cornerOverload = clamp((lateralDemand - lateralCapacity) / Math.max(lateralCapacity, 1), 0, 1);
+    const cornerSpeed = speed * Math.max(0, 1 - RACE_HANDLING_TUNING.corneringSpeedDrag * cornerOverload * dt);
     const tractionSpeed = driftDrive > 0
-      ? Math.max(speed, previousSpeed + v.acceleration * DRIFT_ACCELERATION * driftDrive * dt)
-      : speed;
+      ? Math.max(cornerSpeed, previousSpeed + v.acceleration * RACE_HANDLING_TUNING.driftAcceleration * driftDrive * dt)
+      : cornerSpeed;
     const targetSpeed = Math.min(tractionSpeed, speedLimit);
     const speedScale = speed > 0 ? targetSpeed / speed : 1;
     car.velocityX = velocityX * speedScale;
@@ -467,7 +546,7 @@ export class RaceSimulation {
         car.velocityZ -= normalZ * response;
         if (car._wallContactSide !== side) {
           const reboundSpeed = Math.hypot(car.velocityX, car.velocityZ);
-          const impactScale = impactSpeed * WALL_SPEED_RETAINED / reboundSpeed;
+           const impactScale = impactSpeed * car.vehicle.wallSpeedRetention / reboundSpeed;
           car.velocityX *= impactScale;
           car.velocityZ *= impactScale;
           const amount = impactDamage(outwardSpeed);
@@ -478,7 +557,84 @@ export class RaceSimulation {
       }
       car.speed = Math.hypot(car.velocityX, car.velocityZ);
     }
-    car.y = sampleTrackAtProgress(this.track, nearest.distance).y;
+    const groundY = sampleTrackAtProgress(this.track, nearest.distance).y;
+    if (!car.airborne) {
+      const travelled = this.trackDistanceDelta(car._lastPathDistance, nearest.distance);
+      const jump = (this.track.jumps ?? []).find(candidate => {
+        if (travelled <= 0 || longitudinal < candidate.minimumSpeed) return false;
+        const takeoff = candidate.takeoff * this.track.totalLength;
+        const offset = this.forwardTrackDistance(car._lastPathDistance, takeoff);
+        return offset <= travelled + 1e-6;
+      });
+      if (jump) {
+        car.airborne = true;
+        car._activeJumpId = jump.id;
+        car._airborneElapsed = 0;
+        car.y = Math.max(car.y, sampleTrackAtProgress(this.track, jump.takeoff * this.track.totalLength).y);
+        car.verticalVelocity = Math.min(jump.maximumVerticalSpeed,
+          Math.max(0, car.speed * Math.sin(jump.launchAngleDegrees * Math.PI / 180)));
+      }
+    }
+
+    if (!car.airborne) {
+      car.y = groundY;
+      return;
+    }
+    const activeJump = this.track.jumps?.find(jump => jump.id === car._activeJumpId);
+    car._airborneElapsed += dt;
+    car.verticalVelocity -= AIR_GRAVITY * dt;
+    car.y += car.verticalVelocity * dt;
+    if (!activeJump) {
+      this.failJumpLanding(car, groundY);
+      return;
+    }
+    const takeoffDistance = activeJump.takeoff * this.track.totalLength;
+    const distanceFromTakeoff = this.forwardTrackDistance(takeoffDistance, nearest.distance);
+    const landingStart = this.forwardTrackDistance(takeoffDistance, activeJump.landingStart * this.track.totalLength);
+    const landingEnd = this.forwardTrackDistance(takeoffDistance, activeJump.landingEnd * this.track.totalLength);
+    const inLandingZone = distanceFromTakeoff >= landingStart && distanceFromTakeoff <= landingEnd;
+    if (inLandingZone && car.verticalVelocity <= 0 && car.y <= groundY
+      && groundY - car.y > 2) {
+      this.failJumpLanding(car, groundY);
+      return;
+    }
+    if (inLandingZone && car.verticalVelocity <= 0 && car.y <= groundY) {
+      const landingSpeed = Math.abs(car.verticalVelocity);
+      car.airborne = false;
+      car.verticalVelocity = 0;
+      car._activeJumpId = null;
+      car._airborneElapsed = 0;
+      car.y = groundY;
+      car._visualImpact = Math.max(car._visualImpact ?? 0, landingSpeed * 0.6);
+      // A valid ramp landing has a softer suspension-style penalty than a wall
+      // strike; missing the landing zone still triggers the full fall/respawn.
+      car._pendingWallDamage = Math.max(car._pendingWallDamage ?? 0,
+        impactDamage(landingSpeed) * SAFE_RAMP_LANDING_DAMAGE_SCALE);
+      return;
+    }
+    if (distanceFromTakeoff > landingEnd || car._airborneElapsed >= MAX_AIRBORNE_SECONDS) {
+      this.failJumpLanding(car, groundY);
+    }
+  }
+
+  private trackDistanceDelta(from: number, to: number): number {
+    let delta = to - from;
+    if (delta < -this.track.totalLength / 2) delta += this.track.totalLength;
+    else if (delta > this.track.totalLength / 2) delta -= this.track.totalLength;
+    return delta;
+  }
+
+  private forwardTrackDistance(from: number, to: number): number {
+    return ((to - from) % this.track.totalLength + this.track.totalLength) % this.track.totalLength;
+  }
+
+  private failJumpLanding(car: RaceParticipant, groundY: number): void {
+    car.airborne = false;
+    car.verticalVelocity = 0;
+    car._activeJumpId = null;
+    car._airborneElapsed = 0;
+    car.y = groundY;
+    car._pendingWallDamage = Math.max(car._pendingWallDamage ?? 0, car.maxHealth * 2);
   }
 
   _updateProgress(car: RaceParticipant) {
@@ -541,8 +697,10 @@ export class RaceSimulation {
         a._visualImpact = Math.max(a._visualImpact ?? 0, -relative);
         b._visualImpact = Math.max(b._visualImpact ?? 0, -relative);
         const impulse = -relative * 0.52;
-        a.velocityX -= nx * impulse / a.vehicle.collisionShove; a.velocityZ -= nz * impulse / a.vehicle.collisionShove;
-        b.velocityX += nx * impulse / b.vehicle.collisionShove; b.velocityZ += nz * impulse / b.vehicle.collisionShove;
+        a.velocityX -= nx * impulse * b.vehicle.collisionShove / a.vehicle.impactResistance;
+        a.velocityZ -= nz * impulse * b.vehicle.collisionShove / a.vehicle.impactResistance;
+        b.velocityX += nx * impulse * a.vehicle.collisionShove / b.vehicle.impactResistance;
+        b.velocityZ += nz * impulse * a.vehicle.collisionShove / b.vehicle.impactResistance;
         a.speed = Math.hypot(a.velocityX, a.velocityZ); b.speed = Math.hypot(b.velocityX, b.velocityZ);
         const key = `${a.id}:${b.id}`;
         if (impactDamage(-relative) > 0 && !this.contactCooldowns.has(key)) {

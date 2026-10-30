@@ -12,6 +12,7 @@ test('créditos: renderiza texto escapado, títulos, listas e links HTTP sem exe
   assert.ok(!html.includes('<script>'));
   assert.ok(html.includes('<code>Código próprio</code>'));
   assert.ok(html.includes('THIRD_PARTY_NOTICES.txt'));
+  assert.ok(html.includes('./assets/ui/favicon.svg'));
 });
 
 test('créditos: build emite HTML e texto integral da mesma fonte sem copiar referências', async () => {

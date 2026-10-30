@@ -55,15 +55,54 @@ test('estação visual: molduras, retrato original e dados reais em desktop, cel
     const scene = game.scene.getScene('RacePreparation');
     return { portrait: scene.rivalPortrait.texture.key, name: scene.rivalName.text,
       pilot: scene.pilotPortrait.texture.key, fields: scene.campaignFields.map((item: Dynamic) => item.value.text),
+      playerStats: (scene.motor.rows as unknown as Dynamic[]).map((row: Dynamic) => [row.attribute.key, row.value.text]),
+      rivalStats: (scene.chassis.rows as unknown as Dynamic[]).map((row: Dynamic) => [row.attribute.key, row.value.text]),
       eraseOnCanvas: !!scene.eraseButton, errors: game.garageResources.modelFailures };
   })).toEqual({ portrait: 'rival-opening-ferro', name: 'RAVIK FERRO', pilot: `pilot-${CHARACTERS[0].id}`,
-    fields: [`$ ${seed.money.toLocaleString('pt-BR')}`, 'B', '3 DE 8', '1.400', '540'], eraseOnCanvas: false, errors: [] });
+     fields: [`$ ${seed.money.toLocaleString('pt-BR')}`, 'B', '3 DE 8', '1.400', '540'],
+      playerStats: [['speed', '62'], ['armor', '35'], ['shotCount', '0'], ['bombCount', '0'], ['oilSlickCount', '0']],
+      rivalStats: [['speed', '88'], ['armor', '90'], ['shotCount', '5'], ['bombCount', '1'], ['oilSlickCount', '1']],
+      eraseOnCanvas: false, errors: [] });
+  const infoBounds = await inspect(page, game => {
+    const scene = game.scene.getScene('RacePreparation');
+    const bounds = scene.playerInfo.getBounds();
+    return { x: bounds.centerX, y: bounds.centerY };
+  });
+  const canvasBox = await page.locator('canvas').boundingBox();
+  if (!canvasBox) throw new Error('Canvas da estação não encontrado');
+  await page.mouse.move(canvasBox.x + Number(infoBounds.x), canvasBox.y + Number(infoBounds.y));
+  await expect.poll(() => inspect(page, game => {
+    const scene = game.scene.getScene('RacePreparation');
+    return { visible: scene.attributePopup.visible, title: scene.attributePopupTitle.text,
+      rows: scene.attributePopupRows.map((row: Dynamic) => row.text),
+      values: scene.attributePopupValues.map((row: Dynamic) => row.text) };
+  })).toEqual({ visible: true, title: 'ATRIBUTOS DO SEU VEÍCULO', rows: [
+    'ACELERAÇÃO', 'CONTROLE', 'PNEUS', 'SUSPENSÃO',
+  ], values: ['76', '84', '84', '48'] });
+  await page.screenshot({ path: 'previews-ui/estacao-equipe-atributos-hover.png' });
+  await page.mouse.move(canvasBox.x + 8, canvasBox.y + 8);
+  await expect.poll(() => inspect(page, game => game.scene.getScene('RacePreparation').attributePopup.visible)).toBe(false);
+  const rivalInfoBounds = await inspect(page, game => {
+    const bounds = game.scene.getScene('RacePreparation').rivalInfo.getBounds();
+    return { x: bounds.centerX, y: bounds.centerY };
+  });
+  await page.mouse.move(canvasBox.x + Number(rivalInfoBounds.x), canvasBox.y + Number(rivalInfoBounds.y));
+  await expect.poll(() => inspect(page, game => {
+    const scene = game.scene.getScene('RacePreparation');
+    return { visible: scene.attributePopup.visible, title: scene.attributePopupTitle.text,
+      rows: scene.attributePopupRows.map((row: Dynamic) => row.text),
+      values: scene.attributePopupValues.map((row: Dynamic) => row.text) };
+  })).toEqual({ visible: true, title: 'ATRIBUTOS DO RIVAL',
+    rows: ['ACELERAÇÃO', 'CONTROLE', 'PNEUS', 'SUSPENSÃO'], values: ['78', '65', '65', '90'] });
+  await page.screenshot({ path: 'previews-ui/estacao-equipe-atributos-rival-hover.png' });
+  await page.mouse.move(canvasBox.x + 8, canvasBox.y + 8);
+  await expect.poll(() => inspect(page, game => game.scene.getScene('RacePreparation').attributePopup.visible)).toBe(false);
   for (const [name, viewport] of [['desktop', { width: 1664, height: 940 }],
     ['mobile', { width: 390, height: 844 }], ['paisagem', { width: 844, height: 390 }]] as Array<[string, { width: number; height: number }]>) {
     await page.setViewportSize(viewport);
     await expect.poll(() => inspect(page, game => {
       const scene = game.scene.getScene('RacePreparation');
-       const bounds = [scene.pilotPanel, scene.rivalPanel, scene.campaign, scene.preview, scene.rivalVehicle,
+        const bounds = [scene.pilotPanel, scene.rivalPanel, scene.campaign, scene.preview, scene.rivalVehicle, scene.motor, scene.chassis,
          ...(scene.modules as unknown as Dynamic[]), scene.startButton].map(object => object.getBounds() as unknown as { left: number; right: number; top: number; bottom: number });
        return bounds.every(box => box.left >= 0 && box.right <= Number(game.scale.width) + 1
          && box.top >= 0 && box.bottom <= Number(game.scale.height) - 40);
@@ -96,9 +135,10 @@ test('configurações da equipe: engrenagem, foco, som e prêmio preservam a car
   await expect(dialog.getByRole('button', { name: /SOM:/ })).toBeFocused();
   await page.keyboard.press('Shift+Tab'); await expect(close).toBeFocused();
   const muted = await inspect(page, game => game.menuMusic.muted);
-  await page.keyboard.press('m');
+  const soundButton = dialog.getByRole('button', { name: /SOM:/ });
+  await soundButton.click();
   expect(await inspect(page, game => game.menuMusic.muted)).toBe(!muted);
-  await dialog.getByRole('button', { name: /SOM:/ }).click();
+  await soundButton.click();
   expect(await inspect(page, game => game.menuMusic.muted)).toBe(muted);
   await expect(erase).toBeVisible();
   await page.screenshot({ path: 'previews-ui/estacao-configuracoes-desktop.png' });

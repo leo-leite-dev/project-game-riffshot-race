@@ -10,8 +10,8 @@ Mudanças próprias desta preparação:
 - Atribuição dos cinco autores, títulos, fontes, licença declarada CC BY 4.0 e adaptações, incluindo Fan do Thunder e otimização. Nenhum modelo foi reclassificado como CC0.
 - Créditos da trilha Neon Ignition e dos motores/efeitos originais, sem samples externos e sem conceder licença nova ao conteúdo próprio.
 - Avisos MIT integrais de Phaser, Three.js e eventemitter3.
-- Pacote selecionado em `assets/vehicles/` com cinco GLBs e manifesto de autoria/licença, bytes e SHA-256. Dev/build normais não precisam da pasta privada nem repetem a otimização do Thunder.
-- `npm run assets:prepare` regenera explicitamente o pacote a partir dos cinco originais fixos. `referencias-locais/`, `public/models/` histórico, capturas, saves, segredos e saídas locais não são incluídos na publicação.
+- Histórico da verificação de publicação anterior: pacote selecionado em `assets/vehicles/` com cinco GLBs e manifesto. A organização atual moveu esse pacote para `public/assets/models/vehicles/`; consulte a validação desta reorganização no relatório de execução vigente.
+- `npm run assets:prepare` regenera explicitamente o pacote a partir dos cinco originais fixos. `referencias-locais/` (incluindo ROMs, referências privadas e MP3s pendentes de licença), capturas, saves, segredos e saídas locais não são incluídos na publicação.
 - README com link de produção, controles/estado atuais, gratuidade/créditos fictícios, atribuições e instruções de build/deploy no padrão do projeto. QR Code/doações permanecem planejados, sem implementação.
 
 ## Seleção e resultados atuais

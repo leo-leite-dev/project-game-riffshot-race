@@ -17,35 +17,58 @@ const finishBlend = (rig: RaceCameraRig, player: Readonly<RenderPose> = pose, hz
   for (let i = 0; i < hz * 2; i += 1) rig.update(player, 1 / hz);
 };
 
+test('câmera arcade padrão: vista oblíqua mais baixa segue o jogador sem alterar simulação', () => {
+  const defaultRig = makeRig();
+  defaultRig.update(pose, 1 / 60);
+  assert.equal(defaultRig.mode, 'isometric');
+  assert.equal(defaultRig.camera.isOrthographicCamera, true);
+  assert.ok(defaultRig.camera.position.distanceTo(new THREE.Vector3(18, 12, 27.5)) < 1e-6);
+  assert.ok(Math.atan2(defaultRig.camera.position.y - defaultRig.isometricTarget.y,
+    Math.hypot(defaultRig.camera.position.x - defaultRig.isometricTarget.x,
+      defaultRig.camera.position.z - defaultRig.isometricTarget.z)) < THREE.MathUtils.degToRad(16),
+  'o ângulo fica baixo e revela a lateral do veículo');
+  assert.deepEqual(pose, { x: 0, y: 4, z: 0, heading: 0, speed: 0 });
+});
+
 test('isométrica explícita segue o jogador e não modifica o estado da simulação', () => {
   const rig = makeRig({ mode: 'isometric' });
   rig.update(pose, 1 / 60);
   assert.equal(rig.mode, 'isometric');
   assert.equal(rig.camera.isOrthographicCamera, true);
-  assert.ok(rig.camera.position.distanceTo(new THREE.Vector3(21, 36, 23.5)) < 1e-6);
-  assert.equal(rig.isometric.top - rig.isometric.bottom, 29);
+  assert.ok(rig.camera.position.distanceTo(new THREE.Vector3(18, 12, 27.5)) < 1e-6);
+  assert.equal(rig.isometric.top - rig.isometric.bottom, 26);
   const moved = Object.freeze({ ...pose, x: 25, z: 40 });
   finishBlend(rig, moved);
   assert.ok(rig.center.distanceTo(new THREE.Vector3(25, 4, 40)) < 0.01);
   finishBlend(rig, { ...moved, heading: Math.PI / 2, speed: 40 });
   assert.ok(rig.isometricTarget.x > rig.center.x + 4);
-  assert.ok(rig.isometric.position.clone().sub(rig.isometricTarget).distanceTo(new THREE.Vector3(21, 32, 21)) < 1e-6,
+  assert.ok(rig.isometric.position.clone().sub(rig.isometricTarget).distanceTo(new THREE.Vector3(18, 8, 25)) < 1e-6,
     'a antecipação acompanha o carro sem girar o ângulo isométrico fixo');
   assert.deepEqual(pose, { x: 0, y: 4, z: 0, heading: 0, speed: 0 });
 });
 
-test('terceira pessoa é padrão e uma nova instância não herda a isométrica da corrida anterior', () => {
+test('correção de ângulo: câmera arcade mostra mais lateral e menos teto que a vista elevada antiga', () => {
+  const low = makeRig({ mode: 'isometric' });
+  low.update(pose, 1 / 60);
+  const lowAngle = Math.atan2(low.camera.position.y - low.isometricTarget.y,
+    Math.hypot(low.camera.position.x - low.isometricTarget.x, low.camera.position.z - low.isometricTarget.z));
+  const oldAngle = Math.atan2(22, Math.hypot(18, 25));
+  assert.ok(lowAngle < oldAngle - 0.15, `novo ${lowAngle}, anterior ${oldAngle}`);
+  assert.ok(lowAngle < THREE.MathUtils.degToRad(16));
+});
+
+test('nova corrida usa vista arcade e não herda a terceira pessoa da corrida anterior', () => {
   const previous = makeRig();
-  assert.equal(previous.mode, 'chase');
+  assert.equal(previous.mode, 'isometric');
   previous.update(pose, 1 / 60);
   previous.toggle();
   finishBlend(previous);
-  assert.equal(previous.mode, 'isometric');
+  assert.equal(previous.mode, 'chase');
   const next = makeRig();
   next.update(pose, 1 / 60);
-  assert.equal(next.mode, 'chase');
-  assert.equal(next.camera.isPerspectiveCamera, true);
-  assert.equal(makeRig({ mode: 'inválido' }).mode, 'chase');
+  assert.equal(next.mode, 'isometric');
+  assert.equal(next.camera.isOrthographicCamera, true);
+  assert.equal(makeRig({ mode: 'inválido' }).mode, 'isometric');
 });
 
 test('terceira pessoa fica atrás e acima do carro, e mantém o carro na região inferior central', () => {
@@ -62,7 +85,7 @@ test('terceira pessoa fica atrás e acima do carro, e mantém o carro na região
 test('zoom oferece três níveis próximos proporcionais ao carro e reinicia por instância', () => {
   assert.deepEqual(ZOOM_LABELS, ['PRÓXIMA', 'MAIS PRÓXIMA', 'BEM PRÓXIMA']);
   for (const vehicleSize of [undefined, size, scaledSize]) {
-    const rig = makeRig({ vehicleSize });
+    const rig = makeRig({ vehicleSize, mode: 'chase' });
     rig.update(pose, 1 / 60);
     let previousDistance = Infinity;
     for (let index = 0; index < 3; index += 1) {
@@ -85,13 +108,13 @@ test('zoom oferece três níveis próximos proporcionais ao carro e reinicia por
     assert.equal(rig.zoomIndex, 0, 'a terceira pressão retorna ao zoom base');
     assert.ok(Math.abs(pose.z - rig.camera.position.z - rig.size.z * 1.4) < 0.01);
   }
-  const previous = makeRig();
+  const previous = makeRig({ mode: 'chase' });
   previous.cycleZoom();
-  assert.equal(makeRig().zoomIndex, 0);
+  assert.equal(makeRig({ mode: 'chase' }).zoomIndex, 0);
 });
 
 test('zoom preserva carro inteiro e near clip em retrato/paisagem nos três níveis e velocidades', () => {
-  const rig = makeRig({ vehicleSize: scaledSize });
+  const rig = makeRig({ vehicleSize: scaledSize, mode: 'chase' });
   for (let index = 0; index < 3; index += 1) {
     for (const aspect of [16 / 9, 390 / 844, 844 / 390]) {
       rig.resize(aspect);
@@ -221,6 +244,30 @@ test('acompanhamento é estável a 30/60/120 Hz e em parada/colisão/rotação d
   assert.ok(final[0].distanceTo(final[2]) < 0.02);
 });
 
+test('feedback de velocidade e drift na perseguição é sutil, progressivo e não muda a isométrica', () => {
+  const rig = makeRig({ mode: 'chase', vehicleSize: scaledSize });
+  rig.update({ ...pose, speed: 0, lateralSpeed: 0 }, 1 / 60);
+  const idleFov = rig.zoomFov, idleRoll = rig.chaseRoll;
+  for (let frame = 0; frame < 30; frame += 1) rig.update({ ...pose, speed: 32, lateralSpeed: 14 }, 1 / 60);
+  assert.ok(rig.zoomFov > idleFov && rig.zoomFov - idleFov <= 3.5);
+  assert.ok(rig.chaseRoll > 0 && rig.chaseRoll <= 0.014);
+  const speedFov = rig.zoomFov;
+  for (let frame = 0; frame < 60; frame += 1) rig.update({ ...pose, speed: 0, lateralSpeed: 0 }, 1 / 60);
+  assert.ok(rig.zoomFov < speedFov && Math.abs(rig.chaseRoll) < 0.002);
+  rig.destroy();
+
+  const isometric = makeRig({ mode: 'isometric', vehicleSize: scaledSize });
+  isometric.update({ ...pose, speed: 0, lateralSpeed: 0 }, 1 / 60);
+  const isoPose = isometric.camera.position.clone(), isoProjection = isometric.isometric.projectionMatrix.clone();
+  isometric.update({ ...pose, x: 12, speed: 35, lateralSpeed: -22 }, 1 / 60);
+  assert.ok(isometric.camera.position.distanceTo(isoPose) > 0);
+  assert.ok(isometric.camera.projectionMatrix.elements.every(Number.isFinite));
+  assert.equal(isometric.camera.isOrthographicCamera, true);
+  assert.deepEqual(isometric.isometric.projectionMatrix.elements, isoProjection.elements,
+    'seguir el carro não deve introduzir projeção perspectiva na isométrica');
+  isometric.destroy();
+});
+
 test('câmera se retrai antes de uma estrutura e limpa referências ao encerrar', () => {
   const wall = new THREE.Mesh(new THREE.BoxGeometry(30, 30, 0.4), new THREE.MeshBasicMaterial());
   wall.position.set(0, 10, -4);
@@ -261,7 +308,7 @@ test('câmera se retrai antes de uma estrutura e limpa referências ao encerrar'
 
 test('piso é respeitado após suavização em subida e resize não produz matrizes inválidas', () => {
   const track = { width: 30, points: [{ x: 0, y: 0, z: 0 }, { x: 0, y: 12, z: -5 }] };
-   const rig = makeRig({ vehicleSize: scaledSize, track: track as unknown as ConstructorParameters<typeof RaceCameraRig>[0]['track'] });
+   const rig = makeRig({ vehicleSize: scaledSize, mode: 'chase', track: track as unknown as ConstructorParameters<typeof RaceCameraRig>[0]['track'] });
   rig.update(pose, 1 / 60);
   assert.ok(rig.camera.position.y >= 12 + RACE_CAMERA_SETTINGS.chase.groundClearance);
   track.points[1].y = 18;
@@ -277,7 +324,7 @@ test('piso é respeitado após suavização em subida e resize não produz matri
 
 test('reset após respawn elimina perseguição antiga preservando modo/zoom e segurança', () => {
   for (const mode of ['chase', 'isometric'] as const) {
-    const rig = makeRig({ vehicleSize: scaledSize });
+    const rig = makeRig({ vehicleSize: scaledSize, mode: 'chase' });
     rig.update(pose, 1 / 60);
     rig.cycleZoom();
     rig.cycleZoom();

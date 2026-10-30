@@ -53,7 +53,7 @@ Essas responsabilidades são uma orientação de evolução, não uma ordem para
 Antes de concluir qualquer implementação:
 
 1. Revise o código e os arquivos alterados.
-2. Execute os testes disponíveis e o build do projeto, quando existentes.
+2. Execute somente os testes diretamente relacionados ao impacto da alteração, conforme a seção 11. Execute o build quando o código afetar a aplicação ou a distribuição; mudanças exclusivamente documentais não exigem build.
 3. Verifique possíveis regressões nas áreas afetadas.
 4. Avalie impactos no desempenho quando relevantes.
 5. Informe os testes e comandos executados e seus resultados.
@@ -71,6 +71,20 @@ Se ainda não houver aplicação, scripts de teste ou build, registre essa ausê
 - Não instale serviços pagos nem introduza custos obrigatórios.
 - Não implemente funcionalidades adicionais sem solicitação.
 - Não copie código, sprites, músicas ou outros assets protegidos de Rock n' Roll Racing.
+
+### Organização e publicação de assets
+
+- Assets aptos para distribuição ficam em `public/assets/`, separados por função:
+  - `audio/` para áudio com direitos/licença confirmados;
+  - `hud/icons/` e `hud/layouts/` para ícones e referências visuais do HUD;
+  - `models/vehicles/` e `models/characters/` para modelos públicos com manifesto, atribuição e dependências preservadas;
+  - `ui/` para favicon e imagens da interface;
+  - `effects/` para recursos visuais ou sonoros aprovados de efeitos.
+- Crie somente as subpastas necessárias ao conteúdo existente; não adicione placeholders sem necessidade.
+- Arquivos sem autorização/licença confirmada, ROMs, originais, modelos ainda não aprovados e referências ficam em `referencias-locais/`, nunca em `public/`.
+- Só prepare CC0 ou CC BY após confirmar a fonte e cumprir atribuição, link, avisos e indicação de adaptações. A etiqueta técnica “aprovado” não substitui a verificação jurídica.
+- Mantenha `build.copyPublicDir: false` e publique assets por listas explícitas/allowlists. Não inclua recursivamente `public/` ou `referencias-locais/`; audite `dist/` para excluir arquivos privados.
+- Ao mover ou renomear assets, use nomes descritivos ASCII, atualize todas as URLs e manifestos, preserve os bytes originais quando pedido e execute testes específicos de carregamento/emissão e o build.
 
 ## 7. Comunicação e fluxo de trabalho
 
@@ -101,3 +115,40 @@ Se ainda não houver aplicação, scripts de teste ou build, registre essa ausê
 - O agente personalizado fica em `.opencode/agents/normandy.md`, com o identificador `normandy` e modo `primary`.
 - `opencode.json` seleciona `normandy` como agente padrão sem definir modelo ou provedor.
 - Ao alterar configurações do OpenCode, valide-as com a versão instalada e informe que é necessário encerrar e reiniciar o OpenCode para carregá-las.
+
+## 11. POLÍTICA DE TESTES INCREMENTAIS E EFICIENTES
+
+Esta política vale para todas as sessões e para tarefas delegadas a subagentes. Complementa as regras anteriores e prevalece sobre orientações genéricas para executar testes indiscriminadamente.
+
+### Seleção por impacto
+
+- Após implementar, identifique os arquivos e sistemas modificados e quais dependências foram realmente afetadas. Escolha os testes que validam esses comportamentos, com o menor conjunto suficiente de regressões diretamente relacionadas.
+- Execute somente esses testes. Use arquivos específicos e filtros nativos por nome (`node --test --test-name-pattern` ou Playwright `--grep`), com opções posicionadas corretamente antes dos arquivos no Node.
+- Não execute automaticamente todas as suítes de um módulo por ter alterado um arquivo dele. Não teste sistemas não afetados sem dependência comprovada e não duplique testes existentes.
+- Exemplo: APAGAR PROGRESSO exige confirmação, cancelamento, remoção dos dados corretos e preservação dos dados de outros projetos; acrescente falhas de armazenamento/conflitos quando a alteração afetar essas garantias. Não exige repetir corrida, física, bots ou todo o campeonato.
+- Consulte `docs/TESTING.md` e os scripts do `package.json`. Categorias são atalhos, não listas obrigatórias: refine o filtro se a categoria ainda for maior que o impacto da tarefa.
+
+### Verificação visual e build
+
+- Quando a alteração for visual, abra somente a tela modificada usando Playwright e fixtures de teste isoladas quando adequadas; aguarde a interface e recursos necessários estarem prontos e gere uma captura real em `previews-ui/`. Registre o caminho no relatório. Não execute toda a suíte para obter uma imagem nem use o save real do proprietário para preparar a tela.
+- Valide somente resoluções/estados afetados e suas regressões relevantes. Uma captura não comprova animação contínua ou desempenho em GPU física.
+- Execute `npm run build` quando houver alterações de código que afetem a aplicação ou distribuição. Build não substitui os testes funcionais relevantes.
+- Mudanças exclusivamente documentais não exigem build. Ajustes em comandos de testes ou instruções/configuração do agente podem ser validados por sintaxe, resolução e listagem, sem rodar testes de gameplay.
+- Se a execução direcionada do Playwright já fez o build da mesma versão pelos servidores configurados, não repita o build sem alterações posteriores relevantes. Listagem com `--list` não executa testes nem build e não conta como aprovação funcional.
+
+### Tempo e repetições
+
+- Use timeouts adequados ao teste escolhido, zero retries por padrão e limite de falhas no navegador. Não repita testes aprovados sem mudança posterior relevante para eles.
+- Investigue a causa da falha antes de repetir; repita apenas o necessário após a correção. Não use loops de tentativas indefinidos ou execuções amplas para compensar diagnóstico insuficiente.
+- Não adicione ferramentas ou dependências quando os filtros nativos forem suficientes. Não inicialize servidores apenas para validar documentação ou listar casos.
+
+### Validações extensas e segurança
+
+- Reserve suítes completas para mudanças arquiteturais amplas, alterações com impacto em muitos sistemas, validação abrangente solicitada pelo proprietário ou riscos relevantes não cobertos pelos testes direcionados.
+- Antes de executar uma suíte extensa e demorada, explique a necessidade e solicite aprovação, salvo quando o proprietário já tiver solicitado explicitamente aquela validação abrangente. Nunca execute automaticamente a suíte completa do Playwright.
+- Eficiência não autoriza reduzir a segurança de operações destrutivas ou a integridade de saves. Inclua os casos de falha, cancelamento, isolamento e persistência necessários ao risco efetivo.
+
+### Relatório obrigatório
+
+- Informe funcionalidade/arquivos alterados, testes específicos e comandos executados, quantidade aprovada (separando falhas/ignorados), resultado do build quando executado, capturas e seus caminhos quando necessárias.
+- Informe os testes não executados, a razão da seleção e os riscos pendentes de validação. Se só houve sintaxe/listagem, declare zero testes funcionais executados; nunca apresente teste listado ou resultado antigo como aprovação da alteração atual.

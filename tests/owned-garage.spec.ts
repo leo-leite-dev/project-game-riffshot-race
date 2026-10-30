@@ -5,7 +5,7 @@ type InspectArgument = { tab?: 'shop' | 'garage'; empty?: boolean };
 type InspectScene = {
   scene: { key: string; start(key: string): void }; activeTab: string; options: Array<{ id: string }>;
   garageView?: { vehicles: Array<{ userData: { vehicleId: string } }>; cameraFocus: number; focusX: number };
-  presentationCopies: number; selectedVehicle: { id: string }; cards: Array<{ soldBadge: { visible: boolean }; input?: { enabled: boolean } }>;
+  presentationCopies: number; selectedVehicle: { id: string }; cards: Array<{ soldBadge: { visible: boolean }; locked: boolean; input?: { enabled: boolean } }>;
   select(index: number): void; loadingLabel: { text: string }; feedback: { text: string }; isGarage: boolean;
   switchTab(tab: 'shop' | 'garage'): void;
 };
@@ -62,8 +62,12 @@ test('garagem adquiridos: loja sela vendidos, ignora mouse/teclado e garagem equ
     const scene = game.scene.getScene('VehicleSelection');
     return { selected: scene.selectedVehicle.id,
        sold: scene.cards.map((card: InspectScene['cards'][number]) => card.soldBadge.visible), disabled: scene.cards.map((card: InspectScene['cards'][number]) => !card.input?.enabled) };
-  })).toEqual({ selected: 'iron-bastion', sold: [true, true, false, false, true], disabled: [true, true, false, false, true] });
+   })).toEqual({ selected: 'iron-bastion', sold: [true, true, false, false, true], disabled: [true, true, false, false, true] });
   const before = await currentState(page);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await capture(page, 'previews-ui/garage-loja-1920x1080.png');
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await capture(page, 'previews-ui/garage-loja-1366x768.png');
   await clickObject(page, 'cards', 0);
   await inspect(page, game => game.scene.getScene('VehicleSelection').select(1));
   expect(await inspect(page, game => game.scene.getScene('VehicleSelection').selectedVehicle.id)).toBe('iron-bastion');
@@ -80,7 +84,11 @@ test('garagem adquiridos: loja sela vendidos, ignora mouse/teclado e garagem equ
     const scene = game.scene.getScene('VehicleSelection');
     return { options: scene.options.map((vehicle: { id: string }) => vehicle.id),
       models: scene.garageView?.vehicles.map((vehicle: { userData: { vehicleId: string } }) => vehicle.userData.vehicleId) ?? [], selected: scene.selectedVehicle.id };
-  })).toEqual({ options: ['rift-blaze', 'volt-vector', 'widowmaker'], models: ['rift-blaze', 'volt-vector', 'widowmaker'], selected: 'volt-vector' });
+   })).toEqual({ options: ['rift-blaze', 'volt-vector', 'widowmaker'], models: ['rift-blaze', 'volt-vector', 'widowmaker'], selected: 'volt-vector' });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await capture(page, 'previews-ui/minha-garagem-1920x1080.png');
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await capture(page, 'previews-ui/minha-garagem-1366x768.png');
   await clickObject(page, 'cards', 2);
   await capture(page, 'previews-ui/minha-garagem-desktop.png');
   await page.setViewportSize({ width: 390, height: 844 });
@@ -106,6 +114,10 @@ test('garagem vazia: aba informa ausência sem veículo fictício e permite volt
   await seed(page, []);
   await inspect(page, game => game.scene.getScenes(true)[0].scene.start('VehicleSelection'));
   await tabReady(page, 'shop');
+  expect(await inspect(page, game => ({ cards: game.scene.getScene('VehicleSelection').cards.length,
+    selectable: game.scene.getScene('VehicleSelection').options.map(vehicle => vehicle.id),
+    lockedCards: game.scene.getScene('VehicleSelection').cards.slice(3).map(card => card.locked) }))
+  ).toEqual({ cards: 5, selectable: ['rift-blaze', 'volt-vector', 'iron-bastion'], lockedCards: [true, true] });
   const before = await currentState(page);
   await clickObject(page, 'garageTab'); await tabReady(page, 'garage', true);
   expect(await inspect(page, game => game.scene.getScene('VehicleSelection').loadingLabel.text)).toContain('NENHUM CARRO ADQUIRIDO');

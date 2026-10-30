@@ -19,6 +19,7 @@ export class MainMenuScene extends TitleScene {
   constructor() { super(SCENES.menu); }
 
   create() {
+    document.body.classList.add('main-menu-active');
     this.createShell('RIFFSHOT RACING. Menu principal. 1 JOGADOR inicia ou continua o campeonato. CO-OP e ONLINE seguem bloqueados.');
     this.selectedIndex = 0;
     this.logo = createLogo(this, 0, -206, 600);
@@ -46,7 +47,10 @@ export class MainMenuScene extends TitleScene {
       }
       if (event.key === 'Enter' || event.code === 'Space') this.activate(this.selectedIndex);
     });
-    this.events.once('shutdown', () => this.input.keyboard?.removeCapture(['UP', 'DOWN', 'SPACE', 'TAB']));
+    this.events.once('shutdown', () => {
+      document.body.classList.remove('main-menu-active');
+      this.input.keyboard?.removeCapture(['UP', 'DOWN', 'SPACE', 'TAB']);
+    });
   }
 
   select(index: number): void {

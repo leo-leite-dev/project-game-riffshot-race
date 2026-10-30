@@ -122,7 +122,8 @@ function validResult(input: unknown, receipt = false): boolean {
     && text(entry.id) && text(entry.name) && entry.position === index + 1
     && typeof entry.isPlayer === 'boolean' && time(entry.finishTime)
     && (index === 0 || entry.finishTime >= standings[index - 1].finishTime)
-    && entry.lapsCompleted === value.laps && typeof entry.paintColor === 'string'
+    && (entry.isPlayer ? entry.lapsCompleted === value.laps
+      : integer(entry.lapsCompleted, 0, value.laps)) && typeof entry.paintColor === 'string'
     && /^#[0-9a-f]{6}$/i.test(entry.paintColor))) return false;
   const players = standings.filter(entry => entry.isPlayer);
   if (new Set(standings.map(entry => entry.id)).size !== 4 || players.length !== 1

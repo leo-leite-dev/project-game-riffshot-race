@@ -28,6 +28,7 @@
     "test:integration:race": "playwright test --project=desktop tests/race-flow.spec.ts --retries=0 --max-failures=1 --timeout=120000"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "0.21.0",
     "phaser": "^3.90.0",
     "three": "^0.185.0"
   },

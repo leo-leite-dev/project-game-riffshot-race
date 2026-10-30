@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readVehicleControls } from '../src/race/PlayerController.ts';
+import { readAnalogVehicleControls, readVehicleControls } from '../src/race/PlayerController.ts';
 import { RaceSimulation } from '../src/race/RaceSimulation.ts';
 import type { RaceParticipant } from '../src/race/RaceSimulation.ts';
 import { RACE_TRACKS } from '../src/data/raceTracks.ts';
@@ -28,6 +28,15 @@ test('WASD e setas geram os mesmos comandos locais ao veículo', () => {
   assert.equal(readVehicleControls(keys('A', 'D')).steer, 0);
   assert.deepEqual(readVehicleControls(keys('W', 'S')), { throttle: 0, brake: 1, steer: 0, handbrake: 0, nitro: false });
   assert.equal(readVehicleControls(keys('SHIFT')).nitro, true);
+});
+
+test('analógico touch: cima acelera, diagonais viram e descida freia ou engata ré', () => {
+  assert.deepEqual(readAnalogVehicleControls(0, -1), { throttle: 1, brake: 0, steer: 0 });
+  assert.deepEqual(readAnalogVehicleControls(-0.75, -0.8), { throttle: 0.8, brake: 0, steer: 0.75 });
+  assert.equal(readAnalogVehicleControls(0.7, -0.5).steer, -0.7);
+  assert.deepEqual(readAnalogVehicleControls(0, 1), { throttle: -0.55, brake: 0, steer: 0 });
+  const forward = { velocityX: 0, velocityZ: 8, heading: 0 };
+  assert.deepEqual(readAnalogVehicleControls(0, 1, forward), { throttle: 0, brake: 1, steer: 0 });
 });
 
 test('A desloca para a esquerda e D para a direita do carro, inclusive ao dar ré', () => {

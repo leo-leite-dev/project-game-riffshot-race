@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createChampionshipState, setSelections, ensureAssignedTrack, beginChampionshipRace } from '../src/championship/championshipState.ts';
 import { CHAMPIONSHIP_SAVE_KEY, CHAMPIONSHIP_BACKUP_KEY } from '../src/championship/championshipStorage.ts';
+import { AUDIO_PREFERENCES_KEY, DEFAULT_AUDIO_PREFERENCES } from '../src/audio/AudioPreferences.ts';
 import { CHARACTERS } from '../src/data/characters.ts';
 import { waitScene } from './helpers.ts';
 import type { Page } from '@playwright/test';
@@ -9,6 +10,7 @@ const preservedStorage = {
   'outro-projeto:save': 'preservar',
   'riffshot-racing:championship:v1:export': 'não é um save gerenciado',
   'riffshot-racing:championship:v2:backup:export': 'fora do namespace de exclusão',
+  [AUDIO_PREFERENCES_KEY]: JSON.stringify({ ...DEFAULT_AUDIO_PREFERENCES, musicSource: 'radio', radioVolume: 0.37 }),
 };
 
 const current = (page: Page) => page.evaluate(async ({ key, backup, preservedKeys }: { key: string; backup: string; preservedKeys: string[] }) => {
@@ -19,6 +21,8 @@ const current = (page: Page) => page.evaluate(async ({ key, backup, preservedKey
 }, { key: CHAMPIONSHIP_SAVE_KEY, backup: CHAMPIONSHIP_BACKUP_KEY, preservedKeys: Object.keys(preservedStorage) });
 
 async function openSettings(page: Page) {
+  await expect(page.locator('#music-toggle')).not.toBeVisible();
+  await expect(page.locator('#public-credits')).not.toBeVisible();
   const gear = page.getByRole('button', { name: 'Configurações', exact: true });
   await gear.click();
   const settings = page.getByRole('dialog', { name: 'CONFIGURAÇÕES', exact: true });
@@ -128,7 +132,7 @@ test('Equipe: cancelar preserva; confirmar apaga save/backups e volta à abertur
   const confirmed = await confirmation;
   expect(confirmed.type()).toBe('confirm');
   expect(confirmed.message()).toContain('não pode ser desfeita');
-  await waitScene(page, 'Splash');
+  await waitScene(page, 'MainMenu');
   await expect(page.locator('#station-settings-button')).toHaveCount(0);
   await expect(page.locator('#station-settings-dialog')).toHaveCount(0);
   const after = await current(page);
@@ -137,16 +141,19 @@ test('Equipe: cancelar preserva; confirmar apaga save/backups e volta à abertur
     pendingResult: null, awardedRaceIds: [], selections: { pilotId: null, vehicleId: null, paintId: null, difficultyId: null } });
   expect(after.state.id).not.toBe(before.state.id);
   expect(after.preserved).toEqual(preservedStorage);
+  await expect(page.getByRole('link', { name: /Créditos e licenças/ })).toBeVisible();
+  await expect(page.locator('#music-toggle')).toHaveCount(0);
   expect(await page.evaluate(() => [
     'riffshot-racing:championship:v2', 'riffshot-racing:championship:v2:backup',
     'riffshot-racing:championship:v99', 'riffshot-racing:championship:v99:backup',
   ].map(key => localStorage.getItem(key)))).toEqual([null, null, null, null]);
   await page.reload(); await waitScene(page, 'Splash');
+  await page.keyboard.press('Enter'); await waitScene(page, 'MainMenu');
+  await expect(page.getByRole('link', { name: /Créditos e licenças/ })).toBeVisible();
   const reloaded = await current(page);
   expect(reloaded.state.selections.pilotId).toBeNull();
   expect(reloaded.raw).toBeNull(); expect(reloaded.backup).toBeNull();
   expect(reloaded.preserved).toEqual(preservedStorage);
-  await page.keyboard.press('Enter'); await waitScene(page, 'MainMenu');
   await page.keyboard.press('Enter'); await waitScene(page, 'DifficultySelection');
   expect(errors).toEqual([]);
 });

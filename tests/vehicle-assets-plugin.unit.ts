@@ -33,7 +33,7 @@ async function fixture(t: TestContext) {
   await mkdir(base, { recursive: true });
   const root = await mkdtemp(join(base, 'vehicle-assets-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const directory = join(root, 'assets', 'vehicles');
+  const directory = join(root, 'public', 'assets', 'models', 'vehicles');
   await mkdir(directory, { recursive: true });
   const sources = new Map<string, Buffer>(), manifest: FixtureManifest = { version: 1, assets: [] };
   for (const asset of VEHICLE_MODEL_ASSETS) {
@@ -106,18 +106,18 @@ test('rota bloqueia métodos, queries, decode/traversal e nomes fora da allowlis
   for (const preview of [false, true]) {
     const send = await server(t, plugin, preview);
     for (const method of ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
-      const response = await send('/models/vehicles/camaro.glb', method);
+      const response = await send('/assets/models/vehicles/camaro.glb', method);
       assert.equal(response.status, 405);
       assert.equal(response.headers.allow, 'GET, HEAD');
       assert.equal(response.body.length, 0);
     }
     for (const url of [
-      '/models/vehicles/', '/models/vehicles/private.glb', '/models/vehicles/race_car2.glb',
-      '/models/vehicles/camaro.glb?raw', '/models/vehicles/camaro.glb?url',
-      '/models/vehicles/../private.glb', '/models/vehicles/%2e%2e/private.glb',
-      '/models/vehicles/%252e%252e/private.glb', '/models%2fvehicles/camaro.glb',
-      '/models/vehicles/%63amaro.glb', '/models/vehicles/camaro.glb/extra',
-      '/models/vehicles/%ZZ', '/models/vehicles/..%5cprivate.glb',
+      '/assets/models/vehicles/', '/assets/models/vehicles/private.glb', '/assets/models/vehicles/race_car2.glb',
+      '/assets/models/vehicles/camaro.glb?raw', '/assets/models/vehicles/camaro.glb?url',
+      '/assets/models/vehicles/../private.glb', '/assets/models/vehicles/%2e%2e/private.glb',
+      '/assets/models/vehicles/%252e%252e/private.glb', '/assets%2fmodels/vehicles/camaro.glb',
+      '/assets/models/vehicles/%63amaro.glb', '/assets/models/vehicles/camaro.glb/extra',
+      '/assets/models/vehicles/%ZZ', '/assets/models/vehicles/..%5cprivate.glb',
     ]) {
       const response = await send(url);
       assert.equal(response.status, 404, url);
@@ -130,18 +130,18 @@ test('arquivo ausente, diretório e junction redirecionada falham sem vazar byte
   const { plugin, directory, root } = await fixture(t), send = await server(t, plugin);
   const file = join(directory, 'camaro.glb');
   await rm(file);
-  assert.equal((await send('/models/vehicles/camaro.glb')).status, 404);
+  assert.equal((await send('/assets/models/vehicles/camaro.glb')).status, 404);
   await mkdir(file);
-  assert.equal((await send('/models/vehicles/camaro.glb')).body.length, 0);
+  assert.equal((await send('/assets/models/vehicles/camaro.glb')).body.length, 0);
   const outside = join(root, 'outside');
   await mkdir(outside);
   await writeFile(join(outside, 'camaro.glb'), 'private redirected bytes');
   await rm(directory, { recursive: true });
   await symlink(outside, directory, process.platform === 'win32' ? 'junction' : 'dir');
-  const response = await send('/models/vehicles/camaro.glb');
+  const response = await send('/assets/models/vehicles/camaro.glb');
   assert.equal(response.status, 404);
   assert.equal(response.body.length, 0);
-  await rejectsBundle(plugin, /assets\/vehicles\/manifest.json: diretório redirecionado/);
+  await rejectsBundle(plugin, /public\/assets\/models\/vehicles\/manifest.json: diretório redirecionado/);
 });
 
 test('emissão publica exatamente cinco binários sem derivar Thunder ou duplicar alias; preserva deny', async t => {
@@ -172,7 +172,7 @@ test('manifesto ausente ou inválido impede build e dev mesmo havendo referênci
   const send = await server(t, plugin);
   await rm(join(directory, 'manifest.json'));
   await rejectsBundle(plugin, /manifest.json: arquivo ausente ou indisponível/);
-  assert.equal((await send('/models/vehicles/camaro.glb')).status, 404);
+  assert.equal((await send('/assets/models/vehicles/camaro.glb')).status, 404);
   await writeFile(join(directory, 'manifest.json'), '{bad');
   await rejectsBundle(plugin, /manifest.json: JSON inválido/);
   const entry = manifest.assets[0];
@@ -230,18 +230,18 @@ test('GLB inválido ou com recursos externos é rejeitado mesmo com hash correto
 });
 
 test('links de payload, manifesto e pasta assets são bloqueados antes da abertura fora do pacote', async t => {
-  for (const target of ['camaro.glb', 'manifest.json', 'assets']) {
+  for (const target of ['camaro.glb', 'manifest.json', 'public']) {
     const { root, directory, plugin } = await fixture(t);
     const outside = join(root, 'private-target');
     await mkdir(outside);
     await writeFile(join(outside, 'private.glb'), 'PRIVATE CONTENT MUST NOT LEAK');
-    const path = target === 'assets' ? join(root, 'assets') : join(directory, target);
+    const path = target === 'public' ? join(root, 'public') : join(directory, target);
     await rm(path, { recursive: true });
     // Directory junctions also work without Windows symlink privileges, and
     // must be rejected even when named like an approved file or manifest.
     await symlink(outside, path, process.platform === 'win32' ? 'junction' : 'dir');
     const send = await server(t, plugin);
-    const response = await send('/models/vehicles/camaro.glb');
+    const response = await send('/assets/models/vehicles/camaro.glb');
     assert.equal(response.status, 404);
     assert.equal(response.body.length, 0);
     await rejectsBundle(plugin, /(?:arquivo|diretório) redirecionado/);

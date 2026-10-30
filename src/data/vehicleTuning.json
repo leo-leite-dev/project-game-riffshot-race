@@ -1,0 +1,57 @@
+{
+  "rift-blaze": {
+    "speed": 62,
+    "acceleration": 68,
+    "control": 64,
+    "tires": 60,
+    "suspension": 58,
+    "armor": 55,
+    "shotCount": 0,
+    "bombCount": 0,
+    "oilSlickCount": 0
+  },
+  "volt-vector": {
+    "speed": 62,
+    "acceleration": 76,
+    "control": 84,
+    "tires": 84,
+    "suspension": 48,
+    "armor": 60,
+    "shotCount": 2,
+    "bombCount": 2,
+    "oilSlickCount": 2
+  },
+  "iron-bastion": {
+    "speed": 58,
+    "acceleration": 52,
+    "control": 56,
+    "tires": 56,
+    "suspension": 100,
+    "armor": 100,
+    "shotCount": 1,
+    "bombCount": 1,
+    "oilSlickCount": 1
+  },
+  "race-car-2": {
+    "speed": 94,
+    "acceleration": 92,
+    "control": 82,
+    "tires": 82,
+    "suspension": 45,
+    "armor": 70,
+    "shotCount": 1,
+    "bombCount": 1,
+    "oilSlickCount": 1
+  },
+  "widowmaker": {
+    "speed": 88,
+    "acceleration": 78,
+    "control": 65,
+    "tires": 65,
+    "suspension": 90,
+    "armor": 90,
+    "shotCount": 5,
+    "bombCount": 1,
+    "oilSlickCount": 1
+  }
+}

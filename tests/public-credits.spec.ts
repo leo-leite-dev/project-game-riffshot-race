@@ -1,14 +1,27 @@
 import { readFile } from 'node:fs/promises';
+import { readdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 const PRODUCTION_URL = 'http://127.0.0.1:4183';
 const CREDIT_NAME = 'Créditos e licenças (abre em nova aba)';
+const DIST_DIRECTORY = resolve(dirname(fileURLToPath(import.meta.url)), '../dist');
+
+function distributionFiles(directory = DIST_DIRECTORY, prefix = ''): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    return entry.isDirectory() ? distributionFiles(resolve(directory, entry.name), relative) : [relative];
+  });
+}
 
 async function openProduction(page: Page) {
   await page.goto(PRODUCTION_URL);
   await expect(page.locator('#screen-status')).toContainText('Sinta a batida');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#screen-status')).toContainText('Menu principal');
 }
 
 async function expectPublicNotice(popup: Page) {
@@ -34,7 +47,7 @@ test('produção entrega a atribuição completa e preserva os avisos MIT', asyn
     'CC BY 4.0', 'https://creativecommons.org/licenses/by/4.0/',
     'sem perdas', 'PNG', 'índices', 'UV', 'pivôs', 'escala', 'animação própria',
     'não implica endosso', 'não assegura direitos de terceiros',
-    'não é dono do modelo', 'Jagex', 'Neon Ignition', 'RaceEngineAudio.js',
+    'não é dono do modelo', 'Jagex', 'Neon Ignition', 'RaceEngineAudio.ts',
     'Richard Davey, Phaser Studio Inc.', '2010-2026 three.js authors', '2014 Arnout Kazemier',
   ]) expect(notice).toContain(credit);
   expect(notice.match(/Permission is hereby granted/g)).toHaveLength(3);
@@ -47,24 +60,23 @@ test('produção entrega a atribuição completa e preserva os avisos MIT', asyn
   expect(await dev.text()).toBe(notice);
 });
 
-test('link público pode ser clicado ou tocado sem cobrir o som ou bloquear o canvas', async ({ page, isMobile }) => {
+test('link público no menu principal pode ser clicado ou tocado sem bloquear o canvas', async ({ page, isMobile }) => {
   await openProduction(page);
   const credits = page.getByRole('link', { name: CREDIT_NAME, exact: true });
   await expect(credits).toBeVisible();
   await expect(credits).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(credits).toHaveAttribute('href', './credits.html');
+  await expect(page.locator('#music-toggle')).toHaveCount(0);
   // Include the minimum width supported by the existing page shell.
   for (const viewport of [page.viewportSize()!, { width: 280, height: 568 }]) {
     await page.setViewportSize(viewport);
     const link = (await credits.boundingBox())!;
-    const sound = (await page.locator('#music-toggle').boundingBox())!;
     expect(link.width).toBeGreaterThanOrEqual(44);
     expect(link.height).toBeGreaterThanOrEqual(44);
     expect(link.x).toBeGreaterThanOrEqual(0);
     expect(link.y).toBeGreaterThanOrEqual(0);
     expect(link.x + link.width).toBeLessThanOrEqual(viewport.width);
     expect(link.y + link.height).toBeLessThanOrEqual(viewport.height);
-    expect(link.x).toBeGreaterThanOrEqual(sound.x + sound.width + 4);
     expect(await page.locator('#game').evaluate(element => {
       const rect = element.getBoundingClientRect();
       return document.elementFromPoint(rect.width / 2, rect.height / 2)?.tagName;
@@ -93,8 +105,6 @@ test('teclado alcança o link por Tab e Alt+L mesmo com o menu capturando Tab', 
   const credits = page.getByRole('link', { name: CREDIT_NAME, exact: true });
   await expect(page.locator('#game canvas')).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(page.locator('#music-toggle')).toBeFocused();
-  await page.keyboard.press('Tab');
   await expect(credits).toBeFocused();
   expect(await credits.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('solid');
   const intro = (await page.locator('#screen-status').textContent())!;
@@ -105,12 +115,9 @@ test('teclado alcança o link por Tab e Alt+L mesmo com o menu capturando Tab', 
   await firstPopup.close();
   await expect(page.locator('#screen-status')).toHaveText(intro);
   await page.keyboard.press('Shift+Tab');
-  await expect(page.locator('#music-toggle')).toBeFocused();
-  await page.keyboard.press('Shift+Tab');
   await expect(page.locator('#game canvas')).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(page.locator('#screen-status')).toContainText('Menu principal');
   const menu = (await page.locator('#screen-status').textContent())!;
+  expect(menu).toContain('Menu principal');
   await expect(credits).toHaveAttribute('aria-keyshortcuts', 'Alt+L');
   await page.keyboard.press('Alt+l');
   await expect(credits).toBeFocused();
@@ -123,7 +130,7 @@ test('teclado alcança o link por Tab e Alt+L mesmo com o menu capturando Tab', 
 });
 
 test('distribuição pública entrega só os cinco payloads do manifesto com integridade e limite Pages', async ({ request }) => {
-  const manifest = JSON.parse(await readFile(new URL('../assets/vehicles/manifest.json', import.meta.url), 'utf8'));
+  const manifest = JSON.parse(await readFile(new URL('../public/assets/models/vehicles/manifest.json', import.meta.url), 'utf8'));
   expect(manifest.assets).toHaveLength(5);
   for (const asset of manifest.assets) {
     const response = await request.get(`${PRODUCTION_URL}${asset.url}`);
@@ -133,9 +140,31 @@ test('distribuição pública entrega só os cinco payloads do manifesto com int
     expect(data.length).toBeLessThan(25 * 1024 * 1024);
     expect(createHash('sha256').update(data).digest('hex')).toBe(asset.sha256);
   }
-  for (const path of ['/models/vehicles/race_car2.glb', '/models/vehicles/sci_-_fi_buggy.glb', '/models/vehicles/../secret.glb']) {
+  for (const path of ['/assets/models/vehicles/race_car2.glb', '/assets/models/vehicles/sci_-_fi_buggy.glb', '/assets/models/vehicles/../secret.glb']) {
     const response = await request.get(`${PRODUCTION_URL}${path}`);
     const data = await response.body();
     expect(data.subarray(0, 4).toString()).not.toBe('glTF');
   }
+  for (const path of ['/assets/ui/favicon.svg', '/assets/hud/icons/shots.png',
+    '/assets/hud/icons/bomb.png', '/assets/hud/icons/oil.png', '/assets/audio/neon-furnace-theme.mp3']) {
+    const response = await request.get(`${PRODUCTION_URL}${path}`);
+    expect(response.ok(), path).toBe(true);
+    if (path.endsWith('.mp3')) {
+      expect(response.headers()['content-type']).toContain('audio/mpeg');
+      const source = await readFile(new URL('../public/assets/audio/neon-furnace-theme.mp3', import.meta.url));
+      expect(createHash('sha256').update(await response.body()).digest('hex'))
+        .toBe(createHash('sha256').update(source).digest('hex'));
+    }
+  }
+  for (const path of ['/audios/canhao_disparo_windowmaker.mp3',
+    '/__local-audio/canhao_disparo_windowmaker.mp3']) {
+    expect((await request.get(`${PRODUCTION_URL}${path}`)).status(), path).toBe(404);
+  }
+  const emitted = distributionFiles();
+  expect(emitted.some(path => path.includes('referencias-locais'))).toBe(false);
+  expect(emitted.some(path => path.includes('legacy-assets'))).toBe(false);
+  expect(emitted.some(path => /\.(mp4|nes|smc|sfc|gba|gbc|rom|iso|zip)$/i.test(path))).toBe(false);
+  expect(emitted.some(path => path.endsWith('rift-blaze.glb'))).toBe(false);
+  expect(emitted).toContain('assets/audio/neon-furnace-theme.mp3');
+  expect(emitted.some(path => path.startsWith('assets/hud/layouts/'))).toBe(false);
 });

@@ -1,6 +1,7 @@
 const theme = (road: string, edge: string, glow: string, sky: string, accent: string, secondary: string) => ({ road, edge, glow, sky, accent, secondary });
 
-const makeGrid = () => [-3.3, 3.3, -3.3, 3.3].map((lane, index) => ({ row: index < 2 ? 0 : 1, lane }));
+const makeGrid = () => [-5.1, -1.7, 1.7, 5.1].map(lane => ({ row: 0, lane }));
+export const OPENING_RACE_TRACK_ID = 'neon-furnace';
 
 // Original course layouts and descriptions, created for RIFFSHOT RACING.
 export const RACE_TRACKS = [

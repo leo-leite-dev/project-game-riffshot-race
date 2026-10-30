@@ -28,6 +28,7 @@ type StationLayoutScene = Phaser.Scene & {
   rivalName: Phaser.GameObjects.Text;
   campaign: Phaser.GameObjects.Container;
   campaignFrame: Phaser.GameObjects.Graphics;
+  campaignDividers: Phaser.GameObjects.Graphics;
   playerLabel: Phaser.GameObjects.Text;
   playerName: Phaser.GameObjects.Text;
   seasonLabel: Phaser.GameObjects.Text;
@@ -47,8 +48,9 @@ type StationLayoutScene = Phaser.Scene & {
   rivalVehicleShape: Phaser.GameObjects.Graphics;
   rivalPreview?: Phaser.GameObjects.Image | null;
   motor: StationModule;
-  suspension: StationModule;
-  armor: StationModule;
+  chassis: StationModule;
+  playerInfo: Phaser.GameObjects.Container;
+  rivalInfo: Phaser.GameObjects.Container;
   modules: StationModule[];
   startButton: StationModule;
   rewardButton: Phaser.GameObjects.GameObject & { visible: boolean; arrange: StationModule['arrange'] };
@@ -66,34 +68,47 @@ function portrait(panel: Phaser.GameObjects.Container, frame: Phaser.GameObjects
   name.setScale(Math.min(1, (w - 34) / Math.max(1, name.width)));
 }
 
-function campaign(scene: StationLayoutScene, narrow: boolean) {
-  const w = narrow ? 380 : 930, h = narrow ? 182 : 245;
-  scene.campaign.setPosition(0, narrow ? -170 : -176).setSize(w, h);
+function campaign(scene: StationLayoutScene, narrow: boolean, mobileLandscape = false) {
+  const w = mobileLandscape ? 590 : narrow ? 380 : 930, h = mobileLandscape ? 170 : narrow ? 182 : 245;
+  scene.campaign.setPosition(0, mobileLandscape ? -90 : narrow ? -170 : -176).setSize(w, h);
   drawStationFrame(scene.campaignFrame, w, h, { accent: 0x7293a2 });
-  const left = -w / 2 + (narrow ? 22 : 28);
+  const left = -w / 2 + (narrow ? 22 : mobileLandscape ? 20 : 28);
   scene.playerLabel.setOrigin(0, 0.5).setPosition(left, narrow ? -58 : -72)
-    .setFontSize(narrow ? 12 : 20).setColor('#ff345d');
+    .setFontSize(narrow ? 12 : mobileLandscape ? 14 : 20).setColor('#ff345d');
   scene.playerName.setOrigin(0, 0.5).setPosition(left, narrow ? -36 : -40)
-    .setFontSize(narrow ? 18 : 32).setWordWrapWidth(narrow ? 155 : 280);
+    .setFontSize(narrow ? 18 : mobileLandscape ? 21 : 32).setWordWrapWidth(narrow ? 155 : mobileLandscape ? 175 : 280);
   scene.seasonLabel.setPosition(0, -h / 2 + 12).setFontSize(narrow ? 8 : 11)
     .setVisible(scene.raceState.attempt.status === 'qualified');
   scene.campaignFields.forEach(({ label, value }, index: number) => {
     let x: number, y: number;
     if (index < 3) {
-      x = narrow ? [-122, 0, 122][index] : [70, 255, 397][index];
-      y = narrow ? 1 : -72;
+      x = narrow ? [-122, 0, 122][index] : mobileLandscape ? [-14, 135, 245][index] : [70, 250, 375][index];
+      y = narrow ? 1 : mobileLandscape ? -67 : -72;
     } else {
-      x = narrow ? [-90, 90][index - 3] : [-155, 215][index - 3];
-      y = narrow ? 42 : 7;
+      x = narrow ? [90, -90][index - 3] : mobileLandscape ? [105, -105][index - 3] : [215, -155][index - 3];
+      y = narrow ? 42 : mobileLandscape ? -16 : 7;
     }
-    label.setPosition(x, y).setFontSize(narrow ? (index > 2 ? 9 : 10) : 16).setColor('#a2c3d7');
-    value.setPosition(x, y + (narrow ? 18 : 29)).setFontSize(narrow ? 19 : 32)
-      .setColor(index === 1 ? '#ff3c54' : index === 4 ? '#71f6ff' : '#edf7ff');
+    label.setPosition(x, y).setFontSize(narrow ? (index > 2 ? 9 : 10) : mobileLandscape ? 10 : 16).setColor('#a2c3d7');
+    value.setPosition(x, y + (narrow ? 18 : mobileLandscape ? 19 : 29)).setFontSize(narrow ? 19 : mobileLandscape ? 21 : 32)
+      .setColor(index === 1 ? '#ff3c54' : index === 3 ? '#a2c3d7' : index === 4 ? '#71f6ff' : '#edf7ff');
   });
-  const g = scene.scoreProgress.clear(), barW = narrow ? 312 : 760;
-  const y = narrow ? 73 : 78, barH = narrow ? 7 : 13;
+  const dividers = scene.campaignDividers.clear().lineStyle(narrow ? 1 : 2, 0x476170, 0.8);
+  if (narrow) {
+    dividers.lineBetween(-60, -10, -60, 31).lineBetween(60, -10, 60, 31)
+      .lineStyle(1, 0x526a78, 0.8).lineBetween(-w / 2 + 24, -17, w / 2 - 24, -17);
+  } else if (mobileLandscape) {
+    dividers.lineBetween(72, -81, 72, -49).lineBetween(190, -81, 190, -49)
+      .lineBetween(0, -29, 0, 1).lineStyle(1, 0x526a78, 0.8)
+      .lineBetween(-w / 2 + 20, -34, w / 2 - 20, -34);
+  } else {
+    dividers.lineBetween(162, -91, 162, -48).lineBetween(309, -91, 309, -48)
+      .lineBetween(30, -5, 30, 49).lineStyle(1, 0x526a78, 0.8)
+      .lineBetween(-w / 2 + 28, -16, w / 2 - 28, -16);
+  }
+  const g = scene.scoreProgress.clear(), barW = narrow ? 312 : mobileLandscape ? 480 : 760;
+  const y = narrow ? 73 : mobileLandscape ? 47 : 68, barH = narrow ? 7 : mobileLandscape ? 9 : 13;
   const progress = Math.max(0, Math.min(1, scene.raceState.score / scene.raceState.targetScore));
-  const gap = narrow ? 2 : 4, count = 20, slot = (barW - gap * (count - 1)) / count;
+  const gap = narrow || mobileLandscape ? 2 : 4, count = 20, slot = (barW - gap * (count - 1)) / count;
   g.fillStyle(0x02070c).fillRect(-barW / 2 - 6, y - 5, barW + 12, barH + 10)
     .lineStyle(1, 0x385569).strokeRect(-barW / 2 - 6, y - 5, barW + 12, barH + 10);
   for (let i = 0; i < count; i++) {
@@ -106,7 +121,7 @@ function campaign(scene: StationLayoutScene, narrow: boolean) {
         .fillStyle(0xffe6a4).fillRect(x + 1, y + 1, Math.max(0, slot * filled - 2), 2);
     }
   }
-  scene.scoreStatus.setPosition(0, narrow ? 91 : 111).setFontSize(narrow ? 8 : 11)
+  scene.scoreStatus.setPosition(0, narrow ? 86 : mobileLandscape ? 72 : 98).setFontSize(narrow ? 8 : mobileLandscape ? 9 : 11)
     .setWordWrapWidth(w - 30).setVisible(true);
 }
 
@@ -114,30 +129,36 @@ function campaign(scene: StationLayoutScene, narrow: boolean) {
  * hierarchy, while portrait stacks the same information without changing rules. */
 export function layoutStation(scene: StationLayoutScene, w: number, h: number) {
   const narrow = w < 700 && w < h;
-  const designW = narrow ? 400 : 1600, designH = narrow ? 1070 : 900;
-  const scale = Math.min((w - (narrow ? 16 : 24)) / designW, (h - 68) / designH, 1.2);
-  scene.content.setPosition(w / 2, (h - 60) / 2 + 6).setScale(scale);
+  const mobileLandscape = w <= 1000 && w > h;
+  const designW = narrow ? 400 : mobileLandscape ? 1050 : 1600;
+  const designH = narrow ? 1070 : mobileLandscape ? 470 : 900;
+  const scale = Math.min((w - (narrow ? 16 : mobileLandscape ? 20 : 24)) / designW,
+    (h - (narrow ? 68 : mobileLandscape ? 16 : 68)) / designH, 1.2);
+  scene.content.setPosition(w / 2, mobileLandscape ? h / 2 : (h - 60) / 2 + 6).setScale(scale);
   const backdropScale = Math.max(w / 1664, h / 940);
   scene.stationBackdrop.setPosition(w / 2, h / 2).setDisplaySize(1664 * backdropScale, 940 * backdropScale);
   // This screen owns its header artwork, leaving the common shell untouched.
   for (const item of [scene.chrome, scene.brand, scene.edition, scene.system, scene.footerLeft, scene.footerRight]) item.setVisible(false);
-  scene.title.setPosition(narrow ? -12 : -400, narrow ? -452 : -365)
-    .setDisplaySize(narrow ? 370 : 780, narrow ? 69 : 146);
+  scene.title.setPosition(narrow ? -12 : mobileLandscape ? 0 : -400, narrow ? -452 : mobileLandscape ? -208 : -365)
+    .setDisplaySize(narrow ? 370 : mobileLandscape ? 400 : 780, narrow ? 69 : mobileLandscape ? 70 : 146);
   scene.stationKicker.setPosition(narrow ? 0 : 520, narrow ? -411 : -354)
-    .setFontSize(narrow ? 8 : 12).setColor('#ff3a56').setVisible(!narrow);
+    .setFontSize(narrow ? 8 : 12).setColor('#ff3a56').setVisible(!narrow && !mobileLandscape);
   scene.settings.position(Math.max(8, w - 64), 12);
   portrait(scene.pilotPanel, scene.pilotFrame, scene.pilotPortrait, scene.pilotTag, scene.pilotName,
-    narrow ? -99 : -640, narrow ? -345 : -178, narrow ? 184 : 285, narrow ? 150 : 275, false);
+    narrow ? -99 : mobileLandscape ? -460 : -640, narrow ? -345 : mobileLandscape ? -130 : -178,
+    narrow ? 184 : mobileLandscape ? 126 : 285, narrow ? 150 : mobileLandscape ? 100 : 275, false);
   portrait(scene.rivalPanel, scene.rivalFrame, scene.rivalPortrait, scene.rivalTag, scene.rivalName,
-    narrow ? 99 : 640, narrow ? -345 : -178, narrow ? 184 : 285, narrow ? 150 : 275, true);
-  campaign(scene, narrow);
+    narrow ? 99 : mobileLandscape ? 460 : 640, narrow ? -345 : mobileLandscape ? -130 : -178,
+    narrow ? 184 : mobileLandscape ? 126 : 285, narrow ? 150 : mobileLandscape ? 100 : 275, true);
+  campaign(scene, narrow, mobileLandscape);
 
-  const vx = narrow ? -63 : -162, vy = narrow ? 30 : 108;
-  const vw = narrow ? 252 : 600, vh = narrow ? 200 : 300;
+  const vx = narrow ? -63 : mobileLandscape ? -122 : -162, vy = narrow ? 30 : mobileLandscape ? 50 : 108;
+  const vw = narrow ? 252 : mobileLandscape ? 236 : 600, vh = narrow ? 200 : mobileLandscape ? 145 : 300;
   scene.vehicleFrame.setPosition(vx, vy);
   drawStationFrame(scene.vehicleFrame, vw, vh, { accent: 0xff4439 });
   scene.vehicleTitle.setPosition(vx, vy - vh / 2 + (narrow ? 19 : 24))
-    .setFontSize(narrow ? 12 : 22).setColor('#ff3d54');
+    .setFontSize(narrow ? 12 : mobileLandscape ? 14 : 22).setColor('#ff3d54').setScale(1);
+  scene.vehicleTitle.setScale(Math.min(1, (vw - 24) / Math.max(1, scene.vehicleTitle.width)));
   scene.vehicleAbility.setPosition(vx, vy + vh / 2 - 34).setFontSize(narrow ? 8 : 12).setColor('#ffcf49');
   scene.setPreviewBounds(vx, vy + 1, vw - 24, vh - 86);
   scene.loadingLabel?.setOrigin(0.5).setPosition(vx, vy + vh / 2 - 16).setFontSize(narrow ? 6 : 10);
@@ -149,24 +170,33 @@ export function layoutStation(scene: StationLayoutScene, w: number, h: number) {
     scene.vehicleFrame.fillStyle(colors[i], 0.8).fillCircle((i - 1) * 18, vh / 2 - 34, narrow ? 3 : 4);
   }
 
-  const rx = narrow ? 135 : 330, rw = narrow ? 124 : 355;
+  const rx = narrow ? 135 : mobileLandscape ? 122 : 330, rw = narrow ? 124 : mobileLandscape ? 236 : 355;
   scene.rivalVehicle.setPosition(rx, vy).setSize(rw, vh);
   drawStationFrame(scene.rivalVehicleFrame, rw, vh, { accent: 0xc53fff });
   scene.rivalVehicleTitle.setPosition(0, -vh / 2 + (narrow ? 19 : 24)).setFontSize(narrow ? 9 : 14).setColor('#a1d9e5');
   scene.rivalVehicleSoon.setPosition(0, vh / 2 - 24).setFontSize(narrow ? 10 : 19).setColor('#ed48e2');
   scene.rivalVehicleShape.setScale(narrow ? 0.65 : 1.5);
   scene.rivalPreview?.setPosition(0, 0).setDisplaySize(rw - 24, vh - 86);
-  scene.motor.arrange(narrow ? -100 : -645, narrow ? 210 : 108, narrow ? 187 : 300, narrow ? 140 : 300);
-  scene.suspension.arrange(narrow ? 100 : 650, narrow ? 175 : 25, narrow ? 187 : 290, narrow ? 70 : 134);
-  scene.armor.arrange(narrow ? 100 : 650, narrow ? 247 : 187, narrow ? 187 : 290, narrow ? 66 : 134);
+  scene.motor.arrange(narrow ? -100 : mobileLandscape ? -423 : -645, narrow ? 210 : mobileLandscape ? 45 : 108,
+    narrow ? 187 : mobileLandscape ? 198 : 300, narrow ? 190 : mobileLandscape ? 175 : 300);
+  scene.chassis.arrange(narrow ? 100 : mobileLandscape ? 423 : 650, narrow ? 207 : mobileLandscape ? 45 : 108,
+    narrow ? 187 : mobileLandscape ? 198 : 290, narrow ? 190 : mobileLandscape ? 175 : 300);
+  scene.playerInfo.setPosition(narrow ? -164 : mobileLandscape ? -305 : -492, narrow ? 128 : mobileLandscape ? -36 : -22)
+    .setScale(narrow ? 0.72 : mobileLandscape ? 0.8 : 1);
+  scene.rivalInfo.setPosition(narrow ? 164 : mobileLandscape ? 305 : 508, narrow ? 128 : mobileLandscape ? -36 : -22)
+    .setScale(narrow ? 0.72 : mobileLandscape ? 0.8 : 1);
   scene.modules.forEach((button: StationModule, index: number) => {
     if (narrow) button.arrange(index < 3 ? (index - 1) * 131 : (index - 3.5) * 198,
       index < 3 ? 332 : 411, index < 3 ? 125 : 190, index < 3 ? 82 : 62);
+    else if (mobileLandscape) button.arrange((index - 2) * 190, 130, 180, 40);
     else button.arrange((index - 2) * 310, 315, 300, 78);
   });
   const reward = scene.rewardButton.visible;
-  scene.startButton.arrange(reward ? (narrow ? -99 : -220) : 0, narrow ? 490 : 405,
-    reward ? (narrow ? 188 : 510) : (narrow ? 360 : 640), narrow ? 78 : 98, true);
-  scene.rewardButton.arrange(narrow ? 99 : 340, narrow ? 490 : 405, narrow ? 188 : 520, narrow ? 78 : 98);
+  scene.startButton.arrange(reward ? (narrow ? -99 : mobileLandscape ? -170 : -220) : 0,
+    narrow ? 490 : mobileLandscape ? 176 : 405,
+    reward ? (narrow ? 188 : mobileLandscape ? 320 : 510) : (narrow ? 360 : mobileLandscape ? 380 : 640),
+    narrow ? 78 : mobileLandscape ? 44 : 98, true);
+  scene.rewardButton.arrange(narrow ? 99 : mobileLandscape ? 170 : 340, narrow ? 490 : mobileLandscape ? 176 : 405,
+    narrow ? 188 : mobileLandscape ? 320 : 520, narrow ? 78 : mobileLandscape ? 44 : 98);
   scene.toast.setPosition(w / 2, h - 62).setFontSize(13).setScale(1).setWordWrapWidth(w - 30);
 }

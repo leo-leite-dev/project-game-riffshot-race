@@ -50,35 +50,12 @@ canvas {
   border: 0;
 }
 
-.music-toggle {
-  position: fixed;
-  left: clamp(20px, 2.64vw, 38px);
-  bottom: max(12px, env(safe-area-inset-bottom));
-  z-index: 10;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid #71f6ff40;
-  background: #080f1de6;
-  color: #95e6ee;
-  font: 10px Consolas, "Courier New", monospace;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-}
-
-.music-toggle:hover, .music-toggle:focus-visible {
-  border-color: #71f6ff;
-  outline: 1px solid #71f6ff;
-  outline-offset: 3px;
-}
-
-.music-toggle:disabled { color: #8192ab; cursor: default; }
-
 .public-credits {
   position: fixed;
   right: max(12px, env(safe-area-inset-right));
   bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 10;
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
   min-width: 44px;
@@ -93,6 +70,8 @@ canvas {
   touch-action: manipulation;
 }
 
+body.main-menu-active .public-credits { display: inline-flex; }
+
 .public-credits:hover, .public-credits:focus-visible {
   border-color: #71f6ff;
   outline: 1px solid #71f6ff;
@@ -103,5 +82,56 @@ canvas {
   .public-credits {
     max-width: 116px;
     text-align: center;
+  }
+}
+
+#orientation-prompt { display: none; }
+
+@media (orientation: portrait) and (pointer: coarse) and (max-width: 900px) {
+  #orientation-prompt {
+    position: fixed;
+    z-index: 9;
+    inset: 50% auto auto 50%;
+    display: grid;
+    place-items: center;
+    width: min(88vw, 340px);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  #orientation-prompt.is-dismissed { display: none; }
+  .orientation-card {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    padding: 20px;
+    border: 1px solid #71f6ffb0;
+    border-radius: 10px;
+    background: #07111eeb;
+    box-shadow: 0 0 30px #00d9ff38;
+    color: #edf7ff;
+    text-align: center;
+    font-family: Consolas, "Courier New", monospace;
+    pointer-events: auto;
+  }
+  .orientation-icon { color: #71f6ff; font-size: 38px; }
+  .orientation-card strong { color: #71f6ff; font-size: 15px; }
+  .orientation-message { color: #c6d7e6; font-size: 12px; line-height: 1.5; }
+  #orientation-action, #orientation-dismiss {
+    min-height: 44px;
+    padding: 8px 14px;
+    border: 1px solid #ffb454;
+    border-radius: 5px;
+    background: #271a12;
+    color: #ffcf79;
+    font: 700 12px Consolas, "Courier New", monospace;
+    touch-action: manipulation;
+  }
+  #orientation-dismiss {
+    min-height: 36px;
+    padding: 6px 12px;
+    border-color: #718297;
+    background: #101927;
+    color: #c6d7e6;
+    font-weight: 400;
   }
 }

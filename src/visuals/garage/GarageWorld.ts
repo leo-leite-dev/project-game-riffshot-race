@@ -70,6 +70,8 @@ export class GarageWorld {
       const x = mode === 'selection' ? (i - (vehicleOptions.length - 1) / 2) * 5 : 0;
       const paint = PAINTS[this.paintIndex];
       const vehicle = resources.createVehicle(vehicleData.id, paint, { experimental: true });
+      vehicle.scale.multiplyScalar(1.1);
+      vehicle.userData.size.multiplyScalar(1.1);
       vehicle.position.set(x, 0.34, 0);
       vehicle.rotation.y = -0.5;
       this.scene.add(vehicle);
@@ -78,25 +80,41 @@ export class GarageWorld {
       platform.position.x = x;
       this.scene.add(platform);
       const metal = this.material(0x283545, 0.8, 0.36);
-      const neon = this.glow(mode === 'preparation' ? this.stationColor : paint.color, 1.5);
-      const base = this.mesh(new THREE.CylinderGeometry(2.05, 2.2, 0.3, 64), metal);
+      const neon = this.glow(mode === 'preparation' ? this.stationColor : paint.color, 0.9);
+      const base = this.mesh(new THREE.CylinderGeometry(2.9, 3.08, 0.38, 72), metal);
       base.position.y = 0.12;
       platform.add(base);
-      const ring = this.mesh(new THREE.TorusGeometry(2.07, 0.035, 8, 80), neon);
+      const ring = this.mesh(new THREE.TorusGeometry(2.76, 0.075, 10, 96), neon);
       ring.rotation.x = Math.PI / 2;
       ring.position.y = 0.29;
       platform.add(ring);
-      for (let mark = 0; mark < 12; mark++) {
-        const angle = mark * Math.PI / 6;
-        const piece = this.box(platform, [0.11, 0.02, 0.3], [Math.sin(angle) * 1.9, 0.28, Math.cos(angle) * 1.9], neon);
+      const underglow = this.mesh(new THREE.TorusGeometry(2.94, 0.13, 8, 96), neon);
+      underglow.rotation.x = Math.PI / 2;
+      underglow.position.y = -0.02;
+      platform.add(underglow);
+      const contactShadowMaterial = new THREE.MeshBasicMaterial({ color: 0x020407, transparent: true, opacity: 0.38, depthWrite: false });
+      this.ownedMaterials.add(contactShadowMaterial);
+      const contactShadow = this.mesh(new THREE.CircleGeometry(2.15, 40), contactShadowMaterial);
+      contactShadow.rotation.x = -Math.PI / 2;
+      contactShadow.position.y = 0.315;
+      platform.add(contactShadow);
+      const segmented = this.glow(0xffb248, 1.25);
+      for (let mark = 0; mark < 24; mark++) {
+        const angle = mark * Math.PI / 12;
+        const piece = this.box(platform, [0.12, 0.028, 0.33], [Math.sin(angle) * 2.6, 0.31, Math.cos(angle) * 2.6], mark % 3 ? neon : segmented);
         piece.rotation.y = angle;
       }
       this.platforms.push({ neon, ring, group: platform });
       this.batchStaticMeshes(platform);
     });
-    if (mode === 'selection') this.arm = new MechanicalArm(this, this.vehicles[this.vehicleIndex].userData.size.y + 0.34);
-    this.spot = new THREE.SpotLight(0xc5e7ff, 65, 26, 0.5, 0.75, 1.5);
-    this.spot.position.set(0, 7, 3);
+    if (mode === 'selection') {
+      this.arm = new MechanicalArm(this, this.vehicles[this.vehicleIndex].userData.size.y + 0.34);
+      // Keep the showroom silhouette unobstructed; the existing mechanical
+      // arm appears only when a player actually confirms an equipment change.
+      this.arm.group.visible = false;
+    }
+    this.spot = new THREE.SpotLight(0xfff0dc, 105, 34, 0.43, 0.72, 1.25);
+    this.spot.position.set(0, 11, 5);
     this.scene.add(this.spot, this.spot.target);
     if (mode === 'selection') this.setSelectionStage('vehicle', this.vehicleIndex, this.paintIndex);
     else { this.focusIndex = 0; this.focusX = 0; }
@@ -156,43 +174,130 @@ export class GarageWorld {
   }
 
   buildRoom() {
-    const steel = this.material(0x1c2a3b, 0.8, 0.42);
-    const dark = this.material(0x101927, 0.65, 0.48);
-    const cyan = this.glow(this.mode === 'preparation' ? this.stationColor : 0x1677ff, 2.2);
-    const magenta = this.glow(this.mode === 'preparation' ? this.stationColor : 0xc73bff, 2);
-    const red = this.glow(this.mode === 'preparation' ? this.stationColor : 0xe53935, 2);
-    this.box(this.scene, [44, 0.2, 32], [0, -0.21, 0], dark);
-    this.box(this.scene, [40, 10, 0.3], [0, 3.5, -5], steel);
-    this.box(this.scene, [0.22, 0.22, 24], [-10, 6, 0], cyan);
-    this.box(this.scene, [0.22, 0.22, 24], [10, 6, 0], magenta);
-    this.box(this.scene, [42, 0.35, 0.5], [0, 6.3, 0], steel);
-    this.box(this.scene, [42, 0.045, 0.06], [0, 6.05, 0.3], red);
-    for (let i = -4; i <= 4; i++) {
-      this.box(this.scene, [0.22, 7, 0.45], [i * 4, 2.5, -4.7], dark);
-      this.box(this.scene, [0.05, 3.6, 0.07], [i * 4 + 0.3, 2.8, -4.4], i % 2 ? cyan : magenta);
-      this.box(this.scene, [2.2, 1.35, 0.18], [i * 4 + 2, 2.7, -4.6], dark);
-      for (let line = 0; line < 4; line++) {
-        this.box(this.scene, [0.5 + (line % 3) * 0.48, 0.024, 0.04], [i * 4 + 2, 2.35 + line * 0.2, -4.48], cyan);
-      }
-    }
-    const grid = new THREE.GridHelper(40, 32, 0x316a90, 0x1e3449);
-    grid.position.y = -0.095;
+    const steel = this.material(0x182431, 0.88, 0.3);
+    const dark = this.material(0x080f18, 0.68, 0.43);
+    const panel = this.material(0x101b28, 0.78, 0.36);
+    const cyan = this.glow(0x12c9ee, 2.5);
+    const red = this.glow(this.mode === 'preparation' ? this.stationColor : 0xff263c, 3.3);
+    const coolRed = this.glow(0xa71124, 1.6);
+
+    const floor = this.box(this.scene, [48, 0.16, 38], [0, -0.22, 0], this.material(0x0d131c, 0.82, 0.42));
+    floor.receiveShadow = true;
+    for (let row = -8; row <= 8; row += 1) this.box(this.scene, [46, 0.008, 0.018], [0, -0.133, row * 1.05], steel);
+    const grid = new THREE.GridHelper(44, 44, 0x244357, 0x172a39);
+    grid.position.y = -0.124;
     this.ownedGeometries.add(grid.geometry);
     this.ownedMaterials.add(grid.material);
     this.scene.add(grid);
-    // Thin irregular metal grooves suggest machining without external textures.
-    for (let i = 0; i < 24; i++) this.box(this.scene, [36, 0.003, 0.012], [0, -0.099, -4 + i * 0.36], steel);
+
+    // Original 3D skyline visible through an open sunset-red portal in the bay.
+    this.box(this.scene, [18, 11, 0.5], [-15, 4.7, -12], steel);
+    this.box(this.scene, [18, 11, 0.5], [15, 4.7, -12], steel);
+    this.box(this.scene, [12, 0.7, 0.5], [0, 10.05, -12], dark);
+    this.box(this.scene, [12, 1.2, 0.5], [0, 1.6, -12], dark);
+    const cityDisc = this.mesh(new THREE.CircleGeometry(3.75, 48), this.glow(0xff394c, 1.45));
+    cityDisc.position.set(0, 5.35, -14.2);
+    this.scene.add(cityDisc);
+    const cityMaterial = this.material(0x2a1d32, 0.52, 0.7), windowGlow = this.glow(0xb63850, 0.75);
+    const towers = [[-3.6, 1.7, 1.0], [-2.6, 2.7, 0.75], [-1.6, 1.35, 1.1], [-0.55, 3.2, 0.82],
+      [0.45, 1.9, 1.05], [1.55, 2.6, 0.8], [2.55, 1.55, 1.0], [3.45, 2.4, 0.7]] as const;
+    towers.forEach(([x, height, width], index) => {
+      this.box(this.scene, [width, height, 0.24], [x, 1.3 + height / 2, -14.05], cityMaterial);
+      for (let window = 0; window < 3; window += 1) this.box(this.scene, [0.08, 0.12, 0.025],
+        [x + (window - 1) * width * 0.24, 1.5 + (window % 2) * Math.min(0.55, height * 0.35), -13.89],
+        index % 2 ? windowGlow : cyan);
+    });
+    this.box(this.scene, [12.2, 0.15, 0.18], [0, 9.65, -11.65], red);
+    this.box(this.scene, [12.2, 0.15, 0.18], [0, 2.2, -11.65], red);
+    this.box(this.scene, [0.13, 7.45, 0.18], [-5.95, 5.9, -11.65], dark);
+    this.box(this.scene, [0.13, 7.45, 0.18], [5.95, 5.9, -11.65], dark);
+    this.box(this.scene, [0.055, 5.9, 0.08], [-5.86, 5.9, -11.52], cyan);
+    this.box(this.scene, [0.055, 5.9, 0.08], [5.86, 5.9, -11.52], red);
+    for (const side of [-1, 1]) {
+      const accent = side < 0 ? red : cyan, x = side * 7.35;
+      this.box(this.scene, [0.24, 5.8, 0.28], [x, 3.15, -8.6], steel);
+      this.box(this.scene, [0.075, 4.6, 0.08], [x - side * 0.17, 3.15, -8.4], accent);
+      this.box(this.scene, [3.4, 0.16, 0.3], [x + side * 1.5, 5.75, -8.6], dark);
+      this.box(this.scene, [2.8, 0.05, 0.08], [x + side * 1.5, 5.65, -8.4], accent);
+    }
+    this.box(this.scene, [8, 0.035, 0.08], [-5.2, -0.115, -3.8], red);
+    this.box(this.scene, [8, 0.035, 0.08], [5.2, -0.115, -3.8], cyan);
+
+    // Trusses, service conduits and alternating industrial light strips.
+    this.box(this.scene, [48, 0.22, 0.32], [0, 10.8, -11], dark);
+    for (let i = -5; i <= 5; i += 1) {
+      const x = i * 4.2;
+      if (Math.abs(x) >= 12.6) {
+        this.box(this.scene, [0.28, 9.7, 0.36], [x, 4.7, -8.4], steel);
+        this.box(this.scene, [0.2, 0.2, 12], [x, 9.7, -2], steel);
+        this.box(this.scene, [0.075, 2.5, 0.12], [x, 6.3, -7.9], i % 2 ? coolRed : cyan);
+      }
+      this.box(this.scene, [1.2, 0.07, 0.3], [x, 9.25, 0.3], dark);
+      this.box(this.scene, [0.95, 0.035, 0.09], [x, 9.18, 0.3], i % 2 ? cyan : red);
+    }
+    for (const side of [-1, 1]) {
+      const x = side * 8.4, accent = side < 0 ? red : cyan;
+      this.box(this.scene, [4.1, 2.65, 0.38], [x, 3.5, -8.2], panel);
+      this.box(this.scene, [3.35, 0.09, 0.08], [x, 4.35, -7.97], accent);
+      for (let line = 0; line < 4; line += 1) {
+        this.box(this.scene, [1.25 + (line % 2) * 0.5, 0.045, 0.06],
+          [x - 0.6, 3.75 - line * 0.35, -7.96], line === 0 ? accent : steel);
+      }
+      this.box(this.scene, [18, 0.04, 0.12], [x, 0.015, 2.5], accent);
+    }
+    for (const side of [-1, 1]) {
+      const x = side * 18.6;
+      this.box(this.scene, [0.5, 9.4, 24], [x, 4.55, 1], dark);
+      for (let bay = 0; bay < 4; bay += 1) {
+        const z = -7 + bay * 5.5;
+        this.box(this.scene, [0.7, 3.2, 3.8], [side * 17.9, 1.55, z], panel);
+        this.box(this.scene, [0.05, 2.1, 2.7], [side * 17.5, 1.7, z], bay % 2 ? cyan : red);
+        this.box(this.scene, [1.2, 0.13, 4.2], [side * 16.9, 3.25, z], steel);
+      }
+      this.box(this.scene, [0.22, 0.22, 29], [side * 17.35, 7.4, 0], side < 0 ? red : cyan);
+    }
+    this.addTireStacks(-10.2, -5.5, dark, steel);
+    this.addToolCabinet(10.2, -5.4, panel, red, cyan);
     this.batchStaticMeshes(this.scene);
-    this.scene.add(new THREE.HemisphereLight(0xc4dfff, 0x34334a, 1.1));
-    const key = new THREE.DirectionalLight(0xf2f4ff, 2.6);
-    key.position.set(3, 7, 5);
+    this.scene.add(new THREE.HemisphereLight(0xb6d5f4, 0x25191f, 0.95));
+    const key = new THREE.DirectionalLight(0xeaf3ff, 1.45);
+    key.position.set(-4, 11, 8);
     this.scene.add(key);
-    [[0xe53935, -8, 3, 3], [0x1677ff, 7, 4, 2], [0xbd44ff, 0, 4, -3]].forEach(([color, x, y, z]) => {
-      if (this.mode === 'preparation') color = this.stationColor;
-      const light = new THREE.PointLight(color, 40, 17, 1.6);
+    const fill = new THREE.DirectionalLight(0x43caff, 0.75);
+    fill.position.set(12, 7, 2);
+    this.scene.add(fill);
+    [[0xff263c, -8, 6, 3], [0x10c9ef, 8, 5, 1], [0xff513a, 0, 4, -7]].forEach(([color, x, y, z]) => {
+      const light = new THREE.PointLight(color, 17, 25, 1.8);
       light.position.set(x, y, z);
       this.scene.add(light);
     });
+  }
+
+  addTireStacks(x: number, z: number, dark: THREE.Material, steel: THREE.Material): void {
+    const rubber = this.material(0x090d13, 0.12, 0.82);
+    for (let stack = 0; stack < 3; stack += 1) for (let layer = 0; layer < 3; layer += 1) {
+      const tire = this.mesh(new THREE.TorusGeometry(0.58, 0.18, 8, 20), rubber);
+      tire.rotation.x = Math.PI / 2;
+      tire.position.set(x + stack * 1.15, 0.2 + layer * 0.37, z);
+      this.scene.add(tire);
+      if (layer === 1) {
+        const hub = this.mesh(new THREE.TorusGeometry(0.23, 0.045, 6, 16), steel);
+        hub.rotation.x = Math.PI / 2;
+        hub.position.set(tire.position.x, tire.position.y + 0.04, tire.position.z);
+        this.scene.add(hub);
+      }
+    }
+    this.box(this.scene, [4.1, 0.16, 2.2], [x + 1.1, 0.05, z], dark);
+  }
+
+  addToolCabinet(x: number, z: number, panel: THREE.Material, red: THREE.Material, cyan: THREE.Material): void {
+    this.box(this.scene, [4.2, 2.6, 1.4], [x, 1.2, z], panel);
+    for (let drawer = 0; drawer < 3; drawer += 1) {
+      const y = 0.48 + drawer * 0.7;
+      this.box(this.scene, [3.65, 0.05, 0.06], [x, y, z + 0.73], drawer % 2 ? cyan : red);
+      this.box(this.scene, [0.62, 0.07, 0.08], [x, y - 0.22, z + 0.77], this.material(0x657b8a, 0.85, 0.3));
+    }
+    this.box(this.scene, [4.8, 0.18, 1.7], [x, 2.63, z], this.material(0x1b2733, 0.8, 0.33));
   }
 
   setFocus(index: number): void {
@@ -216,24 +321,63 @@ export class GarageWorld {
     const selectedPaint = PAINTS[this.paintIndex];
     this.vehicles.forEach((vehicle, index) => {
       const selected = index === this.vehicleIndex;
-      const visible = this.selectionStage === 'vehicle' || selected;
-      const x = this.selectionStage === 'vehicle' ? (index - (this.vehicles.length - 1) / 2) * 5 : 0;
+      const visible = selected;
+      const x = 0;
       vehicle.position.x = x;
       vehicle.visible = visible;
       this.platforms[index].group.position.x = x;
       this.platforms[index].group.visible = visible;
+      this.platforms[index].group.scale.setScalar(selected ? 1 : 0.72);
       this.resources.paintVehicle(vehicle, selected ? selectedPaint : PAINTS[0]);
       this.platforms[index].neon.color.set(selected ? selectedPaint.color : PAINTS[0].color);
       this.platforms[index].neon.emissive.set(selected ? selectedPaint.color : PAINTS[0].color);
       this.platforms[index].neon.emissiveIntensity = selected ? 2.4 : 0.25;
     });
-    this.focusX = this.selectionStage === 'vehicle' ? (this.vehicleIndex - (this.vehicles.length - 1) / 2) * 5 : 0;
+    this.focusX = 0;
     this.arm?.focus(this.focusX);
+  }
+
+  /** Render small real-model thumbs once for the shop cards using the shared renderer. */
+  captureVehicleThumbnails(width = 160, height = 84): HTMLCanvasElement[] {
+    if (this.mode !== 'selection' || this.resources.disposed) return [];
+    const priorWidth = this.width, priorHeight = this.height;
+    const visibility = this.vehicles.map((vehicle, index) => ({ vehicle: vehicle.visible,
+      platform: this.platforms[index].group.visible }));
+    const thumbnailCamera = new THREE.PerspectiveCamera(34, width / height, 0.1, 90);
+    const canvases: HTMLCanvasElement[] = [];
+    try {
+      this.resources.renderer.setSize(width, height, false);
+      for (let index = 0; index < this.vehicles.length; index += 1) {
+        const vehicle = this.vehicles[index]!;
+        this.vehicles.forEach((candidate, candidateIndex) => {
+          candidate.visible = candidateIndex === index;
+          this.platforms[candidateIndex]!.group.visible = candidateIndex === index;
+        });
+        const x = vehicle.position.x;
+        thumbnailCamera.position.set(x + 2.5, 2.5, 4.9);
+        thumbnailCamera.lookAt(x, 0.72, 0);
+        this.resources.renderer.render(this.scene, thumbnailCamera);
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d')?.drawImage(this.resources.renderer.domElement, 0, 0, width, height);
+        canvases.push(canvas);
+      }
+    } finally {
+      this.vehicles.forEach((vehicle, index) => {
+        vehicle.visible = visibility[index]!.vehicle;
+        this.platforms[index]!.group.visible = visibility[index]!.platform;
+      });
+      this.resources.renderer.setSize(priorWidth, priorHeight, false);
+      thumbnailCamera.clear();
+      this.renderElapsed = 1;
+    }
+    return canvases;
   }
 
   confirm(done: () => void): void {
     if (this.confirming || !this.arm) return;
     this.confirming = true;
+    this.arm.group.visible = true;
     const vehicleHeight = this.vehicles[this.vehicleIndex].userData.size.y + 0.34;
     this.arm.gripY = vehicleHeight + 0.65;
     this.arm.homeY = Math.max(3.65, vehicleHeight + 1.6);
@@ -275,9 +419,9 @@ export class GarageWorld {
     this.cameraFocus = THREE.MathUtils.lerp(this.cameraFocus, this.focusX, 1 - Math.exp(-dt * 2.8));
     if (this.mode === 'selection') {
       // Keep the whole focused car in view, including on a tall preview area.
-      const distance = Math.max(8, 5 / this.camera.aspect);
-      this.camera.position.set(this.cameraFocus + 3.6, 4, distance);
-      this.camera.lookAt(this.cameraFocus, 1.1, 0);
+      const distance = Math.max(7.8, 5.2 / this.camera.aspect);
+      this.camera.position.set(this.cameraFocus + 3.1, 4.2, distance);
+      this.camera.lookAt(this.cameraFocus, 1.0, 0);
       if (this.selectionStage === 'paint') {
         // A single bay gives a closer view without altering model proportions.
         this.camera.position.set(4.1, 2.8, Math.max(5.8, 4.5 / this.camera.aspect));

@@ -22,15 +22,21 @@ Primeira experiência visual navegável:
 - Menu com **1 JOGADOR**, **CO-OP** e **ONLINE**. Os dois últimos permanecem bloqueados e mostram “Em breve”.
 - **Seleção de Personagem** com seis pilotos, retratos procedurais, biografias e atributos; Raze Riot foi substituído por Dax Voltage, técnico de ressonância e engenharia de som.
 - **Garagem 3D e loja:** seleção inicial de THUNDER BUG, CAMARO e ARMORED CAR; o módulo LOJA / GARAGEM da equipe abre as abas LOJA e MINHA GARAGEM. A loja mantém cinco opções visíveis, incluindo WIDOWMAKER e RACE CAR 2 (bloqueado para a fase 2); adquiridos têm selo **JÁ VENDIDO** e não são selecionáveis. MINHA GARAGEM mostra os adquiridos, inclusive o prêmio do rival, para equipar sem nova cobrança. GLBs com rodas animadas, prévias, plataformas e braço mecânico; a cor escolhida identifica a equipe, preservando os atlas originais dos carros.
-- **Estação de Equipe** com placas metálicas, neon vermelho/roxo, título laranja e barras segmentadas; valores reais do campeonato, piloto, veículo e o rival original **Ravik Ferro, O Fundidor**, com WIDOWMAKER. A engrenagem sem texto abre som global e gerenciamento seguro do progresso. Após a qualificação, é possível continuar até oito provas ou escolher um prêmio único; a fase 2 permanece em desenvolvimento. Detalhes em [TEAM_STATION.md](docs/TEAM_STATION.md).
+- **Estação de Equipe** com placas metálicas, neon vermelho/roxo, título laranja e barras segmentadas; valores reais do campeonato, piloto, veículo e o rival original **Ravik Ferro, O Fundidor**, com WIDOWMAKER. A engrenagem abre opções de música, efeitos e gerenciamento seguro do progresso. Após a qualificação, é possível continuar até oito provas ou escolher um prêmio único; a fase 2 permanece em desenvolvimento. Detalhes em [TEAM_STATION.md](docs/TEAM_STATION.md).
 - **Dificuldade Normal/Difícil**, selecionada antes do piloto e mantida durante a sessão.
 - **Campeonato local salvo:** recompensas de SCORE e MONEY independentes, compras/inventário, limite de oito provas por tentativa, meta por pontos, resultado pendente, reinício confirmado e continuação após recarregar.
-- Duas pistas 3D originais, **NEON FURNACE** e **VOLTAGE RUN**, com grid, três bots, física arcade, colisões, checkpoints, quatro voltas, classificação e resultados.
-- **START RACE** mostra somente a pista atribuída e CONFIRMAR/VOLTAR; retornar não muda a atribuição. Após concluir uma corrida, o ciclo segue sem repetição até usar as duas pistas, evitando repetição consecutiva entre ciclos.
-- Toda corrida inicia em **TERCEIRA PESSOA**, independentemente da câmera usada antes. **C** alterna suavemente com a **ISOMÉTRICA**; **Z** percorre três aproximações em terceira pessoa, somente na corrida atual.
+- Duas pistas 3D originais: **NEON FURNACE** e **VOLTAGE RUN**, com grid, três bots, física arcade, colisões, checkpoints, quatro voltas, classificação e resultados. NEON FURNACE abre uma carreira nova.
+- **START RACE** mostra somente a pista atribuída e CONFIRMAR/VOLTAR; retornar não muda a atribuição. Após concluir uma corrida, o ciclo percorre as duas pistas sem repetição e evita repetir a última entre ciclos.
+- Toda corrida inicia na câmera **ARCADE ISOMÉTRICA**, com ângulo oblíquo mais baixo para mostrar mais a lateral dos veículos. **C** alterna suavemente para **TERCEIRA PESSOA**; **Z** percorre três aproximações nessa câmera, somente na corrida atual.
 - Drift natural sob tração, dano por colisão, vida em bolinhas com preenchimento parcial, fumaça, explosão e respawn protegido para jogador e bots; carros com escala visual ×1,3 na corrida.
+- **Rival armado:** Ravik Ferro tem pilotagem própria e canhão Forja: cinco tiros por volta, projéteis de direção fixa e duração limitada; cada acerto válido retira uma bolinha (20 HP) e provoca um tranco curto. O Difícil reage mais rápido e aproveita melhor oportunidades, sem alterar limites físicos dos carros. O jogador ainda não usa armas. Regras e medições em [RIVAL_COMBAT.md](docs/RIVAL_COMBAT.md).
+- **Perfis dos NPCs:** rival preciso/agressivo, Camaro ousado e Armored cauteloso/oportunista. A meta de vitórias entre NPCs é 70%/15%/15%, não um sorteio de vencedores; a amostra atual ainda teve 100% de vitórias do rival, portanto o balanceamento dessa meta permanece pendente.
+- **Laboratório experimental de física 3D:** protótipo local isolado com Rapier 0.21.0, pista sintética, quatro raycasts de suspensão, salto balístico, aterrissagem e assistência opcional de pitch. Não substitui a física oficial e não acessa o campeonato nem os saves. Acesso em desenvolvimento: `http://127.0.0.1:5173/?physicsLab=1`.
 - Visual retrofuturista: tipografia metálica, neon e arte procedural, sem pixel art.
-- Trilha sintética original de rock arcade e perfis de motor sintetizados por veículo, ativados por interação e com controle global de som via M/botão. Escuta dos timbres e desempenho em GPU física ainda precisam de validação.
+- Trilha sintética original de rock arcade e perfis de motor sintetizados por veículo; o áudio começa após interação do jogador. Opções de música e controle separado de efeitos ficam nas Configurações.
+- Disparo do Widowmaker, impacto de tiro e derrapagem usam síntese procedural no build. Os três MP3 fornecidos pelo proprietário permanecem em `referencias-locais/audio/` e só são usados no dev até a licença ser confirmada; não entram em `dist/`. Explosões e colisões também continuam sintetizadas. Os volumes dos efeitos e da música são independentes. Mapeamento e medições em [AUDIO_AND_PACE.md](docs/AUDIO_AND_PACE.md).
+- **RIFFSHOT RADIO:** escolha a trilha procedural, rádio online gratuita da Radio Browser ou silêncio nas Configurações da Estação de Equipe. Pesquise Hard Rock, Classic Rock, Heavy Metal, Rock e 80s Rock; reproduza, pause, troque de estação e controle separadamente volume musical e efeitos. A rádio persiste entre cenas e reduz-se a um controle compacto na corrida. [API, limites e direitos das emissoras](docs/RIFFSHOT_RADIO.md).
+- **Música por pista:** Neon Furnace toca a faixa instrumental fornecida pelo proprietário, extraída do vídeo local sem distribuir o vídeo. Ela pausa audivelmente a trilha procedural durante a corrida e restaura a seleção musical ao sair; efeitos sonoros permanecem em canal independente. Em `npm run dev`, Configurações permite substituir/adicionar MP3 por pista, salvo só neste navegador (IndexedDB) e sem publicação automática. Detalhes em [NEON_FURNACE_MUSIC.md](docs/NEON_FURNACE_MUSIC.md).
 - **Créditos e licenças:** link no rodapé compartilhado por todos os menus para `./credits.html`, em nova aba, sem recarregar o jogo. A página é gerada de `THIRD_PARTY_NOTICES.md`, com escape do conteúdo Markdown; os avisos completos continuam disponíveis em `THIRD_PARTY_NOTICES.txt`.
 
 Fluxo atual: **Abertura → Menu → Dificuldade → Seleção de Personagem → Seleção de Veículo → Estação de Equipe → Pista → Corrida → Resultados**.
@@ -54,11 +60,21 @@ npm run dev
 
 Abra o endereço exibido pelo Vite, normalmente `http://127.0.0.1:5173`. Para parar o servidor, use `Ctrl+C` no terminal.
 
+### Laboratório local de física 3D (experimental)
+
+Com o servidor Vite em execução, abra `http://127.0.0.1:5173/?physicsLab=1`. A rota existe somente em desenvolvimento e inicia o laboratório isolado, sem carregar as cenas oficiais, ler/gravar saves ou alterar as corridas. A pista sintética usa a mesma malha para visualização e colisão Rapier.
+
+- **W/S:** acelerar, frear ou ré; **A/D:** virar.
+- **T:** alternar assistência de pitch; **B:** alternar visualização dos colisores/raycasts; **R:** reiniciar o veículo.
+- **E:** pausar automaticamente em decolagens/aterrissagens; **P:** pausar/continuar manualmente.
+
+O diagnóstico inclui contato, curso e força das quatro suspensões, velocidade, pitch/roll, torques de assistência e sequência das rodas no pouso. É um protótipo de pesquisa: não é a física das corridas oficiais e ainda precisa de avaliação de dirigibilidade e estabilidade com o proprietário.
+
 No PowerShell com execução de scripts desabilitada, use `npm.cmd` e `npx.cmd` no lugar de `npm` e `npx`; não é necessário alterar a política de segurança do Windows. Reinicie o servidor de desenvolvimento se ele já estava aberto antes da instalação do Three.js.
 
-Os veículos atuais usam os cinco GLBs do pacote selecionado e versionado em `assets/vehicles/`, com fallback procedural. A garagem exige WebGL 2. Desenvolvimento e build normais leem esse pacote, sem precisar de `referencias-locais/` nem executar a otimização de cerca de 30 segundos da etapa anterior. O plugin valida manifesto, tamanho, SHA-256 e estrutura GLB; cada binário deve ter **menos de 25 MiB**. Saves antigos preservam dinheiro, SCORE e progresso; `rift-blaze` agora é apresentado como THUNDER BUG. Consulte [VEHICLE_SHOP.md](docs/VEHICLE_SHOP.md).
+Os veículos atuais usam os cinco GLBs do pacote versionado em `public/assets/models/vehicles/`, com fallback procedural. A garagem exige WebGL 2. Desenvolvimento e build normais leem esse pacote, sem precisar de `referencias-locais/` nem executar a otimização de cerca de 30 segundos da etapa anterior. O plugin valida manifesto, tamanho, SHA-256 e estrutura GLB; cada binário deve ter **menos de 25 MiB**. Saves antigos preservam dinheiro, SCORE e progresso; `rift-blaze` agora é apresentado como THUNDER BUG. Consulte [VEHICLE_SHOP.md](docs/VEHICLE_SHOP.md).
 
-`npm run assets:prepare` é uma preparação **explícita**, somente para regenerar o pacote a partir dos cinco originais privados fixos. Não faz parte de `npm run dev` ou `npm run build`. O manifesto registra autor, título, fonte, licença, adaptações, URL pública, bytes e SHA-256. As referências privadas e os modelos históricos em `public/models/` permanecem ignorados e fora da distribuição.
+`npm run assets:prepare` é uma preparação **explícita**, somente para regenerar o pacote a partir dos cinco originais privados fixos. Não faz parte de `npm run dev` ou `npm run build`. O manifesto registra autor, título, fonte, licença, adaptações, URL pública, bytes e SHA-256. Assets históricos e todo o conteúdo de `referencias-locais/` ficam fora de `dist/`.
 
 ### Controles
 
@@ -74,12 +90,12 @@ Os veículos atuais usam os cinco GLBs do pacote selecionado e versionado em `as
 | Corrida | W / ↑ acelera; S / ↓ freia e, perto da parada, dá ré; A / ← vira à esquerda do carro, D / → à direita; Espaço usa freio de mão; Shift usa nitro quando disponível (THUNDER BUG); C alterna câmera; Z percorre três aproximações em terceira pessoa; Escape ou EQUIPE retorna sem consumir a pista |
 | Resultados | Tab/setas escolhem ação; Enter confirma. No fracasso 8/8, REINICIAR DESAFIO confirma o reset; MENU/Escape preserva o resultado pendente. Após atingir a meta, VER EQUIPE retorna com dinheiro/melhorias preservados |
 | Prêmio do rival | Após a qualificação, escolher WIDOWMAKER ou 12.000 créditos encerra o desafio; o carro recebido não troca automaticamente o equipado |
-| Som | **M** ou botão de som no canto inferior esquerdo ativa/silencia globalmente trilha e motores; perda de foco/página oculta também silencia |
+| Som | Configurações na Estação de Equipe escolhem trilha procedural, RIFFSHOT RADIO ou sem música; volumes de música e efeitos são separados. Foco/página oculta silenciam os efeitos do jogo. |
 | Créditos e licenças | Link no canto inferior direito; Tab ou Alt+L para focar, Enter para abrir em nova aba |
 
 ## Personagens e atributos
 
-Os dados ficam em `src/data/characters.ts`. Cada piloto possui um `id` estável, nome, perfil, descrição, configuração visual do retrato e um objeto `stats`. A lista `ATTRIBUTES` centraliza chaves, rótulos e finalidade futura dos atributos, evitando números e nomes espalhados na interface.
+Os dados ficam em `src/data/characters.ts`. Cada piloto possui um `id` estável, nome, perfil, descrição, configuração visual do retrato, objeto `stats` e exatamente duas `specialties`. Só essas duas especialidades afetam a física do piloto; ratings inativos aparecem apagados na seleção. `ATTRIBUTES` centraliza chaves e rótulos.
 
 | Piloto | Perfil | Velocidade | Aceleração | Controle | Resistência | Agressividade/contato |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -90,7 +106,7 @@ Os dados ficam em `src/data/characters.ts`. Cada piloto possui um `id` estável,
 | Dax Voltage | Engenharia de som | 6 | 5 | 4 | 6 | 9 |
 | Zuri Spark | Arrancada | 6 | 10 | 7 | 3 | 4 |
 
-Todos têm 30 pontos, numa escala de **1 a 10**. Esses valores são ratings de design, não km/h. Na corrida, velocidade, aceleração, controle e resistência modulam os parâmetros arcade de condução/impacto; agressividade modula o impulso no contato entre veículos e está preparada para sistemas ofensivos futuros.
+Todos têm 30 pontos, numa escala de **1 a 10**; os valores são ratings de design, não km/h. Cada piloto ativa exatamente dois talentos, com contribuição limitada a **1 ponto** no atributo do carro (ratings inferiores a 5 podem dar uma pequena desvantagem). Talentos: Vera — velocidade/controle; Kira — velocidade/aceleração; Echo-7 — controle/resistência; Atlas — resistência/agressividade; Dax — aceleração/agressividade; Zuri — aceleração/controle. Agressividade aumenta o impulso aplicado ao adversário no contato.
 
 Apenas **confirmar** altera a escolha canônica de piloto no campeonato. O Registry do Phaser recebe uma projeção dos IDs para as cenas existentes. Navegar pelos retratos ou cancelar não substitui a escolha confirmada; piloto, veículo, pintura e dificuldade são persistidos localmente. Com escolhas completas, 1 JOGADOR mostra CONTINUAR e abre a equipe (ou o resultado pendente); antes disso mantém o fluxo dificuldade → piloto → veículo.
 
@@ -98,19 +114,27 @@ Os controladores de jogador e bots consultam os ratings sem depender da interfac
 
 ## Garagem, veículo e estado do campeonato
 
-`src/data/vehicles.ts` centraliza cinco veículos, cores de equipe, atributos-base e regras de compra:
+`src/data/vehicles.ts` centraliza cinco veículos, cores de equipe, seis atributos-base e regras de compra:
 
-| Veículo | Velocidade | Aceleração | Controle | Resistência | Característica |
-| --- | ---: | ---: | ---: | ---: | --- |
-| THUNDER BUG (`rift-blaze`) | 76 | 84 | 72 | 55 | 2.000 créditos; 2 cargas de nitro, 3 s por carga, pico ×1,35; 4 bolinhas de vida |
-| CAMARO (`volt-vector`) | 62 | 76 | 84 | 35 | 800 créditos; sem nitro; 3 bolinhas |
-| ARMORED CAR (`iron-bastion`) | 58 | 52 | 56 | 100 | 7.500 créditos; sem nitro; 7 bolinhas |
-| RACE CAR 2 (`race-car-2`) | 94 | 92 | 82 | 70 | 15.000 créditos; bloqueado para fase 2; nitro configurado como no Thunder; 5 bolinhas |
-| WIDOWMAKER (`widowmaker`) | 88 | 78 | 65 | 90 | 24.000 créditos ou prêmio único do rival; sem nitro; 6 bolinhas |
+| Veículo | Velocidade | Aceleração | Controle | Resistência | Pneus | Suspensão | Característica |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| THUNDER BUG (`rift-blaze`) | 76 | 84 | 72 | 55 | 72 | 65 | 2.000 créditos; 2 cargas de nitro, 3 s por carga, pico ×1,35; 4 bolinhas de vida |
+| CAMARO (`volt-vector`) | 62 | 76 | 84 | 35 | 84 | 48 | 800 créditos; sem nitro; 3 bolinhas |
+| ARMORED CAR (`iron-bastion`) | 58 | 52 | 56 | 100 | 56 | 100 | 7.500 créditos; sem nitro; 7 bolinhas |
+| RACE CAR 2 (`race-car-2`) | 94 | 92 | 82 | 70 | 82 | 45 | 15.000 créditos; bloqueado para fase 2; nitro configurado como no Thunder; 5 bolinhas |
+| WIDOWMAKER (`widowmaker`) | 88 | 78 | 65 | 90 | 65 | 90 | 24.000 créditos ou prêmio único do rival; sem nitro; 6 bolinhas |
+
+Além dos valores da tabela, cada carro tem **PNEUS** (aderência lateral) e **SUSPENSÃO** (velocidade preservada ao absorver impacto). Controle modula direção; pneus modulam aderência. Suspensão já altera batidas em parede/veículo e fica disponível para futuras quedas/pousos, mas ainda não existe simulação vertical de saltos.
 
 As cores vermelha (`#E53935`), azul elétrica (`#1677FF`) e amarela (`#FFD027`) identificam equipe/plataforma: os GLBs atuais mantêm seus atlas e não são repintados integralmente. Bots usam a mesma física e o rival conduz WIDOWMAKER. O nome THUNDER BUG preserva o ID histórico `rift-blaze` e a propriedade dos saves.
 
-A escala-base é 0–100, não km/h. Cores são cosméticas. Velocidade, aceleração e controle alimentam a física arcade; resistência aumenta a capacidade de vida, sem segunda redução percentual de dano do veículo. O piloto aplica seus modificadores. Compra/equipamento passam pelo serviço de campeonato, persistindo propriedade e seleção sem duplicar carteira ou pontuação. Reequipar um carro adquirido não cobra novamente; falha ao salvar impede compra/prêmio.
+### Balanceamento local dos veículos
+
+Durante `npm run dev`, abra a engrenagem **Configurações → MODO DESENVOLVEDOR / ATRIBUTOS DOS CARROS**. A senha é validada pelo servidor local e não é incluída no JavaScript de produção; o editor aceita somente os atributos listados dos cinco veículos e inteiros de 0 a 100. **SALVAR** atualiza `src/data/vehicleTuning.json` e o Vite recarrega o jogo. Esse JSON é versionado: se você fizer commit dele, o build/produção usará os valores ajustados. `.env.local` guarda a senha apenas nesta máquina, é ignorado pelo Git e **não deve ser commitado**. O editor e a rota de gravação não são disponibilizados na produção.
+
+O painel protegido agora organiza **VEÍCULOS**, **ÁUDIO** e **DIFICULDADE IA** em abas. Na aba de IA, bônus separados de **0% a 20%** para bots e rival ajustam velocidade máxima, aceleração, aderência e direção; os valores são locais ao navegador, começam em 0% e só entram na próxima corrida na dificuldade **Difícil**. Não alteram o jogador, atributos versionados nem progresso da carreira.
+
+A escala-base é 0–100, não km/h. Cores são cosméticas. Velocidade, aceleração, controle, pneus e suspensão alimentam seus parâmetros físicos próprios; armor aumenta as bolinhas de vida. O piloto só modula suas duas especialidades ativas. Carros iguais têm os mesmos dados do catálogo para jogador e bots. Compra/equipamento passam pelo serviço de campeonato, persistindo propriedade e seleção sem duplicar carteira ou pontuação. Reequipar um carro adquirido não cobra novamente; falha ao salvar impede compra/prêmio.
 
 `src/championship/Championship.ts` é o único serviço compartilhado pelas cenas. `championshipState.ts` implementa transições puras e validação; `championshipStorage.ts` é o adaptador local. `src/data/raceState.ts` apenas lê esse estado canônico para o painel. O início mantém o saldo anterior de **$ 2.000**, divisão **B**, zero corridas e SCORE zero; os exemplos de referência não substituem esses dados reais.
 
@@ -124,7 +148,7 @@ THUNDER BUG usa outro modelo e o derivado sem perdas de **25.452.592 bytes (24,2
 
 ### Corridas atuais
 
-`src/data/raceTracks.ts` contém duas pistas fechadas originais: **NEON FURNACE** (indústria e neon vermelho/laranja) e **VOLTAGE RUN** (noite, curvas técnicas e trechos elevados azul/violeta). O traçado central define waypoints, largura, altura visual e checkpoints ordenados; ainda não há tipos de superfície com física própria.
+`src/data/raceTracks.ts` contém duas pistas fechadas originais: **NEON FURNACE** (indústria e neon vermelho/laranja) e **VOLTAGE RUN** (noite, curvas técnicas e trechos elevados azul/violeta). NEON FURNACE é a abertura de carreiras novas; o minimapa continua sendo desenhado do traçado central.
 
 Ao escolher **1 JOGADOR**, a tela Normal/Difícil vem antes do piloto. `src/data/raceDifficulty.ts` centraliza os parâmetros da IA: antecipação, resposta de direção, erro de trajetória e desejo de ultrapassagem. Dificuldade não aumenta o limite físico de velocidade.
 
@@ -136,7 +160,7 @@ Em `npm run dev`, **F2** mostra um painel temporário com FPS Three.js, delta/qu
 
 A chegada registra pista, dificuldade, tempo, colocação, SCORE e MONEY da corrida no campeonato uma única vez. A tela de resultados exibe esse recibo; abrir/voltar/recarregar não aplica prêmios novamente. O módulo VEÍCULO da equipe abre a loja real; upgrades e reparos permanecem indisponíveis.
 
-`docs/GAMEPLAY_REFERENCE.md` separa relatos públicos sobre o clássico de fatos confirmados no código e hipóteses de design. A ROM em `referencias-locais/` não foi aberta, executada, copiada nem adicionada ao Git.
+`docs/GAMEPLAY_REFERENCE.md` separa relatos públicos sobre o clássico de fatos confirmados no código e hipóteses de design. A ROM permanece apenas em `referencias-locais/`; nesta investigação foram lidos localmente somente tamanho e cabeçalho, sem executá-la, desassemblá-la, copiá-la ou adicioná-la ao Git.
 
 ### SCORE, MONEY e progressão implementados
 
@@ -161,7 +185,7 @@ Em **8/8 sem a meta**, os resultados e totais permanecem até o jogador clicar *
 
 O campeonato contém pista pendente, ciclo restante, última concluída e histórico da tentativa. Em condições normais há somente CONFIRMAR/VOLTAR: voltar/abandonar/recarregar não sorteia de novo. O ciclo usa todas as pistas antes de renová-las, evitando repetir a última entre ciclos.
 
-Após confirmar o reinício por fracasso, **somente a primeira corrida da nova tentativa** oferece as duas pistas. A disponibilidade e a escolha confirmada sobrevivem ao reload; confirmar/abandonar não consome a exceção. Ela termina quando o primeiro resultado válido é registrado, e o rodízio automático continua a partir da pista utilizada. O histórico da nova tentativa começa vazio; tentativas anteriores ficam arquivadas separadamente.
+Após confirmar o reinício por fracasso, **somente a primeira corrida da nova tentativa** oferece escolha entre as duas pistas. A disponibilidade e a escolha confirmada sobrevivem ao reload; confirmar/abandonar não consome a exceção. Ela termina quando o primeiro resultado válido é registrado, e o rodízio automático continua a partir da pista utilizada. O histórico da nova tentativa começa vazio; tentativas anteriores ficam arquivadas separadamente.
 
 ### Salvamento local e recuperação segura
 
@@ -183,9 +207,9 @@ Phaser mantém cenas, controles, simulação e HUD. **Na corrida**, `RaceCanvasL
 
 ### Câmeras e qualidade visual
 
-`src/data/raceCameras.ts` centraliza altura, distância, FOV, resposta e duração de transição; `RaceCameraRig` separa essas regras de apresentação da corrida. A isométrica usa projeção ortográfica e segue o jogador. A terceira pessoa usa três aproximações via **Z**, com FOV-base de **62° / 70° / 80°**, altura/distância ajustadas ao tamanho do carro, acompanhamento com atraso e mira adiante. Em retrato, o FOV é adaptado à proporção e à cobertura horizontal necessária para preservar o enquadramento; não é fixo em 70°. A direção da câmera é suavizada por ângulo e taxa máxima, inclusive em colisões, paradas e giros; não muda os controles do carro. A câmera é uma preferência visual da corrida ativa, não um estado persistente do campeonato; toda prova nova começa em terceira pessoa.
+`src/data/raceCameras.ts` centraliza altura, distância, FOV, resposta e duração de transição; `RaceCameraRig` separa essas regras de apresentação da corrida. A câmera arcade padrão usa projeção ortográfica oblíqua e acompanha o jogador de um ponto mais baixo, menos voltado para o teto. **C** alterna para terceira pessoa, que usa três aproximações via **Z**, FOV-base de **62° / 70° / 80°**, altura/distância ajustadas ao tamanho do carro, acompanhamento com atraso e mira adiante. Em retrato, o FOV é adaptado à proporção e à cobertura horizontal necessária para preservar o enquadramento; não é fixo em 70°. A direção da câmera é suavizada por ângulo e taxa máxima; física e controles não mudam. Toda prova nova volta à câmera arcade padrão.
 
-**C** faz uma passagem suave de posição, rotação e projeção. Comandos repetidos são ignorados durante a transição. O HUD informa o modo ativado brevemente. **Cada nova corrida começa em terceira pessoa** e não herda a isométrica da prova anterior. A direção usa apenas a orientação física do veículo: o sinal de A/D foi corrigido no adaptador humano sem alterar o controlador geométrico dos bots. S primeiro freia e então aplica aceleração negativa para a ré; W freia a ré antes de acelerar à frente. O freio não cruza zero por overshoot. Em ré, a mudança de orientação segue naturalmente a cinemática do carro, não uma troca de eixos de câmera.
+**C** faz uma passagem suave de posição, rotação e projeção. Comandos repetidos são ignorados durante a transição. O HUD informa o modo ativado brevemente. **Cada nova corrida começa na câmera arcade isométrica** e não herda a terceira pessoa da prova anterior. A direção usa apenas a orientação física do veículo: o sinal de A/D foi corrigido no adaptador humano sem alterar o controlador geométrico dos bots. S primeiro freia e então aplica aceleração negativa para a ré; W freia a ré antes de acelerar à frente. O freio não cruza zero por overshoot. Em ré, a mudança de orientação segue naturalmente a cinemática do carro, não uma troca de eixos de câmera.
 
 O sistema de raio recolhe o braço de câmera diante da pista, defensas e estruturas, com limite antes da superfície. É uma prevenção simples, não colisão completa de volume: obstruções parciais e ângulos extremos ainda podem exigir ajuste.
 
@@ -215,10 +239,10 @@ Os atributos ficam no catálogo de veículos; os templates Three.js normalizam o
 
 O loop de aproximadamente 14,1 segundos é renderizado uma vez com `OfflineAudioContext` e reproduzido por uma única fonte no contexto de áudio do Phaser, gerenciada por `src/audio/MenuMusic.ts`. Assim, continua entre as telas sem reiniciar ou sobrepor trilhas, e a síntese não roda no loop do jogo.
 
-- O navegador exige interação: antes do primeiro Enter, clique ou toque, a abertura pode ficar silenciosa. O botão **Som: ativar** também inicia o áudio.
-- Volume de saída inicial de 18%, com margem de pico e transições suaves ao silenciar; o volume percebido também depende do sistema e dos alto-falantes.
-- **M** e o botão de som permitem silenciar; ocultar ou desfocar a página também silencia a saída.
-- Se a API não existir ou a geração falhar, a navegação continua normalmente e o botão informa **Som indisponível**.
+- O navegador exige interação: a fonte musical escolhida começa a tocar somente após uma ação do jogador.
+- Volume inicial da trilha do jogo de 18%, com margem de pico e transições suaves; a rádio tem volume independente.
+- A engrenagem de Configurações na Estação de Equipe permite escolher a fonte musical e ajustar separadamente os volumes; ocultar ou desfocar a página silencia os efeitos do jogo.
+- Se a geração procedural falhar, a navegação continua normalmente; a Radio Browser é opcional e falhas de emissoras não bloqueiam o gameplay.
 - A fonte e os listeners globais são liberados ao destruir o jogo.
 
 **Limitação:** esta trilha é um placeholder sintetizado, não uma gravação de guitarra nem uma produção musical final. Nenhum arquivo de áudio externo precisa ser baixado. O módulo pode ser substituído por uma trilha autoral produzida futuramente.
@@ -232,7 +256,7 @@ npm run preview
 
 A prévia é local, normalmente em `http://127.0.0.1:4173`. O build é gerado em `dist/`, que não é versionado.
 
-O build Vite emite o aplicativo, favicon, os cinco GLBs do pacote validado, `credits.html` e `THIRD_PARTY_NOTICES.txt`. Não copia `public/` inteira nem lê as referências privadas. A preparação explícita dos modelos é descrita em [VEHICLE_SHOP.md](docs/VEHICLE_SHOP.md).
+O build Vite emite o aplicativo, favicon, três ícones de HUD, a faixa aprovada de Neon Furnace, os cinco GLBs do pacote validado, `credits.html` e `THIRD_PARTY_NOTICES.txt`. Não copia `public/` inteira nem lê as referências privadas. A preparação explícita dos modelos é descrita em [VEHICLE_SHOP.md](docs/VEHICLE_SHOP.md).
 
 ### Testes proporcionais ao impacto
 
@@ -310,11 +334,13 @@ src/
     GarageScene.ts                 # Ponte Phaser/Three e ciclo de vida da prévia
     VehicleSelectionScene.ts       # Garagem, pinturas e confirmação mecânica
     RacePreparationScene.ts        # Preparação e módulos de navegação
-    RaceTrackSelectionScene.ts     # NEON FURNACE / VOLTAGE RUN
+    RaceTrackSelectionScene.ts     # duas pistas originais; Neon Furnace abre a carreira
     RaceScene.ts                   # HUD e integração da simulação/rend. 3D
     RaceResultsScene.ts            # Classificação dos quatro competidores
     RivalRewardScene.ts            # Prêmio único: Widowmaker ou créditos fictícios
     RaceDevelopmentScene.ts        # Aviso de corrida em desenvolvimento
+    PhysicsLabBootstrapScene.ts   # Entrada lazy do laboratório local de desenvolvimento
+    PhysicsLabScene.ts            # Render Three.js e painel experimental isolado
   race/
     RaceSimulation.ts              # Física arcade, checkpoints e classificação
     BotController.ts               # Navegação e decisões dos três bots
@@ -322,6 +348,9 @@ src/
     damageMath.ts                  # Capacidade, dano normal e perda gradual de condução
     trackMath.ts                    # Curvas, projeção e pontos do circuito
     trackAssignment.ts             # Pista pendente e ciclos idempotentes de sessão
+  physics-lab/
+    RapierVehicleLab.ts            # Mundo Rapier, quatro suspensões e saltos experimentais
+    trackGeometry.ts               # Pista sintética compartilhada entre visual e colisores
   ui/
     theme.ts                      # Paleta, tipografia e nomes das cenas
     MenuButton.ts                 # Botão reutilizável e estado visual
@@ -398,7 +427,7 @@ Os itens abaixo são ideias de trabalho futuro; não são funcionalidades dispon
 - Expandir o campeonato além das duas pistas e quatro voltas por corrida atuais.
 - Implementar upgrades/tuning e reparos usando MONEY; esses módulos continuam desativados, enquanto a loja de veículos já permite compras com créditos fictícios.
 - Adicionar o retrato definitivo e ampliar a apresentação do rival; WIDOWMAKER já aparece como miniatura na equipe e como veículo do rival na corrida.
-- Implementar armas, melhorias e bônus ofensivos; colisões, dano, destruição e respawn já integram a corrida atual.
+- Expandir armas para o jogador, melhorias e bônus ofensivos; o canhão do rival, colisões, dano, destruição e respawn já integram a corrida atual.
 - Implementar novos rivais/divisões e a fase 2. Hoje a qualificação permite farming até oito provas e prêmio único, encerrando com aviso de desenvolvimento.
 - Adicionar interface de exportação/recuperação de saves e migrações de formatos futuros conhecidos; avaliar integração Game-IA sem criar autenticação própria.
 - Validar desempenho e experiência em navegadores e dispositivos físicos, incluindo GPUs móveis e WebGL 2.
@@ -432,7 +461,7 @@ As adaptações incluem normalização de escala/orientação, pivôs e animaç�
 
 O antigo modelo provisório Air Blade tinha autoria declarada **Linomig**, origem Sketchfab e licença declarada **CC BY 4.0**. Ele foi removido do aplicativo e do repositório; consulte `CREDITS.md` para o histórico de atribuição. Essa licença declarada não confirma direitos sobre o design retratado.
 
-O build Vite desativa a cópia automática de `public/`; os plugins emitem o favicon SVG, cinco GLBs validados, página de créditos e avisos integrais. `referencias-locais/` e `public/models/` histórico não são copiados para `dist`/Cloudflare. O antigo Sci - Fi Buggy e Air Blade ficam fora do pacote distribuído.
+O build Vite desativa a cópia automática de `public/`; allowlists emitem apenas o favicon, os três ícones de munição, a faixa aprovada de Neon Furnace, cinco GLBs validados, página de créditos e avisos integrais. Outros MP3s ainda sem licença confirmada, ROMs, referências e modelos experimentais em `referencias-locais/` não são copiados para `dist`/Cloudflare. O antigo Sci - Fi Buggy e Air Blade ficam fora do pacote distribuído.
 
 **Áudio e software:** Neon Ignition (`src/audio/rockLoop.ts`) e os timbres de `RaceEngineAudio` são sínteses originais, sem samples externos. Fontes tipográficas são alternativas do sistema, sem arquivos de fonte incluídos. Os avisos MIT de **Phaser 3, Three.js e eventemitter3** acompanham a distribuição em HTML e TXT. Cada licença se aplica ao respectivo recurso; estes créditos não alteram nem concedem uma nova licença às criações próprias do projeto.
 

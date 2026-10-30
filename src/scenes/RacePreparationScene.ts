@@ -1,6 +1,6 @@
 import { GarageScene } from './GarageScene.ts';
 import { getSelectedCharacter } from '../data/characters.ts';
-import { getSelectedVehicle, VEHICLE_ATTRIBUTES, RIVAL_VEHICLE_ID, getVehicleDisplayName } from '../data/vehicles.ts';
+import { getSelectedVehicle, STATION_PRIMARY_ATTRIBUTES, STATION_DETAIL_ATTRIBUTES, RIVAL_VEHICLE_ID, getVehicleById, getVehicleDisplayName } from '../data/vehicles.ts';
 import { getRaceState } from '../data/raceState.ts';
 import { characterPortrait } from '../visuals/characterPortrait.ts';
 import { COLORS, SCENES, text } from '../ui/theme.ts';
@@ -18,6 +18,7 @@ import type { Vehicle, PAINTS } from '../data/vehicles.ts';
 type Selection = { vehicle: Readonly<Vehicle>; paint: (typeof PAINTS)[number] };
 type PrepButton = PreparationButton;
 type PrepStatPanel = Phaser.GameObjects.Container & { arrange: (x: number, y: number, width: number, height: number) => unknown };
+type LocalTuningEditor = { open(): void };
 const number = (value: number) => Number(value).toLocaleString('pt-BR');
 
 export class RacePreparationScene extends GarageScene {
@@ -28,6 +29,7 @@ export class RacePreparationScene extends GarageScene {
   declare stationBackdrop: Phaser.GameObjects.Image;
   declare title: Phaser.GameObjects.Image;
   declare settings: StationSettings & { button: HTMLButtonElement };
+  declare vehicleTuningEditor: LocalTuningEditor | null;
   declare stationKicker: Phaser.GameObjects.Text;
   declare pilotPanel: Phaser.GameObjects.Container;
   declare pilotFrame: Phaser.GameObjects.Graphics;
@@ -49,11 +51,18 @@ export class RacePreparationScene extends GarageScene {
   declare rivalPreview: Phaser.GameObjects.Image | null;
   declare statValues: Record<string, Phaser.GameObjects.Text>;
   declare motor: PrepStatPanel;
-  declare suspension: PrepStatPanel;
+  declare chassis: PrepStatPanel;
   declare armor: PrepStatPanel;
   declare vehicleAbility: Phaser.GameObjects.Text;
+  declare playerInfo: Phaser.GameObjects.Container;
+  declare rivalInfo: Phaser.GameObjects.Container;
+  declare attributePopup: Phaser.GameObjects.Container;
+  declare attributePopupTitle: Phaser.GameObjects.Text;
+  declare attributePopupRows: Phaser.GameObjects.Text[];
+  declare attributePopupValues: Phaser.GameObjects.Text[];
   declare campaign: Phaser.GameObjects.Container;
   declare campaignFrame: Phaser.GameObjects.Graphics;
+  declare campaignDividers: Phaser.GameObjects.Graphics;
   declare seasonLabel: Phaser.GameObjects.Text;
   declare playerLabel: Phaser.GameObjects.Text;
   declare playerName: Phaser.GameObjects.Text;
@@ -70,6 +79,8 @@ export class RacePreparationScene extends GarageScene {
   constructor() { super(SCENES.preparation); }
 
   create() {
+    document.body.classList.add('team-station-active');
+    this.events.once('shutdown', () => document.body.classList.remove('team-station-active'));
     if (this.game.championship.state.pendingResult) { this.scene.start(SCENES.results); return; }
     this.character = getSelectedCharacter(this.registry)!;
     this.selection = getSelectedVehicle(this.registry)!;
@@ -79,11 +90,24 @@ export class RacePreparationScene extends GarageScene {
     }
     this.raceState = getRaceState(this.registry);
     this.erasingProgress = false;
+    this.vehicleTuningEditor = null;
     this.createGarageShell('RIFFSHOT RACING. Estação de Equipe. Tab ou setas navegam; Enter confirma. A engrenagem abre Configurações, som e apagar progresso. Escape volta à loja e garagem.');
     this.stationBackdrop = createStationBackdrop(this).setDepth(-8);
     this.backdrop.image.setVisible(false); this.backdrop.motion.setVisible(false);
     this.title = createStationTitle(this);
-    this.settings = new StationSettings(this, { onErase: () => this.requestEraseProgress() }) as StationSettings & { button: HTMLButtonElement };
+    const onVehicleTuning = import.meta.env.DEV ? () => {
+      this.settings?.close();
+      if (this.vehicleTuningEditor) { this.vehicleTuningEditor.open(); return; }
+      void import('../ui/VehicleTuningEditor.ts').then(({ VehicleTuningEditor }) => {
+        if (!this.sys.isActive()) return;
+        this.vehicleTuningEditor = new VehicleTuningEditor(this);
+        this.vehicleTuningEditor.open();
+      }).catch(() => this.announce('O editor local de veículos não pôde ser aberto.'));
+    } : undefined;
+    this.settings = new StationSettings(this, {
+      onErase: () => this.requestEraseProgress(),
+      ...(onVehicleTuning ? { onVehicleTuning } : {}),
+    }) as StationSettings & { button: HTMLButtonElement };
     this.stationKicker = text(this, 0, 0, 'PIT CONTROL  /  TELEMETRIA ORBITAL', 11, '#71f6ff');
     this.pilotPanel = this.add.container();
     this.pilotFrame = this.add.graphics();
@@ -111,16 +135,17 @@ export class RacePreparationScene extends GarageScene {
     this.rivalVehicleShape.lineBetween(-27, -6, 30, -6);
     this.rivalVehicle.add([this.rivalVehicleFrame, this.rivalVehicleShape, this.rivalVehicleTitle, this.rivalVehicleSoon]);
     this.statValues = {};
-    const statPanel = (heading: string, keys: string[]) => createStatPanel(this, heading, VEHICLE_ATTRIBUTES.filter(item => keys.includes(item.key)), this.selection.vehicle.stats, this.statValues);
-    this.motor = statPanel('MOTOR', ['speed', 'acceleration']);
-    this.suspension = statPanel('SUSPENSÃO', ['control']);
-    this.armor = statPanel('RESISTÊNCIA', ['armor']);
+    const rivalVehicle = getVehicleById(RIVAL_VEHICLE_ID)!;
+    this.motor = createStatPanel(this, 'PLAYER / ATRIBUTOS', STATION_PRIMARY_ATTRIBUTES, this.selection.vehicle.stats, this.statValues, 0x19eaff);
+    this.chassis = createStatPanel(this, 'RIVAL / ATRIBUTOS', STATION_PRIMARY_ATTRIBUTES, rivalVehicle.stats, {}, 0xff3d68);
+    this.createAttributeInfo();
     this.vehicleAbility = text(this, 0, 0, this.selection.vehicle.ability.nitroCharges
       ? 'NITRO / 2 CARGAS' : this.selection.vehicle.id === 'iron-bastion' ? 'BLINDAGEM REFORÇADA' : 'TRAÇÃO PRECISA',
     10, '#ffb454', true);
     this.createActions();
     this.content.add([this.title, this.stationKicker, this.pilotPanel, this.rivalPanel, this.campaign, this.vehicleFrame,
-      this.vehicleTitle, this.vehicleAbility, this.rivalVehicle, this.motor, this.suspension, this.armor, ...this.modules, this.startButton, this.rewardButton]);
+      this.vehicleTitle, this.vehicleAbility, this.rivalVehicle, this.motor, this.chassis,
+      this.playerInfo, this.rivalInfo, this.attributePopup, ...this.modules, this.startButton, this.rewardButton]);
     // Keep the base's ready/error feedback; handle an uncaught loader rejection too.
     const loadingLabel = this.loadingLabel;
     this.mountGarage({ mode: 'preparation', vehicleId: this.selection.vehicle.id,
@@ -134,10 +159,69 @@ export class RacePreparationScene extends GarageScene {
     bindPreparationKeys(this, event => this.handleKey(event));
   }
 
+  createAttributeInfo() {
+    const makeInfo = (accent: number, title: string, stats: Record<string, number>) => {
+      const button = this.add.container();
+      const icon = this.add.graphics().fillStyle(0x03111b, 0.98).lineStyle(3, accent, 1).fillCircle(0, 0, 20)
+        .strokeCircle(0, 0, 20);
+      const label = text(this, 0, 0, 'i', 25, '#ffffff', true).setOrigin(0.5);
+      button.add([icon, label]).setSize(44, 44);
+      button.setInteractive({ useHandCursor: true });
+      button.on('pointerover', () => this.showAttributeInfo(title, stats, accent));
+      button.on('pointerout', () => this.attributePopup.setVisible(false));
+      return button;
+    };
+    const rival = getVehicleById(RIVAL_VEHICLE_ID)!;
+    this.playerInfo = makeInfo(0x19eaff, 'ATRIBUTOS DO SEU VEÍCULO', this.selection.vehicle.stats as Record<string, number>);
+    this.rivalInfo = makeInfo(0xff3d68, 'ATRIBUTOS DO RIVAL', rival.stats as Record<string, number>);
+    this.attributePopup = this.add.container().setVisible(false).setDepth(40);
+    const frame = this.add.graphics();
+    const segments = this.add.graphics();
+    this.attributePopupTitle = text(this, 0, 0, '', 15, '#71f6ff', true).setOrigin(0.5);
+    this.attributePopupRows = STATION_DETAIL_ATTRIBUTES.map(() => text(this, 0, 0, '', 13, '#e8f7ff').setOrigin(0, 0.5));
+    this.attributePopupValues = STATION_DETAIL_ATTRIBUTES.map(() => text(this, 0, 0, '', 12, '#f0f6fc', true).setOrigin(1, 0.5));
+    this.attributePopup.add([frame, segments, this.attributePopupTitle, ...this.attributePopupRows, ...this.attributePopupValues]);
+    this.attributePopup.setData('frame', frame);
+    this.attributePopup.setData('segments', segments);
+  }
+
+  showAttributeInfo(title: string, stats: Record<string, number>, accent: number) {
+    const popup = this.attributePopup;
+    const frame = popup.getData('frame') as Phaser.GameObjects.Graphics;
+    const segments = popup.getData('segments') as Phaser.GameObjects.Graphics;
+    const width = 310, height = 170;
+    frame.clear().fillStyle(0x06121c, 0.98).lineStyle(2, accent, 1)
+      .fillRoundedRect(-width / 2, -height / 2, width, height, 8)
+      .strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
+    segments.clear();
+    this.attributePopupTitle.setText(title).setPosition(0, -height / 2 + 22).setFontSize(13);
+    STATION_DETAIL_ATTRIBUTES.forEach((attribute, index) => {
+      const y = -height / 2 + 52 + index * 25;
+      const value = stats[attribute.key];
+      const label = attribute.key === 'speed' ? 'VELOCIDADE' : attribute.key === 'acceleration' ? 'ACELERAÇÃO'
+        : attribute.key === 'suspension' ? 'SUSPENSÃO' : attribute.label;
+      this.attributePopupRows[index].setText(label).setFontSize(11).setPosition(-width / 2 + 12, y);
+      this.attributePopupValues[index].setText(Number.isFinite(value) ? String(value) : '—').setPosition(width / 2 - 12, y);
+      const barX = 18, barY = y - 6, slotWidth = 12, slotHeight = 11, gap = 3;
+      for (let slot = 0; slot < 5; slot += 1) {
+        const x = barX + slot * (slotWidth + gap);
+        const fill = Number.isFinite(value) ? Math.max(0, Math.min(1, (value - slot * 20) / 20)) : 0;
+        segments.fillStyle(0x142632).fillRect(x, barY, slotWidth, slotHeight)
+          .lineStyle(1, 0x425967, 0.75).strokeRect(x, barY, slotWidth, slotHeight);
+        if (fill > 0) segments.fillStyle(accent, 0.25).fillRect(x - 1, barY - 1, slotWidth * fill + 2, slotHeight + 2)
+          .fillStyle(accent).fillRect(x, barY, slotWidth * fill, slotHeight)
+          .fillStyle(0xffe49d, 0.75).fillRect(x + 1, barY + 1, Math.max(0, slotWidth * fill - 2), 2);
+      }
+    });
+    popup.setPosition(accent === 0x19eaff ? -350 : 350, 95).setVisible(true);
+    this.content.bringToTop(popup);
+  }
+
   createCampaign() {
     const state = this.raceState;
     this.campaign = this.add.container();
     this.campaignFrame = this.add.graphics();
+    this.campaignDividers = this.add.graphics();
     this.seasonLabel = text(this, 0, 0, state.attempt.status === 'qualified'
       ? state.rivalRewardChoice ? 'DESAFIO CONCLUÍDO / PRÊMIO RECEBIDO' : 'META ATINGIDA / VOCÊ ESCOLHE QUANDO AVANÇAR'
       : `TEMPORADA / TENTATIVA ${state.attempt.number}`, 11, '#ffb454', true).setPadding(0);
@@ -158,7 +242,7 @@ export class RacePreparationScene extends GarageScene {
           : 'OITO CORRIDAS CONCLUÍDAS / ESCOLHA SEU PRÊMIO'
       : `META SCORE / ${Math.min(100, Math.floor(state.score / state.targetScore * 100))}%`, 10, '#ffb454');
     this.campaign.add([this.campaignFrame, this.seasonLabel, this.playerLabel, this.playerName,
-      this.scoreProgress, this.scoreStatus,
+      this.scoreProgress, this.campaignDividers, this.scoreStatus,
       ...this.campaignFields.flatMap(field => [field.label, field.value])]);
   }
 
@@ -256,7 +340,8 @@ export class RacePreparationScene extends GarageScene {
       return;
     }
     this.announce('Progresso apagado. Voltando à abertura.');
-    this.goTo(SCENES.splash);
+    this.settings.close();
+    this.goTo(SCENES.menu);
   }
 
   startNextRace() {

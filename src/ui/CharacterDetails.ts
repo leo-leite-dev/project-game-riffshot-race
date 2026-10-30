@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ATTRIBUTES, ATTRIBUTE_SCALE } from '../data/characters.ts';
+import type { PilotAttribute } from '../data/characters.ts';
 import { characterPortrait } from '../visuals/characterPortrait.ts';
 import { COLORS, text } from './theme.ts';
 import type { RacingCharacter } from './CharacterCard.ts';
@@ -15,6 +16,7 @@ export class CharacterDetails extends Phaser.GameObjects.Container {
   // Phaser reserves GameObject.name as a string; this game keeps the Text there.
   name: string & Phaser.GameObjects.Text;
   profile: Phaser.GameObjects.Text;
+  specialtyNote: Phaser.GameObjects.Text;
   description: Phaser.GameObjects.Text;
   statBars: Phaser.GameObjects.Graphics;
   statValues: Phaser.GameObjects.Text[];
@@ -28,6 +30,7 @@ export class CharacterDetails extends Phaser.GameObjects.Container {
     this.profile = text(scene, -77, -119, '', 13, '#71f6ff').setOrigin(0, 0.5);
     this.description = text(scene, -77, -92, '', 17, '#afbdd0').setOrigin(0, 0);
     this.description.setStyle({ align: 'left', wordWrap: { width: 325 }, lineSpacing: 4 });
+    this.specialtyNote = text(scene, 0, 180, '', 10, '#71f6ff', true).setOrigin(0.5, 0.5);
     this.statBars = scene.add.graphics();
     this.statValues = attributes.map((attribute, i) => {
       const label = text(scene, -250, 24 + i * 33, attribute.label, 16, COLORS.muted).setOrigin(0, 0.5);
@@ -35,7 +38,7 @@ export class CharacterDetails extends Phaser.GameObjects.Container {
       this.add([label, value]);
       return value;
     });
-    this.addAt([this.frame, this.portrait, this.name, this.profile, this.description, this.statBars], 0);
+    this.addAt([this.frame, this.portrait, this.name, this.profile, this.description, this.statBars, this.specialtyNote], 0);
     this.setSize(548, 380);
   }
 
@@ -50,12 +53,18 @@ export class CharacterDetails extends Phaser.GameObjects.Container {
     this.name.setText(character.name);
     this.profile.setText(character.profile).setColor(character.portrait.accent);
     this.description.setText(character.description);
+    const specialties = character.specialties as readonly PilotAttribute[];
+    const specialtyLabels = attributes.filter(attribute => specialties.includes(attribute.key))
+      .map(attribute => attribute.label);
+    this.specialtyNote.setText(`TALENTOS ATIVOS / ${specialtyLabels.join(' + ')} / MÁX. ±1 PONTO CADA`);
     this.statBars.clear();
     attributes.forEach(({ key }, i) => {
       const value = character.stats[key];
-      this.statValues[i].setText(String(value).padStart(2, '0'));
+      const active = specialties.includes(key);
+      this.statValues[i].setText(active ? String(value).padStart(2, '0') : '—')
+        .setColor(active ? COLORS.white : '#5b6572');
       for (let segment = 0; segment < ATTRIBUTE_SCALE; segment += 1) {
-        this.statBars.fillStyle(segment < value ? accent : 0x263449, segment < value ? 0.9 : 0.65);
+        this.statBars.fillStyle(segment < value ? accent : 0x263449, active ? segment < value ? 0.9 : 0.65 : 0.3);
         this.statBars.fillRect(-89 + segment * 29, 18 + i * 33, 23, 11);
       }
     });

@@ -6,6 +6,7 @@ for (const type of ['keydown', 'keyup']) {
 
 // Some game menus capture Tab. Offer a focus shortcut without changing their controls.
 window.addEventListener('keydown', event => {
+  if (!document.body.classList.contains('main-menu-active')) return;
   if (event.altKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'l') {
     event.preventDefault();
     event.stopPropagation();

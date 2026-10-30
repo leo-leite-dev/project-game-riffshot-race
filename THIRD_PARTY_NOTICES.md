@@ -1,6 +1,6 @@
 # Avisos de licenças de terceiros incluídos na versão web
 
-Estes créditos e avisos acompanham a versão web em `credits.html` e `THIRD_PARTY_NOTICES.txt`, acessíveis pelo link “Créditos e licenças” no canto inferior direito do jogo. Incluem os cinco modelos GLB, suas adaptações, os sons originais do projeto e os avisos MIT dos componentes distribuídos. Nos cinco modelos atuais, a licença declarada é CC BY 4.0; nenhum deles foi reclassificado como CC0.
+Estes créditos e avisos acompanham a versão web em `credits.html` e `THIRD_PARTY_NOTICES.txt`, acessíveis pelo link “Créditos e licenças” no canto inferior direito do jogo. Incluem os cinco modelos GLB, suas adaptações, os sons sintetizados do projeto e os avisos MIT dos componentes distribuídos. Nos cinco modelos atuais, a licença declarada é CC BY 4.0; nenhum deles foi reclassificado como CC0.
 
 ## Modelos de veículos GLB atuais
 
@@ -78,7 +78,13 @@ Esta atribuição não implica endosso de TiyaMakes ao Rift Blaze ou ao RIFFSHOT
 
 ## Música, motores e efeitos originais
 
-**Neon Ignition** é a trilha sintética original do projeto RIFFSHOT RACING, gerada pelo código `src/audio/rockLoop.js`. Os motores são timbres originais sintetizados por `src/audio/RaceEngineAudio.js`, com osciladores e filtros; não usam gravações, músicas comerciais ou samples extraídos de outros jogos.
+**Neon Ignition** é a trilha sintética original do projeto RIFFSHOT RACING, gerada pelo código `src/audio/rockLoop.ts`. Os motores são timbres originais sintetizados por `src/audio/RaceEngineAudio.ts`, com osciladores e filtros; não usam gravações, músicas comerciais ou samples extraídos de outros jogos.
+
+A faixa **Neon Furnace** foi fornecida pelo proprietário, que declara tê-la criado com auxílio de IA. O áudio foi extraído do vídeo local `music-fase-1.mp4`, sem incorporar o vídeo ao jogo; o arquivo MP4 permanece em `referencias-locais/audio/` e não é distribuído. A autoria informada é uma declaração do proprietário, não uma verificação independente do processo de geração.
+
+Os MP3 de disparo do Widowmaker, impacto e derrapagem foram fornecidos pelo proprietário, mas a autoria, a origem e a licença ainda não foram confirmadas. Os arquivos originais permanecem em `referencias-locais/audio/`, não são enviados a `dist/` nem declarados como criações originais ou recursos livres de direitos. Em produção, o disparo, o impacto e a derrapagem usam os efeitos procedurais existentes. Explosões e colisões também continuam sintetizadas pelo projeto.
+
+**RIFFSHOT RADIO** consulta metadados na API gratuita Radio Browser (<https://api.radio-browser.info/>). A API fornece catálogo/endereços, não licença para o conteúdo musical das emissoras. O jogo toca os streams HTTPS diretamente no navegador e não os baixa, grava nem retransmite. A emissora responde por seus direitos e restrições; uma estação pode exigir confirmação de autorização antes de publicação comercial. A documentação de integração fica em `docs/RIFFSHOT_RADIO.md`.
 
 Garagem, cenários, retratos, interface, animação das rodas, fumaça e explosões adicionados pelo projeto são apresentação/código próprios, não recursos criados pelos autores dos GLBs. A animação Fan do Thunder é original do modelo e está identificada na atribuição correspondente.
 

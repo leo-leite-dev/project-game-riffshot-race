@@ -1,34 +1,43 @@
 import { CHARACTERS, ATTRIBUTES, ATTRIBUTE_SCALE } from '../src/data/characters.ts';
+import type { PilotAttribute } from '../src/data/characters.ts';
 import { createChampionshipState } from '../src/championship/championshipState.ts';
 import { CHAMPIONSHIP_SAVE_KEY } from '../src/championship/championshipStorage.ts';
 import { test, expect, state, waitScene, openCharacters, clickObject } from './helpers.ts';
 import type { Page, TestInfo } from '@playwright/test';
 
-test('seis pilotos distintos mostram retratos, descrição e atributos centralizados', async ({ page }) => {
+test('seis pilotos distintos mostram retratos, descrição e atributos centralizados', async ({ page }, testInfo) => {
   expect(CHARACTERS).toHaveLength(6);
   expect(new Set(CHARACTERS.map(character => character.id)).size).toBe(6);
   expect(new Set(CHARACTERS.map(character => JSON.stringify(character.stats))).size).toBe(6);
   await openCharacters(page);
   for (const [index, character] of CHARACTERS.entries()) {
+    const specialties = character.specialties as readonly PilotAttribute[];
     expect(Object.values(character.stats).reduce((sum, value) => sum + value, 0)).toBe(30);
     for (const { key } of ATTRIBUTES as Array<{ key: keyof typeof character.stats }>) expect(character.stats[key]).toBeGreaterThanOrEqual(1);
     for (const { key } of ATTRIBUTES as Array<{ key: keyof typeof character.stats }>) expect(character.stats[key]).toBeLessThanOrEqual(ATTRIBUTE_SCALE);
+    expect(character.specialties).toHaveLength(2);
     await clickObject(page, 'cards', index);
     expect((await state(page)).selected).toBe(index);
     expect((await state(page)).characterId).toBeNull();
     const displayed = await page.evaluate(async () => {
       const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]'); if (!script) throw new Error('Entrada ausente'); const { game } = await import(script.src);
-       const { details } = game.scene.getScene('CharacterSelection') as { details: { name: { text: string }; description: { text: string }; statValues: Array<{ text: string }>; portrait: { texture: { key: string } } } };
-      return {
-        name: details.name.text, description: details.description.text,
-         values: details.statValues.map((value: { text: string }) => Number(value.text)),
-        portrait: details.portrait.texture.key,
-      };
-    }) as { name: string; description: string; values: number[]; portrait: string };
+        const { details } = game.scene.getScene('CharacterSelection') as { details: { name: { text: string }; description: { text: string }; specialtyNote: { text: string }; statValues: Array<{ text: string }>; portrait: { texture: { key: string } } } };
+       return {
+         name: details.name.text, description: details.description.text,
+          specialtyNote: details.specialtyNote.text,
+          values: details.statValues.map((value: { text: string }) => value.text),
+         portrait: details.portrait.texture.key,
+       };
+    }) as { name: string; description: string; specialtyNote: string; values: string[]; portrait: string };
     expect(displayed.name).toBe(character.name);
     expect(displayed.description).toBe(character.description);
-    expect(displayed.values).toEqual((ATTRIBUTES as Array<{ key: keyof typeof character.stats }>).map(({ key }) => character.stats[key]));
+    expect(displayed.values).toEqual((ATTRIBUTES as Array<{ key: keyof typeof character.stats }>).map(({ key }) =>
+      specialties.includes(key) ? String(character.stats[key]).padStart(2, '0') : '—'));
+    const activeLabels = (ATTRIBUTES as unknown as Array<{ key: PilotAttribute; label: string }>)
+      .filter(({ key }) => specialties.includes(key)).map(attribute => attribute.label);
+    expect(displayed.specialtyNote).toBe(`TALENTOS ATIVOS / ${activeLabels.join(' + ')} / MÁX. ±1 PONTO CADA`);
     expect(displayed.portrait).toBe(`pilot-${character.id}`);
+    if (index === 0) await page.screenshot({ path: `previews-ui/piloto-especialidades-${testInfo.project.name}.png` });
   }
 });
 
@@ -131,5 +140,6 @@ test('seleção permanece legível e dentro da tela ao redimensionar', async ({ 
   }
   await page.screenshot({ path: testInfo.outputPath('characters-desktop.png') });
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: 'previews-ui/piloto-especialidades-mobile.png' });
   await page.screenshot({ path: testInfo.outputPath('characters-mobile.png') });
 });

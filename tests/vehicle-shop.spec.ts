@@ -222,7 +222,7 @@ test('produção da loja: GLBs aprovados carregam e bloqueio de fase 2 aparece n
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const models = new Set();
   page.on('response', response => {
-    if (response.ok() && response.url().includes('/models/vehicles/') && response.url().endsWith('.glb')) models.add(response.url());
+    if (response.ok() && response.url().includes('/assets/models/vehicles/') && response.url().endsWith('.glb')) models.add(response.url());
   });
   await page.goto('http://127.0.0.1:4183');
   const status = page.locator('#screen-status');
