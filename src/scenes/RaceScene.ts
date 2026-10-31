@@ -431,7 +431,7 @@ export class RaceScene extends GarageScene {
   handleTouchStickEnd(pointer: Phaser.Input.Pointer): void {
     if (pointer.id !== this.touchStickPointerId) return;
     this.touchStickPointerId = null;
-    this.touchStickKnob.setPosition(0, 0);
+    this.touchStickKnob.setPosition(this.touchStickBase.x, this.touchStickBase.y);
     this.playerController.setAnalogControl(0, 0, false);
   }
 
@@ -441,7 +441,7 @@ export class RaceScene extends GarageScene {
     const distance = Math.hypot(dx, dy), radius = 49;
     const scale = distance > radius ? radius / distance : 1;
     const x = dx * scale, y = dy * scale;
-    this.touchStickKnob.setPosition(x, y);
+    this.touchStickKnob.setPosition(this.touchStickBase.x + x, this.touchStickBase.y + y);
     this.playerController.setAnalogControl(x / radius, y / radius, true);
   }
 

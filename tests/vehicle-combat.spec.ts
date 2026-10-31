@@ -126,11 +126,25 @@ test('corrida mobile em paisagem: orientação e controles touch alimentam o con
     const driven = scene.playerController.read(scene.simulation.participants[0]);
     scene.playerController.setAnalogControl(0, 0, false);
     const released = scene.playerController.read(scene.simulation.participants[0]);
+    const base = scene.touchStickBase;
+    const basePosition = { x: Number(base.x), y: Number(base.y) };
+    const pointer = { id: 17, x: basePosition.x + 30, y: basePosition.y - 30,
+      event: { preventDefault() {} } } as unknown as Dynamic;
+    base.emit('pointerdown', pointer);
+    scene.handleTouchStickMove(pointer);
+    const draggedKnob = { x: Number(scene.touchStickKnob.x), y: Number(scene.touchStickKnob.y) };
+    const draggedControls = scene.playerController.read(scene.simulation.participants[0]);
+    scene.handleTouchStickEnd(pointer);
+    const centeredKnob = { x: Number(scene.touchStickKnob.x), y: Number(scene.touchStickKnob.y) };
+    const dragReleased = scene.playerController.read(scene.simulation.participants[0]);
     controls[2].emit('pointerdown', { event: { preventDefault() {} } });
     const handbrake = scene.playerController.read(scene.simulation.participants[0]).handbrake;
     controls[2].emit('pointerup');
     return { visible: scene.touchControls.visible, count: controls.length,
       throttle: driven.throttle, steer: driven.steer, released: released.throttle, handbrake,
+      draggedThrottle: draggedControls.throttle, draggedSteer: draggedControls.steer,
+      dragReleasedThrottle: dragReleased.throttle, dragReleasedSteer: dragReleased.steer,
+      base: basePosition, draggedKnob, centeredKnob,
       map: scene.minimap.visible, resources: scene.weaponLabels.map((label: Dynamic) => label.text),
       vehicleStatus: scene.vehicleStatus.text,
       mapX: scene.hudLayout.map.x, lapRight: Number(scene.hudLayout.lap.x) + Number(scene.hudLayout.lap.width),
@@ -143,9 +157,34 @@ test('corrida mobile em paisagem: orientação e controles touch alimentam o con
   });
   expect(result).toMatchObject({ visible: true, count: 4, throttle: 0.8, steer: 0.75, released: 0, handbrake: 1,
     map: true, resources: ['0', '0', '0'], vehicleStatus: 'VIDA 4/4   NITRO 2/2', bounds: true, hudScale: 1 });
+  expect(result.draggedThrottle).toBeCloseTo(30 / 49, 4);
+  expect(result.draggedSteer).toBeCloseTo(-30 / 49, 4);
+  expect(result.dragReleasedThrottle).toBe(0);
+  expect(result.dragReleasedSteer).toBe(0);
+  expect(result.draggedKnob).toEqual({ x: result.base.x + 30, y: result.base.y - 30 });
+  expect(result.centeredKnob).toEqual(result.base);
   expect(result.mapX).toBeLessThan(30);
   expect(result.lapRight).toBeGreaterThan(814);
   expect(result.pilotBottom).toBeGreaterThan(370);
+  await page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]');
+    if (!script) throw new Error('Entrada do jogo não encontrada');
+    const { game } = await import(script.src);
+    const scene = game.scene.getScene('Race') as unknown as Dynamic;
+    const base = scene.touchStickBase as Dynamic;
+    const pointer = { id: 18, x: Number(base.x) + 30, y: Number(base.y) - 30,
+      event: { preventDefault() {} } };
+    base.emit('pointerdown', pointer);
+    scene.handleTouchStickMove(pointer);
+  });
+  await page.screenshot({ path: 'previews-ui/analogo-mobile-arrasto.png' });
+  await page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]');
+    if (!script) throw new Error('Entrada do jogo não encontrada');
+    const { game } = await import(script.src);
+    const scene = game.scene.getScene('Race') as unknown as Dynamic;
+    scene.handleTouchStickEnd({ id: 18 });
+  });
   await page.screenshot({ path: 'previews-ui/corrida-mobile-paisagem-controles.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator('#orientation-prompt')).toBeVisible();
