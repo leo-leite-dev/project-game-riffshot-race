@@ -29,6 +29,12 @@ export class GalacticMapScene extends TitleScene {
   private challengeLesson?: Phaser.GameObjects.Text;
   private challengeButtonLabel?: Phaser.GameObjects.Text;
   private challengeButtonZone?: Phaser.GameObjects.Zone;
+  private readonly mapActions: Array<{
+    label: Phaser.GameObjects.Text;
+    zone: Phaser.GameObjects.Zone;
+    activate: () => void;
+  }> = [];
+  private focusedMapAction = 1;
 
   constructor() { super(SCENES.galaxyMap); }
 
@@ -37,12 +43,14 @@ export class GalacticMapScene extends TitleScene {
   }
 
   create(): void {
+    this.mapActions.length = 0;
+    this.focusedMapAction = 1;
     const pilot = getSelectedCharacter(this.registry);
     if (!pilot) {
       this.scene.start(SCENES.characters);
       return;
     }
-    this.createShell(`Mapa Galáctico. Piloto selecionado: ${pilot.name}.`);
+    this.createShell(`Mapa Galáctico. Piloto selecionado: ${pilot.name}. Enter continua para a seleção de veículos; Escape volta aos pilotos; C abre o desafio de origem quando disponível.`);
     this.backdrop.image.setVisible(false);
     this.backdrop.motion.setVisible(false);
     this.content.setVisible(false);
@@ -109,9 +117,9 @@ export class GalacticMapScene extends TitleScene {
       this.challengeButtonZone = this.add.zone(0, 0, 440, 78).setDepth(4)
         .setInteractive({ useHandCursor: true });
       this.challengeButtonZone.on('pointerdown', () => this.showChallengeFeedback());
-      this.input.keyboard?.on('keydown-ENTER', () => this.showChallengeFeedback());
-      this.input.keyboard?.on('keydown-SPACE', () => this.showChallengeFeedback());
     }
+    this.createMapAction('VOLTAR', () => this.returnToSelection());
+    this.createMapAction('CONTINUAR', () => this.continueToVehicles());
     this.pilotLabel = this.add.text(0, 0, 'PILOTO:', {
       fontFamily: 'Oxanium, Arial, sans-serif', fontSize: '16px', fontStyle: 'italic 700',
       color: '#71f6ff', stroke: '#07111e', strokeThickness: 1.5,
@@ -123,7 +131,47 @@ export class GalacticMapScene extends TitleScene {
       padding: { top: 2, bottom: 2 },
     }).setOrigin(0, 0.5).setDepth(2).setResolution(2);
     this.input.keyboard?.on('keydown-ESC', () => this.returnToSelection());
+    this.input.keyboard?.on('keydown-TAB', (event: KeyboardEvent) => {
+      event.preventDefault();
+      this.focusMapAction((this.focusedMapAction + (event.shiftKey ? -1 : 1) + this.mapActions.length) % this.mapActions.length);
+    });
+    this.input.keyboard?.on('keydown-LEFT', () => this.focusMapAction(0));
+    this.input.keyboard?.on('keydown-RIGHT', () => this.focusMapAction(1));
+    this.input.keyboard?.on('keydown-ENTER', () => this.activateFocusedMapAction());
+    this.input.keyboard?.on('keydown-SPACE', () => this.activateFocusedMapAction());
+    this.input.keyboard?.on('keydown-C', () => this.showChallengeFeedback());
+    this.focusMapAction(this.focusedMapAction, false);
     this.resizeShell();
+  }
+
+  private createMapAction(label: string, activate: () => void): void {
+    const text = this.add.text(0, 0, label, {
+      fontFamily: 'Oxanium, Arial, sans-serif', fontSize: '22px', fontStyle: 'italic 800',
+      color: '#ffffff', stroke: '#260608', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(3).setResolution(2);
+    const zone = this.add.zone(0, 0, 390, 78).setDepth(4).setInteractive({ useHandCursor: true });
+    const index = this.mapActions.length;
+    zone.on('pointerover', () => this.focusMapAction(index));
+    zone.on('pointerdown', activate);
+    this.mapActions.push({ label: text, zone, activate });
+  }
+
+  private focusMapAction(index: number, announce = true): void {
+    if (!this.mapActions.length) return;
+    this.focusedMapAction = index;
+    this.mapActions.forEach((action, actionIndex) => {
+      action.label.setColor(actionIndex === index ? '#71f6ff' : '#ffffff');
+      action.label.setScale(actionIndex === index ? 1.06 : 1);
+    });
+    if (announce) this.announce(index === 0 ? 'Voltar à seleção de pilotos.' : 'Continuar para a seleção de veículos.');
+  }
+
+  private activateFocusedMapAction(): void {
+    this.mapActions[this.focusedMapAction]?.activate();
+  }
+
+  private continueToVehicles(): void {
+    this.scene.start(SCENES.vehicles);
   }
 
   private returnToSelection(): void {
@@ -230,6 +278,13 @@ export class GalacticMapScene extends TitleScene {
       const [x, y] = point(1400, 731);
       this.challengeButtonZone.setPosition(x, y).setScale(scale);
     }
+    this.mapActions.forEach((action, index) => {
+      const x = index === 0 ? 610 : 1010;
+      const [screenX, screenY] = point(x, 886);
+      const fontSize = Math.max(22 * scale, 11);
+      action.label.setPosition(screenX, screenY).setFontSize(fontSize);
+      action.zone.setPosition(screenX, screenY).setSize(390 * scale, 78 * scale);
+    });
   }
 
   private showChallengeFeedback(): void {
