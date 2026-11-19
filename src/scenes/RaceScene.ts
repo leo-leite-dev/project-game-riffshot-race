@@ -1,6 +1,7 @@
 import { GarageScene } from './GarageScene.ts';
-import { CHARACTERS, getSelectedCharacter } from '../data/characters.ts';
+import { CHARACTERS, getEffectivePilotSpecialties, getEffectivePilotStats, getSelectedCharacter } from '../data/characters.ts';
 import { INITIAL_VEHICLES, RIVAL_VEHICLE_ID, getSelectedVehicle } from '../data/vehicles.ts';
+import { CAMARO_UPGRADE, camaroRaceSpeedPoints, camaroUpgradedStats } from '../data/camaroUpgrades.ts';
 import { DIFFICULTIES } from '../data/raceDifficulty.ts';
 import { getTrackById } from '../data/raceTracks.ts';
 import { RaceSimulation } from '../race/RaceSimulation.ts';
@@ -22,12 +23,13 @@ import type { RaceDifficulty, RaceParticipant, RacePilot, RenderPose } from '../
 import type { RaceWorld } from '../visuals/race/RaceWorld.ts';
 import type { GarageResources } from '../visuals/garage/GarageResources.ts';
 import type { GarageOptions } from './GarageScene.ts';
-import type { Vehicle } from '../data/vehicles.ts';
+import type { Vehicle, VehicleStats } from '../data/vehicles.ts';
 
 export class RaceScene extends GarageScene {
   declare game: Phaser.Game & { championship: Championship };
   declare character: NonNullable<ReturnType<typeof getSelectedCharacter>>;
   declare vehicleSelection: { vehicle: Readonly<Vehicle>; paint: (typeof import('../data/vehicles.ts').PAINTS)[number] };
+  declare raceVehicleStats: VehicleStats;
   declare difficulty: RaceDifficulty;
   declare track: NonNullable<ReturnType<typeof getTrackById>>;
   declare diagnosticsAvailable: boolean;
@@ -115,9 +117,9 @@ export class RaceScene extends GarageScene {
 
   preload() {
     const assets = [
-      ['race-hud-weapon-shots', '/assets/hud/icons/shots.png'],
-      ['race-hud-weapon-bomb', '/assets/hud/icons/bomb.png'],
-      ['race-hud-weapon-oil', '/assets/hud/icons/oil.png'],
+      ['race-hud-weapon-shots', '/assets/ui/hud/icons/shots.png'],
+      ['race-hud-weapon-bomb', '/assets/ui/hud/icons/bomb.png'],
+      ['race-hud-weapon-oil', '/assets/ui/hud/icons/oil.png'],
     ];
     for (const [key, path] of assets) {
       if (!this.textures.exists(key)) this.load.image(key, encodeURI(path));
@@ -144,15 +146,32 @@ export class RaceScene extends GarageScene {
     }
 
     const opponents = this.createOpponents();
+    const isCamaro = this.vehicleSelection.vehicle.id === CAMARO_UPGRADE.vehicleId;
+    const purchasedLevel = isCamaro
+      ? championship.state.permanentUpgrades[CAMARO_UPGRADE.vehicleId].speed : 0;
+    const devTestMode = import.meta.env.DEV && this.registry.get('devTestModeEnabled') === true;
+    let playerVehicleStats: VehicleStats;
+    if (isCamaro) {
+      const upgrades = championship.state.permanentUpgrades[CAMARO_UPGRADE.vehicleId];
+      playerVehicleStats = camaroUpgradedStats(this.vehicleSelection.vehicle.stats, upgrades);
+      playerVehicleStats.speed = camaroRaceSpeedPoints(purchasedLevel,
+        devTestMode ? this.vehicleSelection.vehicle.stats.speed : undefined);
+    } else playerVehicleStats = { ...this.vehicleSelection.vehicle.stats };
+    this.raceVehicleStats = playerVehicleStats;
     this.simulation = new RaceSimulation({
       track: this.track,
       difficulty: this.difficulty.id,
-      player: this.character,
+      player: {
+        ...this.character,
+        stats: getEffectivePilotStats(this.character),
+        specialties: getEffectivePilotSpecialties(this.character),
+      },
       playerVehicle: this.vehicleSelection.vehicle,
-      vehicleStats: this.vehicleSelection.vehicle.stats,
+      vehicleStats: playerVehicleStats,
       playerPaint: this.vehicleSelection.paint.color,
       botPilots: opponents,
       laps: this.track.laps,
+      raceSeed: `${championship.state.activeRace.id}|${championship.state.attempt.id}|${this.track.id}`,
       diagnostics: this.diagnosticsAvailable,
       ...(this.diagnosticsAvailable ? { devRaceAIBonus: loadDevRaceAIBonus() } : {}),
     });
@@ -254,7 +273,8 @@ export class RaceScene extends GarageScene {
     const { RaceWorld } = await import('../visuals/race/RaceWorld.ts');
     if (!this.alive || version !== this.loadVersion || resources.disposed) return null;
     if (!this.alive || version !== this.loadVersion || resources.disposed) return null;
-    return new RaceWorld(resources, { track: this.track, participants: this.simulation.participants,
+    const visualTrack = { ...this.track, jumps: this.simulation.track.jumps };
+    return new RaceWorld(resources, { track: visualTrack, participants: this.simulation.participants,
       cameraMode: options.cameraMode, diagnostics: options.diagnostics });
   }
 
@@ -562,7 +582,7 @@ export class RaceScene extends GarageScene {
       : `VIDA ${Math.ceil(player.health / 20)}/${player.healthOrbs}   NITRO ${nitro}${player.nitroActive ? ' · ATIVO' : ''}`);
     this.lifeValue.setText(`${Math.ceil(player.health / 20)}/${player.healthOrbs}`);
     this.nitroValue.setText(nitro);
-    const stats = this.vehicleSelection.vehicle.stats;
+    const stats = this.raceVehicleStats;
     this.weaponLabels[0].setText(String(stats.shotCount ?? 0));
     this.weaponLabels[1].setText(String(stats.bombCount ?? 0));
     this.weaponLabels[2].setText(String(stats.oilSlickCount ?? 0));

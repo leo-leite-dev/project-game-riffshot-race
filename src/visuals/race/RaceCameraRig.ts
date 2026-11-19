@@ -42,6 +42,8 @@ export class RaceCameraRig {
   aspect = 1;
   heading = 0;
   chaseRoll = 0;
+  speedFovOffset = 0;
+  accelerationLag = 0;
 
   constructor({ track, vehicleSize, obstacles = [], mode = DEFAULT_RACE_CAMERA_MODE }: {
     track: RaceTrack | (SampledTrack & { width: number }) | null;
@@ -131,6 +133,8 @@ export class RaceCameraRig {
     this.previousMode = this.mode;
     this.transitionElapsed = RACE_CAMERA_SETTINGS.transitionSeconds;
     this.zoomLevel = this.zoomIndex;
+    this.speedFovOffset = 0;
+    this.accelerationLag = 0;
     this.update(pose, 0);
   }
 
@@ -138,17 +142,28 @@ export class RaceCameraRig {
     const dt = Math.max(0, Math.min(deltaSeconds, 0.25));
     const settings = RACE_CAMERA_SETTINGS.chase;
     const first = !this.initialized;
+    // Camaro reaches 55 internal units/s at 220 km/h. Camera cues use the
+    // measured physical speed directly, and saturate at that real maximum.
+    const speed = THREE.MathUtils.clamp(Math.abs(player.speed ?? 0), 0, 55);
+    const requestedAcceleration = THREE.MathUtils.clamp(player.longitudinalAcceleration ?? 0,
+      -settings.accelerationLimit, settings.accelerationLimit);
+    this.accelerationLag = first ? 0
+      : THREE.MathUtils.lerp(this.accelerationLag, requestedAcceleration,
+        follow(settings.accelerationResponse, dt));
     if (first) {
       this.center.set(player.x, player.y, player.z);
       this.heading = player.heading;
     } else {
-      this.center.lerp(this.desiredTarget.set(player.x, player.y, player.z), follow(RACE_CAMERA_SETTINGS.isometric.follow, dt));
+      const isoFollow = RACE_CAMERA_SETTINGS.isometric.follow
+        + speed * RACE_CAMERA_SETTINGS.isometric.speedFollow;
+      this.center.lerp(this.desiredTarget.set(player.x, player.y, player.z), follow(isoFollow, dt));
       const turn = angleDelta(player.heading - this.heading) * follow(settings.headingResponse, dt);
       this.heading += THREE.MathUtils.clamp(turn, -settings.maxYawRate * dt, settings.maxYawRate * dt);
     }
     const forwardX = Math.sin(this.heading), forwardZ = Math.cos(this.heading);
-    const speed = Math.min(Math.abs(player.speed ?? 0), 40);
-    const isoAhead = RACE_CAMERA_SETTINGS.isometric.lookAhead + speed * 0.04;
+    const isoAhead = RACE_CAMERA_SETTINGS.isometric.lookAhead
+      + speed * RACE_CAMERA_SETTINGS.isometric.speedLookAhead
+      + this.accelerationLag * settings.accelerationDistance;
     this.isometricTarget.copy(this.center);
     this.isometricTarget.x += forwardX * isoAhead;
     this.isometricTarget.z += forwardZ * isoAhead;
@@ -160,12 +175,17 @@ export class RaceCameraRig {
     if (Math.abs(this.zoomLevel - this.zoomIndex) < 1e-5) this.zoomLevel = this.zoomIndex;
     const lower = Math.floor(this.zoomLevel), amount = this.zoomLevel - lower;
     const a = settings.presets[lower], b = settings.presets[Math.min(lower + 1, settings.presets.length - 1)];
-    const distance = Math.max(THREE.MathUtils.lerp(a.distance, b.distance, amount) * this.size.z, this.size.z * 0.5 + 0.65);
+    const accelerationDistance = this.accelerationLag * settings.accelerationDistance;
+    const distance = Math.max(THREE.MathUtils.lerp(a.distance, b.distance, amount) * this.size.z
+      + accelerationDistance, this.size.z * 0.5 + 0.65);
     const height = Math.max(THREE.MathUtils.lerp(a.height, b.height, amount) * this.size.z + this.size.y * 0.65, this.size.y + 0.45);
     const lookAhead = THREE.MathUtils.lerp(a.lookAhead, b.lookAhead, amount) * this.size.z + speed * 0.035;
     const targetHeight = THREE.MathUtils.lerp(a.targetHeight, b.targetHeight, amount) * this.size.y;
     const baseFov = THREE.MathUtils.lerp(a.fov, b.fov, amount);
-    this.zoomFov = baseFov + speed / 40 * settings.speedFov;
+    const targetFovOffset = speed / 55 * settings.speedFov;
+    this.speedFovOffset = first ? targetFovOffset
+      : THREE.MathUtils.lerp(this.speedFovOffset, targetFovOffset, follow(settings.fovResponse, dt));
+    this.zoomFov = baseFov + this.speedFovOffset;
     // The rear roof corners are the widest/closest silhouette in chase view.
     // Reserve 10% horizontal room for them, especially on narrow phone screens.
     const pitch = Math.atan2(height - targetHeight, distance + lookAhead);

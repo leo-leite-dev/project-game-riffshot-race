@@ -1,12 +1,16 @@
 import { GarageScene } from './GarageScene.ts';
 import { getSelectedCharacter } from '../data/characters.ts';
-import { getSelectedVehicle, STATION_PRIMARY_ATTRIBUTES, STATION_DETAIL_ATTRIBUTES, RIVAL_VEHICLE_ID, getVehicleById, getVehicleDisplayName } from '../data/vehicles.ts';
+import { getSelectedVehicle, STATION_PRIMARY_ATTRIBUTES, STATION_DETAIL_ATTRIBUTES,
+  RIVAL_VEHICLE_ID, getVehicleById, getVehicleDisplayName } from '../data/vehicles.ts';
+import { CAMARO_UPGRADE, CAMARO_UPGRADE_ATTRIBUTE_KEYS, camaroSpeedPoints, camaroTopSpeedKmh,
+  camaroUpgradeValue, camaroUpgradedStats } from '../data/camaroUpgrades.ts';
 import { getRaceState } from '../data/raceState.ts';
 import { characterPortrait } from '../visuals/characterPortrait.ts';
 import { COLORS, SCENES, text } from '../ui/theme.ts';
 import { bindPreparationKeys } from '../ui/PreparationModules.ts';
 import { StationButton as PreparationButton } from '../ui/StationButton.ts';
 import { createStationStatPanel as createStatPanel } from '../ui/StationStats.ts';
+import type { StationUpgradeIndicator } from '../ui/StationStats.ts';
 import { StationSettings } from '../ui/StationSettings.ts';
 import { createStationBackdrop, createStationTitle, createOpeningRivalPortrait } from '../visuals/preparation/StationArt.ts';
 import { layoutStation } from '../ui/StationLayout.ts';
@@ -20,6 +24,8 @@ type PrepButton = PreparationButton;
 type PrepStatPanel = Phaser.GameObjects.Container & { arrange: (x: number, y: number, width: number, height: number) => unknown };
 type LocalTuningEditor = { open(): void };
 const number = (value: number) => Number(value).toLocaleString('pt-BR');
+const formatSpeed = (value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} km/h`;
+const STATION_TOOLTIP_ATTRIBUTES = STATION_DETAIL_ATTRIBUTES;
 
 export class RacePreparationScene extends GarageScene {
   declare character: NonNullable<ReturnType<typeof getSelectedCharacter>>;
@@ -30,6 +36,8 @@ export class RacePreparationScene extends GarageScene {
   declare title: Phaser.GameObjects.Image;
   declare settings: StationSettings & { button: HTMLButtonElement };
   declare vehicleTuningEditor: LocalTuningEditor | null;
+  declare testModeEnabled: boolean;
+  declare physicsLabButton: PrepButton | null;
   declare stationKicker: Phaser.GameObjects.Text;
   declare pilotPanel: Phaser.GameObjects.Container;
   declare pilotFrame: Phaser.GameObjects.Graphics;
@@ -91,6 +99,9 @@ export class RacePreparationScene extends GarageScene {
     this.raceState = getRaceState(this.registry);
     this.erasingProgress = false;
     this.vehicleTuningEditor = null;
+    this.testModeEnabled = false;
+    if (import.meta.env.DEV) this.registry.set('devTestModeEnabled', false);
+    this.physicsLabButton = null;
     this.createGarageShell('RIFFSHOT RACING. Estação de Equipe. Tab ou setas navegam; Enter confirma. A engrenagem abre Configurações, som e apagar progresso. Escape volta à loja e garagem.');
     this.stationBackdrop = createStationBackdrop(this).setDepth(-8);
     this.backdrop.image.setVisible(false); this.backdrop.motion.setVisible(false);
@@ -100,7 +111,7 @@ export class RacePreparationScene extends GarageScene {
       if (this.vehicleTuningEditor) { this.vehicleTuningEditor.open(); return; }
       void import('../ui/VehicleTuningEditor.ts').then(({ VehicleTuningEditor }) => {
         if (!this.sys.isActive()) return;
-        this.vehicleTuningEditor = new VehicleTuningEditor(this);
+        this.vehicleTuningEditor = new VehicleTuningEditor(this, enabled => this.setTestModeEnabled(enabled));
         this.vehicleTuningEditor.open();
       }).catch(() => this.announce('O editor local de veículos não pôde ser aberto.'));
     } : undefined;
@@ -136,8 +147,27 @@ export class RacePreparationScene extends GarageScene {
     this.rivalVehicle.add([this.rivalVehicleFrame, this.rivalVehicleShape, this.rivalVehicleTitle, this.rivalVehicleSoon]);
     this.statValues = {};
     const rivalVehicle = getVehicleById(RIVAL_VEHICLE_ID)!;
-    this.motor = createStatPanel(this, 'PLAYER / ATRIBUTOS', STATION_PRIMARY_ATTRIBUTES, this.selection.vehicle.stats, this.statValues, 0x19eaff);
-    this.chassis = createStatPanel(this, 'RIVAL / ATRIBUTOS', STATION_PRIMARY_ATTRIBUTES, rivalVehicle.stats, {}, 0xff3d68);
+    const playerUpgradeIndicators: Record<string, StationUpgradeIndicator> = {};
+    const playerLevels = this.selection.vehicle.id === CAMARO_UPGRADE.vehicleId
+      ? this.raceState.permanentUpgrades[CAMARO_UPGRADE.vehicleId] : undefined;
+    const playerStats = playerLevels ? camaroUpgradedStats(this.selection.vehicle.stats, playerLevels)
+      : { ...this.selection.vehicle.stats };
+    for (const attribute of CAMARO_UPGRADE_ATTRIBUTE_KEYS) {
+      const level = playerLevels?.[attribute] ?? 0;
+      playerUpgradeIndicators[attribute] = { level, maximum: CAMARO_UPGRADE.maximumLevel,
+        display: attribute === 'speed' && playerLevels
+          ? formatSpeed(camaroTopSpeedKmh(camaroSpeedPoints(level)))
+          : String(playerStats[attribute] ?? 0) };
+    }
+    const rivalUpgradeIndicators: Record<string, StationUpgradeIndicator> = {};
+    for (const attribute of CAMARO_UPGRADE_ATTRIBUTE_KEYS) {
+      rivalUpgradeIndicators[attribute] = { level: 0, maximum: CAMARO_UPGRADE.maximumLevel,
+        display: String(rivalVehicle.stats[attribute] ?? 0) };
+    }
+    this.motor = createStatPanel(this, 'PLAYER / ATRIBUTOS', STATION_PRIMARY_ATTRIBUTES,
+      playerStats, this.statValues, 0x19eaff, playerUpgradeIndicators);
+    this.chassis = createStatPanel(this, 'RIVAL / ATRIBUTOS', STATION_PRIMARY_ATTRIBUTES,
+      rivalVehicle.stats, {}, 0xff3d68, rivalUpgradeIndicators);
     this.createAttributeInfo();
     this.vehicleAbility = text(this, 0, 0, this.selection.vehicle.ability.nitroCharges
       ? 'NITRO / 2 CARGAS' : this.selection.vehicle.id === 'iron-bastion' ? 'BLINDAGEM REFORÇADA' : 'TRAÇÃO PRECISA',
@@ -178,34 +208,43 @@ export class RacePreparationScene extends GarageScene {
     const frame = this.add.graphics();
     const segments = this.add.graphics();
     this.attributePopupTitle = text(this, 0, 0, '', 15, '#71f6ff', true).setOrigin(0.5);
-    this.attributePopupRows = STATION_DETAIL_ATTRIBUTES.map(() => text(this, 0, 0, '', 13, '#e8f7ff').setOrigin(0, 0.5));
-    this.attributePopupValues = STATION_DETAIL_ATTRIBUTES.map(() => text(this, 0, 0, '', 12, '#f0f6fc', true).setOrigin(1, 0.5));
+    this.attributePopupRows = STATION_TOOLTIP_ATTRIBUTES.map(() => text(this, 0, 0, '', 13, '#e8f7ff').setOrigin(0, 0.5));
+    this.attributePopupValues = STATION_TOOLTIP_ATTRIBUTES.map(() => text(this, 0, 0, '', 12, '#f0f6fc', true).setOrigin(1, 0.5));
     this.attributePopup.add([frame, segments, this.attributePopupTitle, ...this.attributePopupRows, ...this.attributePopupValues]);
     this.attributePopup.setData('frame', frame);
     this.attributePopup.setData('segments', segments);
+    this.attributePopup.setData('upgradeSlotCount', CAMARO_UPGRADE.maximumLevel);
   }
 
   showAttributeInfo(title: string, stats: Record<string, number>, accent: number) {
     const popup = this.attributePopup;
     const frame = popup.getData('frame') as Phaser.GameObjects.Graphics;
     const segments = popup.getData('segments') as Phaser.GameObjects.Graphics;
-    const width = 310, height = 170;
+    const width = 310, height = 216;
     frame.clear().fillStyle(0x06121c, 0.98).lineStyle(2, accent, 1)
       .fillRoundedRect(-width / 2, -height / 2, width, height, 8)
       .strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
     segments.clear();
     this.attributePopupTitle.setText(title).setPosition(0, -height / 2 + 22).setFontSize(13);
-    STATION_DETAIL_ATTRIBUTES.forEach((attribute, index) => {
-      const y = -height / 2 + 52 + index * 25;
+    const isPlayerCamaro = accent === 0x19eaff && this.selection.vehicle.id === CAMARO_UPGRADE.vehicleId;
+    const playerLevels = isPlayerCamaro ? this.raceState.permanentUpgrades[CAMARO_UPGRADE.vehicleId] : undefined;
+    STATION_TOOLTIP_ATTRIBUTES.forEach((attribute, index) => {
+      const y = -height / 2 + 58 + index * 34;
       const value = stats[attribute.key];
-      const label = attribute.key === 'speed' ? 'VELOCIDADE' : attribute.key === 'acceleration' ? 'ACELERAÇÃO'
+      const upgradeLevel = playerLevels?.[attribute.key as keyof typeof playerLevels] ?? 0;
+      const currentValue = playerLevels
+        ? camaroUpgradeValue(attribute.key as keyof typeof playerLevels, upgradeLevel)
+        : Number.isFinite(value) ? Number(value) : 0;
+      const label = attribute.key === 'acceleration' ? 'ACELERAÇÃO'
         : attribute.key === 'suspension' ? 'SUSPENSÃO' : attribute.label;
-      this.attributePopupRows[index].setText(label).setFontSize(11).setPosition(-width / 2 + 12, y);
-      this.attributePopupValues[index].setText(Number.isFinite(value) ? String(value) : '—').setPosition(width / 2 - 12, y);
-      const barX = 18, barY = y - 6, slotWidth = 12, slotHeight = 11, gap = 3;
-      for (let slot = 0; slot < 5; slot += 1) {
+      this.attributePopupRows[index].setText(`${label} ${upgradeLevel}/8`).setFontSize(11).setPosition(-width / 2 + 12, y);
+      this.attributePopupValues[index].setText(String(currentValue)).setFontSize(10).setPosition(width / 2 - 12, y);
+      const barX = 0, barY = y - 6, slotWidth = 12, slotHeight = 11, gap = 3;
+      const slotCount = CAMARO_UPGRADE.maximumLevel;
+      const amount = upgradeLevel;
+      for (let slot = 0; slot < slotCount; slot += 1) {
         const x = barX + slot * (slotWidth + gap);
-        const fill = Number.isFinite(value) ? Math.max(0, Math.min(1, (value - slot * 20) / 20)) : 0;
+        const fill = Math.min(1, Math.max(0, amount - slot));
         segments.fillStyle(0x142632).fillRect(x, barY, slotWidth, slotHeight)
           .lineStyle(1, 0x425967, 0.75).strokeRect(x, barY, slotWidth, slotHeight);
         if (fill > 0) segments.fillStyle(accent, 0.25).fillRect(x - 1, barY - 1, slotWidth * fill + 2, slotHeight + 2)
@@ -287,13 +326,14 @@ export class RacePreparationScene extends GarageScene {
   createActions() {
     const definitions: [string, string, () => void][] = [
       ['PISTA / CORRIDA', 'track', () => this.startNextRace()],
-      ['MELHORIAS', 'upgrade', () => this.showSoon()],
+      ['MELHORIAS', 'upgrade', () => this.goTo(SCENES.upgrades)],
       ['REPAROS', 'repair', () => this.showSoon()],
       ['LOJA / GARAGEM', 'vehicle', () => this.goTo(SCENES.vehicles)],
       ['SAIR / VOLTAR', 'back', () => this.goTo(SCENES.vehicles)],
     ];
     this.modules = definitions.map(([label, icon, onActivate], index) => new PreparationButton(this, {
-      label, icon, detail: index === 0 ? 'CIRCUITO' : index < 3 ? 'Em breve' : index === 3 ? 'COMPRAR OU EQUIPAR' : 'ESC',
+      label, icon, detail: index === 0 ? 'CIRCUITO' : index === 1 ? 'VELOCIDADE / CAMARO'
+        : index === 2 ? 'EM BREVE' : index === 3 ? 'COMPRAR OU EQUIPAR' : 'ESC',
       onSelect: () => this.focusAction(index), onActivate,
     }));
     this.backButton = this.modules[4];
@@ -323,16 +363,59 @@ export class RacePreparationScene extends GarageScene {
     }
   }
 
+  private setTestModeEnabled(enabled: boolean): void {
+    if (!import.meta.env.DEV) return;
+    if (this.testModeEnabled === Boolean(enabled)) return;
+    this.testModeEnabled = Boolean(enabled);
+    this.registry.set('devTestModeEnabled', this.testModeEnabled);
+    if (this.testModeEnabled && !this.physicsLabButton) {
+      let button!: PrepButton;
+      button = new PreparationButton(this, {
+        label: 'PISTA DE TESTE', icon: 'lab', detail: 'DIRIGIBILIDADE ARCADE',
+        onSelect: () => this.focusAction(this.modules.indexOf(button)),
+        onActivate: () => this.openPhysicsLab(),
+      });
+      this.physicsLabButton = button;
+      this.modules.push(button);
+      this.content.add(button);
+      this.focusIndex = this.modules.length - 1;
+    } else if (!this.testModeEnabled && this.physicsLabButton) {
+      const removedIndex = this.modules.indexOf(this.physicsLabButton);
+      this.modules = this.modules.filter(button => button !== this.physicsLabButton);
+      this.physicsLabButton.destroy();
+      this.physicsLabButton = null;
+      if (removedIndex >= 0 && this.focusIndex >= removedIndex) this.focusIndex -= 1;
+    }
+    this.resizeShell();
+    if (!this.settings?.isOpen && this.sys.isActive()) this.focusAction(this.focusIndex);
+    this.announce(this.testModeEnabled
+      ? 'Modo teste ativado. Pista de Teste disponível na Estação de Equipe.'
+      : 'Modo teste desativado. A Pista de Teste foi ocultada.');
+  }
+
+  private openPhysicsLab(): void {
+    if (!import.meta.env.DEV || !this.testModeEnabled || this.transitioning) return;
+    this.scene.pause(SCENES.preparation);
+    void import('./PhysicsLabBootstrapScene.ts').then(({ PhysicsLabBootstrapScene }) => {
+      const stationAvailable = this.sys.isActive() || this.sys.isPaused();
+      if (!stationAvailable || !this.testModeEnabled) {
+        if (this.sys.isPaused()) this.scene.resume(SCENES.preparation);
+        return;
+      }
+      const key = 'PhysicsLabBootstrap';
+      if (!this.game.scene.keys[key]) this.scene.add(key, PhysicsLabBootstrapScene, false);
+      this.scene.launch(key, { returnToPreparation: true });
+    }).catch(() => {
+      if (this.sys.isPaused()) this.scene.resume(SCENES.preparation);
+      if (this.sys.isActive()) {
+        this.announce('O laboratório arcade não pôde ser carregado. A Estação de Equipe foi preservada.');
+      }
+    });
+  }
+
   requestEraseProgress() {
     if (this.transitioning || this.erasingProgress || !this.settings?.isOpen) return;
     this.erasingProgress = true;
-    const confirmed = window.confirm('APAGAR TODO O PROGRESSO?\n\nDinheiro, SCORE, corridas, carros comprados, prêmio do rival, melhorias, histórico, piloto, veículo e pintura serão apagados, incluindo os backups do campeonato.\n\nEsta ação não pode ser desfeita. Deseja voltar ao início com uma carreira nova?');
-    if (!confirmed) {
-      this.erasingProgress = false;
-      this.settings.setFeedback('Exclusão cancelada. Seu progresso foi preservado.');
-      this.announce('Exclusão cancelada. Seu progresso foi preservado.');
-      return;
-    }
     if (!this.game.championship.eraseProgress()) {
       this.erasingProgress = false;
       this.settings.showError(`Não foi possível concluir a exclusão. ${this.game.championship.warning ?? 'Seu progresso foi preservado.'}`);
@@ -360,20 +443,24 @@ export class RacePreparationScene extends GarageScene {
 
   focusAction(index: number): void {
     if (this.transitioning || this.settings?.isOpen) return;
-    const count = this.rewardButton.visible ? 8 : 7;
+    const settingsIndex = this.modules.length + 1;
+    const rewardIndex = settingsIndex + 1;
+    const count = this.rewardButton.visible ? rewardIndex + 1 : settingsIndex + 1;
     this.focusIndex = (index + count) % count;
     [...this.modules, this.startButton].forEach((button, i) => button.setSelected(i === this.focusIndex));
-    this.rewardButton.setSelected(this.focusIndex === 7);
-     this.settings.button.dataset.keyboardSelected = String(this.focusIndex === 6);
-    if (this.focusIndex === 6) this.announce('Configurações. Enter abre som e gerenciamento de progresso.');
+    this.rewardButton.setSelected(this.focusIndex === rewardIndex);
+    this.settings.button.dataset.keyboardSelected = String(this.focusIndex === settingsIndex);
+    if (this.focusIndex === settingsIndex) this.announce('Configurações. Enter abre som e gerenciamento de progresso.');
   }
 
   handleKey(event: KeyboardEvent): void {
     if (this.settings?.isOpen) return;
     if (event.key === 'Escape') this.goTo(SCENES.vehicles);
     else if (event.key === 'Enter' || event.key === ' ') {
-      if (this.focusIndex === 6) this.settings.open();
-      else if (this.focusIndex === 7) this.rewardButton.onActivate();
+      const settingsIndex = this.modules.length + 1;
+      const rewardIndex = settingsIndex + 1;
+      if (this.focusIndex === settingsIndex) this.settings.open();
+      else if (this.rewardButton.visible && this.focusIndex === rewardIndex) this.rewardButton.onActivate();
       else [...this.modules, this.startButton][this.focusIndex].onActivate();
     }
     else {

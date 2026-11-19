@@ -1,0 +1,17 @@
+{
+  "id": "neon-kira",
+  "originPlanetId": "nyra-7",
+  "ultimateIds": ["neon-kira-hack-stop"],
+  "identityIconKey": "pilot-symbol-neon-kira",
+  "portraitKey": "pilot-card-portrait-neon-kira",
+  "fullBodyPortraitKey": "pilot-fullbody-kira",
+  "bonusAttributes": [
+    { "id": "acceleration", "value": 1 },
+    { "id": "oilSlickCount", "value": 1 }
+  ],
+  "nome": "NEON KIRA",
+  "titulo": "A RAINHA DO NEON",
+  "themeColor": "#FF29AE",
+  "resumo": "Vinda dos distritos neon de Nyra-7, Kira ganhou fama ao invadir uma transmissão oficial e vencer o favorito. Rebelde e provocadora, adora expor adversários arrogantes diante das câmeras.",
+  "lore": "Nascida nos distritos iluminados por neon de uma metrópole orbital, Kira cresceu desafiando autoridades e apostando tudo em corridas ilegais. Sua fama começou quando invadiu a transmissão de um campeonato oficial e derrotou o favorito diante de milhões de espectadores. Impulsiva, provocadora e incapaz de aceitar uma derrota, transformou seu carro em um símbolo de rebeldia. Para Kira, vencer é divertido, mas humilhar adversários arrogantes diante das câmeras é ainda melhor."
+}

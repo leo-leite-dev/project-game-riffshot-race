@@ -1,8 +1,36 @@
 export interface LabTrackVertex { x: number; y: number; z: number; bank: number }
 export interface LabTrackChunk { name: string; vertices: Float32Array; indices: Uint32Array }
 
-const WIDTH = 10;
-const RAMP_HEIGHT = 3;
+/** All distances are meters. These same vertices feed both rendering and Rapier. */
+export interface LabTrackConfig {
+  width: number;
+  sampleSpacing: number;
+  approachEndZ: number;
+  rampEndZ: number;
+  launchLipEndZ: number;
+  landingStartZ: number;
+  landingEndZ: number;
+  descentEndZ: number;
+  rampHeight: number;
+  curveRadius: number;
+  curveSamples: number;
+  exitLength: number;
+}
+
+export const DEFAULT_LAB_TRACK_CONFIG: Readonly<LabTrackConfig> = Object.freeze({
+  width: 10,
+  sampleSpacing: 1,
+  approachEndZ: 22,
+  rampEndZ: 38,
+  launchLipEndZ: 40,
+  landingStartZ: 41,
+  landingEndZ: 90,
+  descentEndZ: 102,
+  rampHeight: 2,
+  curveRadius: 14,
+  curveSamples: 36,
+  exitLength: 20,
+});
 
 function longitudinalRange(start: number, end: number, step: number, height: (z: number) => number,
   bank: (z: number) => number = () => 0): LabTrackVertex[] {
@@ -12,16 +40,17 @@ function longitudinalRange(start: number, end: number, step: number, height: (z:
   return points;
 }
 
-function buildRibbon(name: string, points: readonly LabTrackVertex[]): LabTrackChunk {
+function buildRibbon(name: string, points: readonly LabTrackVertex[], width: number,
+  startTangent?: { x: number; z: number }): LabTrackChunk {
   if (points.length < 2) throw new RangeError(`A seção ${name} precisa de pelo menos dois pontos.`);
   const vertices: number[] = [];
   const indices: number[] = [];
-  const halfWidth = WIDTH / 2;
+  const halfWidth = width / 2;
   for (let i = 0; i < points.length; i += 1) {
     const before = points[Math.max(0, i - 1)]!;
     const after = points[Math.min(points.length - 1, i + 1)]!;
-    const tangentX = after.x - before.x;
-    const tangentZ = after.z - before.z;
+    const tangentX = i === 0 && startTangent ? startTangent.x : after.x - before.x;
+    const tangentZ = i === 0 && startTangent ? startTangent.z : after.z - before.z;
     const tangentLength = Math.hypot(tangentX, tangentZ) || 1;
     const rightX = tangentZ / tangentLength;
     const rightZ = -tangentX / tangentLength;
@@ -39,8 +68,7 @@ function buildRibbon(name: string, points: readonly LabTrackVertex[]): LabTrackC
   return { name, vertices: new Float32Array(vertices), indices: new Uint32Array(indices) };
 }
 
-function buildBankedCurve(): LabTrackVertex[] {
-  const radius = 14, startZ = 82, samples = 36;
+function buildBankedCurve(radius: number, startZ: number, samples: number): LabTrackVertex[] {
   return Array.from({ length: samples + 1 }, (_, index) => {
     const progress = index / samples;
     const angle = progress * Math.PI / 2;
@@ -51,25 +79,57 @@ function buildBankedCurve(): LabTrackVertex[] {
   });
 }
 
-/** Original throwaway geometry; the visual mesh and Rapier collider use these same vertices. */
-export function createLabTrackChunks(): LabTrackChunk[] {
-  const approach = longitudinalRange(0, 22, 1.5, () => 0);
-  const ramp = longitudinalRange(22, 34, 1, z => RAMP_HEIGHT * (z - 22) / 12);
-  const lip = longitudinalRange(34, 37, 1, () => RAMP_HEIGHT);
-  const landing = longitudinalRange(46, 70, 1, () => RAMP_HEIGHT);
-  const descent = longitudinalRange(70, 82, 1, z => RAMP_HEIGHT * (82 - z) / 12);
-  const bankedCurve = buildBankedCurve();
-  const exit = Array.from({ length: 17 }, (_, index) => ({
-    x: 14 + index * 1.25, y: 0, z: 96, bank: 0,
+function validateConfig(config: LabTrackConfig): void {
+  const dimensions = [config.width, config.sampleSpacing, config.approachEndZ, config.rampEndZ,
+    config.launchLipEndZ, config.landingStartZ, config.landingEndZ, config.descentEndZ,
+    config.rampHeight, config.curveRadius, config.exitLength];
+  if (!dimensions.every(Number.isFinite) || config.width <= 0 || config.sampleSpacing <= 0
+    || config.rampHeight <= 0 || config.curveRadius <= 0 || config.exitLength <= 0
+    || !Number.isInteger(config.curveSamples) || config.curveSamples < 2
+    || !(0 < config.approachEndZ && config.approachEndZ < config.rampEndZ
+      && config.rampEndZ < config.launchLipEndZ && config.launchLipEndZ < config.landingStartZ
+      && config.landingStartZ < config.landingEndZ && config.landingEndZ < config.descentEndZ)) {
+    throw new RangeError('As dimensões da pista de teste devem ser finitas, positivas e estar em ordem crescente.');
+  }
+}
+
+/**
+ * Circuito original: aproximação, subida, topo, rampa de salto, vão, pouso,
+ * descida gradual e curva de saída. O vão entre rampa e pouso é intencional.
+ */
+export function createLabTrackChunks(config: LabTrackConfig = DEFAULT_LAB_TRACK_CONFIG): LabTrackChunk[] {
+  validateConfig(config);
+  const { width, sampleSpacing: step, approachEndZ, rampEndZ, launchLipEndZ,
+    landingStartZ, landingEndZ, descentEndZ, rampHeight, curveRadius, curveSamples, exitLength } = config;
+  const approach = longitudinalRange(0, approachEndZ, step, () => 0);
+  const ramp = longitudinalRange(approachEndZ, rampEndZ, step, z => {
+    const progress = (z - approachEndZ) / (rampEndZ - approachEndZ);
+    // Zero slope where the incline joins the flat approach and plateau. This
+    // removes the two abrupt normal changes that can kick the raycast springs.
+    const easedProgress = progress * progress * (3 - 2 * progress);
+    return rampHeight * easedProgress;
+  });
+  const lip = longitudinalRange(rampEndZ, launchLipEndZ, step, () => rampHeight);
+  const landing = longitudinalRange(landingStartZ, landingEndZ, step, () => rampHeight);
+  const descent = longitudinalRange(landingEndZ, descentEndZ, step, z => {
+    const progress = (z - landingEndZ) / (descentEndZ - landingEndZ);
+    const easedProgress = progress * progress * (3 - 2 * progress);
+    return rampHeight * (1 - easedProgress);
+  });
+  const bankedCurve = buildBankedCurve(curveRadius, descentEndZ, curveSamples);
+  const curveEndX = curveRadius;
+  const curveEndZ = descentEndZ + curveRadius;
+  const exit = Array.from({ length: Math.ceil(exitLength / step) + 1 }, (_, index) => ({
+    x: curveEndX + Math.min(index * step, exitLength), y: 0, z: curveEndZ, bank: 0,
   }));
 
   return [
-    buildRibbon('Piso plano', approach),
-    buildRibbon('Subida e rampa', [...ramp.slice(0, 1), ...ramp.slice(1), ...lip.slice(1)]),
-    buildRibbon('Área de aterrissagem', landing),
-    buildRibbon('Descida', descent),
-    buildRibbon('Curva inclinada', [...bankedCurve, ...exit.slice(1)]),
+    buildRibbon('Reta de aproximação', approach, width),
+    buildRibbon('Subida e rampa de salto', [...ramp, ...lip.slice(1)], width),
+    buildRibbon('Superfície de aterrissagem', landing, width),
+    buildRibbon('Descida progressiva', descent, width),
+    buildRibbon('Curva inclinada e reta final', [...bankedCurve, ...exit.slice(1)], width, { x: 0, z: 1 }),
   ];
 }
 
-export const LAB_TRACK_WIDTH = WIDTH;
+export const LAB_TRACK_WIDTH = DEFAULT_LAB_TRACK_CONFIG.width;

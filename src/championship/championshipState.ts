@@ -3,7 +3,10 @@ import { VEHICLES, PAINTS, RIVAL_VEHICLE_ID, getVehicleById } from '../data/vehi
 import { DIFFICULTIES } from '../data/raceDifficulty.ts';
 import { RACE_TRACKS } from '../data/raceTracks.ts';
 import { CHAMPIONSHIP_RULES } from '../data/championshipRules.ts';
+import { CAMARO_UPGRADE, CAMARO_UPGRADE_ATTRIBUTE_KEYS } from '../data/camaroUpgrades.ts';
+import type { CamaroUpgradeAttribute } from '../data/camaroUpgrades.ts';
 import { createTrackAssignmentState, assignTrack, completeAssignment } from '../race/trackAssignment.ts';
+import { canonicalPilotId, LEGACY_PILOT_ID_ALIASES } from '../data/pilotIds.ts';
 
 export type AttemptStatus = 'active' | 'qualified' | 'failed';
 export type RivalRewardChoice = 'vehicle' | 'credits';
@@ -28,9 +31,10 @@ export interface ChampionshipTracks {
   completedRaceIds: string[]; freeChoiceAvailable: boolean; history: string[];
 }
 export interface ChampionshipState {
-  schemaVersion: 3; revision: number; id: string; money: number; score: number; targetScore: number;
+  schemaVersion: 6; revision: number; id: string; money: number; score: number; targetScore: number;
   division: 'B'; rivalId: 'opening-b'; rivalName: 'DESAFIO INICIAL'; racesRun: number; maxRaces: number;
   upgrades: Record<string, number>; selections: ChampionshipSelections;
+  permanentUpgrades: { 'volt-vector': Record<CamaroUpgradeAttribute, number> };
   attempt: { id: string; number: number; status: AttemptStatus }; tracks: ChampionshipTracks;
   awardedRaceIds: string[];
   activeRace: { id: string; attemptId: string; trackId: string; selections: ChampionshipSelections } | null;
@@ -51,6 +55,7 @@ const stateKeys = ['schemaVersion', 'revision', 'id', 'money', 'score', 'targetS
   'rivalId', 'rivalName', 'racesRun', 'maxRaces', 'upgrades', 'selections', 'attempt', 'tracks',
   'awardedRaceIds', 'activeRace', 'pendingResult', 'previousAttempts'];
 const inventoryKeys = ['ownedVehicleIds', 'rivalRewardChoice'];
+const permanentUpgradeKeys = ['permanentUpgrades'];
 const resultKeys = ['raceId', 'trackId', 'trackName', 'difficultyId', 'laps', 'elapsedTime', 'standings'];
 const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
 const integer = (value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): value is number => Number.isSafeInteger(value) && (value as number) >= min && (value as number) <= max;
@@ -62,8 +67,18 @@ const keys = (value: unknown, required: string[], optional: string[] = []): valu
 const list = (value: unknown, predicate: (item: unknown) => boolean, unique = true): value is unknown[] => Array.isArray(value) && value.every(predicate)
   && (!unique || new Set(value).size === value.length);
 const sameSelections = (a: ChampionshipSelections, b: ChampionshipSelections) => (Object.keys(selectionIds) as (keyof ChampionshipSelections)[]).every(key => a[key] === b[key]);
-const validSelections = (value: unknown, nullable = true): value is ChampionshipSelections => keys(value, Object.keys(selectionIds))
-  && Object.entries(selectionIds).every(([key, ids]) => (nullable && value[key] === null) || (typeof value[key] === 'string' && (ids as readonly string[]).includes(value[key])));
+const legacyPilotIds = Object.keys(LEGACY_PILOT_ID_ALIASES);
+const validSelections = (
+  value: unknown,
+  nullable = true,
+  allowLegacyPilotIds = false,
+): value is ChampionshipSelections => keys(value, Object.keys(selectionIds))
+  && Object.entries(selectionIds).every(([key, ids]) => {
+    if (nullable && value[key] === null) return true;
+    if (typeof value[key] !== 'string') return false;
+    const allowed = key === 'pilotId' && allowLegacyPilotIds ? [...ids, ...legacyPilotIds] : ids;
+    return (allowed as readonly string[]).includes(value[key]);
+  });
 const outcome = (score: number, racesRun: number, targetScore: number): AttemptStatus => score >= targetScore ? 'qualified'
   : racesRun >= CHAMPIONSHIP_RULES.maximumRacesPerRival ? 'failed' : 'active';
 
@@ -105,9 +120,9 @@ function safeJson(value: unknown, ancestors = new Set<object>()): boolean {
   return valid;
 }
 
-function validResult(input: unknown, receipt: true): input is ChampionshipReceipt;
-function validResult(input: unknown, receipt?: false): input is ChampionshipResult;
-function validResult(input: unknown, receipt = false): boolean {
+function validResult(input: unknown, receipt: true, allowLegacyPilotIds?: boolean): input is ChampionshipReceipt;
+function validResult(input: unknown, receipt?: false, allowLegacyPilotIds?: boolean): input is ChampionshipResult;
+function validResult(input: unknown, receipt = false, allowLegacyPilotIds = false): boolean {
   if (!keys(input, receipt ? [...resultKeys, 'reward', 'totals', 'outcome'] : resultKeys, ['attemptId'])) return false;
   // The shape is only used to inspect the untrusted values below; every field
   // required by the corresponding result type is checked before returning true.
@@ -126,8 +141,11 @@ function validResult(input: unknown, receipt = false): boolean {
       : integer(entry.lapsCompleted, 0, value.laps)) && typeof entry.paintColor === 'string'
     && /^#[0-9a-f]{6}$/i.test(entry.paintColor))) return false;
   const players = standings.filter(entry => entry.isPlayer);
+  const allowedPilotIds = allowLegacyPilotIds
+    ? [...selectionIds.pilotId, ...legacyPilotIds]
+    : selectionIds.pilotId;
   if (new Set(standings.map(entry => entry.id)).size !== 4 || players.length !== 1
-    || !selectionIds.pilotId.includes(players[0].id)) return false;
+    || !allowedPilotIds.includes(players[0].id)) return false;
   if (!receipt) return true;
   const reward = CHAMPIONSHIP_RULES.rewardsByPosition[players[0].position];
   return keys(value.reward, ['score', 'money']) && value.reward.score === reward.score
@@ -137,18 +155,24 @@ function validResult(input: unknown, receipt = false): boolean {
     && ['active', 'qualified', 'failed'].includes(value.outcome);
 }
 
-function validState(input: unknown, legacy = false): boolean {
-  if (!keys(input, legacy ? stateKeys : [...stateKeys, ...inventoryKeys])) return false;
+function validState(input: unknown, version: 2 | 4 | 5 | 6 = 6): boolean {
+  const legacy = version === 2;
+  const allowLegacyPilotIds = version < 6;
+  if (!keys(input, legacy ? stateKeys : [...stateKeys, ...inventoryKeys, ...permanentUpgradeKeys])) return false;
   // This view never establishes trust: the schema checks below decide whether
   // the input may be exposed as a ChampionshipState by the public guard.
   const value = input as unknown as Omit<ChampionshipState, 'schemaVersion'> & { schemaVersion: number };
-  if (value.schemaVersion !== (legacy ? 2 : 3) || !integer(value.revision)
+  if (value.schemaVersion !== version || !integer(value.revision)
     || !text(value.id) || !integer(value.money) || !integer(value.score)
     || !integer(value.targetScore, 1, 1e6) || value.division !== 'B'
     || value.rivalId !== 'opening-b' || value.rivalName !== 'DESAFIO INICIAL'
-    || value.maxRaces !== CHAMPIONSHIP_RULES.maximumRacesPerRival
-    || !integer(value.racesRun, 0, value.maxRaces) || !validSelections(value.selections)
+     || value.maxRaces !== CHAMPIONSHIP_RULES.maximumRacesPerRival
+     || !integer(value.racesRun, 0, value.maxRaces) || !validSelections(value.selections, true, allowLegacyPilotIds)
     || !record(value.upgrades) || !Object.entries(value.upgrades).every(([key, level]) => text(key) && integer(level))
+     || (!legacy && (!keys(value.permanentUpgrades, [CAMARO_UPGRADE.vehicleId])
+        || !keys(value.permanentUpgrades[CAMARO_UPGRADE.vehicleId], version === 4 ? ['speed'] : [...CAMARO_UPGRADE_ATTRIBUTE_KEYS])
+        || !CAMARO_UPGRADE_ATTRIBUTE_KEYS.every(attribute => version === 4 && attribute !== 'speed'
+          || integer(value.permanentUpgrades[CAMARO_UPGRADE.vehicleId][attribute], 0, CAMARO_UPGRADE.maximumLevel))))
     || !keys(value.attempt, ['id', 'number', 'status']) || !text(value.attempt.id)
     || !integer(value.attempt.number, 1)
     || value.attempt.status !== outcome(value.score, value.racesRun, value.targetScore)
@@ -189,11 +213,12 @@ function validState(input: unknown, legacy = false): boolean {
       || race.attemptId !== value.attempt.id || race.trackId !== tracks.pendingTrackId
       || !trackIds.includes(race.trackId) || value.awardedRaceIds.includes(race.id)
       || (legacy ? value.attempt.status !== 'active' : !canRunOpening(value as ChampionshipState)) || value.pendingResult !== null
-      || !validSelections(race.selections, false) || !sameSelections(race.selections, value.selections)) return false;
+       || !validSelections(race.selections, false, allowLegacyPilotIds)
+       || !sameSelections(race.selections, value.selections)) return false;
   }
   if (value.pendingResult !== null) {
     const result = value.pendingResult;
-    if (!validResult(result, true) || result.raceId !== value.awardedRaceIds.at(-1)
+    if (!validResult(result, true, allowLegacyPilotIds) || result.raceId !== value.awardedRaceIds.at(-1)
       || result.trackId !== tracks.history.at(-1) || value.racesRun === 0
       || (Object.hasOwn(result, 'attemptId') && result.attemptId !== value.attempt.id)
       || result.totals.money !== value.money || result.totals.score !== value.score
@@ -214,10 +239,12 @@ export function isValidChampionshipState(value: unknown): value is ChampionshipS
 export function createChampionshipState({ id, attemptId }: { id: string; attemptId: string }): ChampionshipState {
   if (!text(id) || !text(attemptId)) throw new TypeError('Campeonato e tentativa precisam de IDs não vazios.');
   return {
-    schemaVersion: 3, revision: 0, id, money: 2000, score: 0,
+    schemaVersion: 6, revision: 0, id, money: 2000, score: 0,
     targetScore: CHAMPIONSHIP_RULES.targetScore, division: 'B',
     rivalId: 'opening-b', rivalName: 'DESAFIO INICIAL', racesRun: 0,
     maxRaces: CHAMPIONSHIP_RULES.maximumRacesPerRival, upgrades: {},
+    permanentUpgrades: { [CAMARO_UPGRADE.vehicleId]: Object.fromEntries(
+      CAMARO_UPGRADE_ATTRIBUTE_KEYS.map(attribute => [attribute, 0])) as Record<CamaroUpgradeAttribute, number> },
     selections: { pilotId: null, vehicleId: null, paintId: null, difficultyId: null },
     attempt: { id: attemptId, number: 1, status: 'active' },
     tracks: { ...createTrackAssignmentState(), history: [] } as ChampionshipTracks,
@@ -231,25 +258,79 @@ export function createChampionshipState({ id, attemptId }: { id: string; attempt
 // Locked/invalid legacy cars are rejected, never granted or silently replaced.
 export function migrateChampionshipState(value: unknown): ChampionshipState | null {
   try {
-    if (!safeJson(value) || !record(value) || typeof value.schemaVersion !== 'number' || ![1, 2].includes(value.schemaVersion)) return null;
+    if (!safeJson(value) || !record(value) || typeof value.schemaVersion !== 'number'
+      || ![1, 2, 3, 4, 5].includes(value.schemaVersion)) return null;
     const migrated: unknown = JSON.parse(JSON.stringify(value));
     if (!record(migrated)) return null;
-    if (migrated.schemaVersion === 1) {
-      if (record(migrated.selections) && migrated.selections.vehicleId === 'air-blade') migrated.selections.vehicleId = 'rift-blaze';
-      if (record(migrated.activeRace) && record(migrated.activeRace.selections) && migrated.activeRace.selections.vehicleId === 'air-blade') {
-        migrated.activeRace.selections.vehicleId = 'rift-blaze';
+    if (migrated.schemaVersion === 5) {
+      if (!validState(migrated, 5)) return null;
+    } else if (migrated.schemaVersion === 3) {
+      if (Object.hasOwn(migrated, 'permanentUpgrades')) return null;
+      migrated.schemaVersion = 4;
+      migrated.permanentUpgrades = { [CAMARO_UPGRADE.vehicleId]: { speed: 0 } };
+      if (!validState(migrated, 4)) return null;
+    } else if (migrated.schemaVersion === 4) {
+      if (!validState(migrated, 4)) return null;
+    } else {
+      if (migrated.schemaVersion === 1) {
+        if (record(migrated.selections) && migrated.selections.vehicleId === 'air-blade') migrated.selections.vehicleId = 'rift-blaze';
+        if (record(migrated.activeRace) && record(migrated.activeRace.selections) && migrated.activeRace.selections.vehicleId === 'air-blade') {
+          migrated.activeRace.selections.vehicleId = 'rift-blaze';
+        }
+      }
+      migrated.schemaVersion = 2;
+      if (!validState(migrated, 2)) return null;
+      migrated.schemaVersion = 3;
+      const legacy = migrated as unknown as ChampionshipState;
+      migrated.ownedVehicleIds = legacy.selections.vehicleId === null ? [] : [legacy.selections.vehicleId];
+      migrated.rivalRewardChoice = null;
+      migrated.schemaVersion = 4;
+      migrated.permanentUpgrades = { [CAMARO_UPGRADE.vehicleId]: { speed: 0 } };
+      if (!validState(migrated, 4)) return null;
+    }
+    const oldUpgrades = (migrated as { permanentUpgrades: Record<string, Record<string, number>> })
+      .permanentUpgrades[CAMARO_UPGRADE.vehicleId];
+    if (!oldUpgrades) return null;
+    migrated.permanentUpgrades = { [CAMARO_UPGRADE.vehicleId]: Object.fromEntries(
+      CAMARO_UPGRADE_ATTRIBUTE_KEYS.map(attribute => [attribute, oldUpgrades[attribute] ?? 0])) };
+    migrated.schemaVersion = 5;
+    if (!validState(migrated, 5)) return null;
+    const normalizePilotId = (selection: unknown): void => {
+      if (record(selection) && typeof selection.pilotId === 'string') {
+        selection.pilotId = canonicalPilotId(selection.pilotId);
+      }
+    };
+    normalizePilotId(migrated.selections);
+    if (record(migrated.activeRace)) normalizePilotId(migrated.activeRace.selections);
+    if (record(migrated.pendingResult) && Array.isArray(migrated.pendingResult.standings)) {
+      for (const standing of migrated.pendingResult.standings) {
+        if (record(standing) && standing.isPlayer === true && typeof standing.id === 'string') {
+          standing.id = canonicalPilotId(standing.id);
+        }
       }
     }
-    migrated.schemaVersion = 2;
-    if (!validState(migrated, true)) return null;
-    migrated.schemaVersion = 3;
-    const legacy = migrated as unknown as ChampionshipState;
-    migrated.ownedVehicleIds = legacy.selections.vehicleId === null ? [] : [legacy.selections.vehicleId];
-    migrated.rivalRewardChoice = null;
+    migrated.schemaVersion = 6;
     return validState(migrated) ? migrated as unknown as ChampionshipState : null;
   } catch {
     return null;
   }
+}
+
+/** Permanent Camaro purchases share the price schedule and never touch SCORE or attempt-local upgrades. */
+export function purchaseCamaroUpgrade(state: ChampionshipState, attribute: CamaroUpgradeAttribute): ChampionshipState {
+  if (!isValidChampionshipState(state) || state.activeRace || state.pendingResult) return state;
+  if (!CAMARO_UPGRADE_ATTRIBUTE_KEYS.includes(attribute)) return state;
+  const level = state.permanentUpgrades[CAMARO_UPGRADE.vehicleId][attribute];
+  const price = CAMARO_UPGRADE.prices[level];
+  if (price === undefined || state.money < price) return state;
+  return { ...state, money: state.money - price,
+    permanentUpgrades: { ...state.permanentUpgrades,
+      [CAMARO_UPGRADE.vehicleId]: { ...state.permanentUpgrades[CAMARO_UPGRADE.vehicleId], [attribute]: level + 1 } } };
+}
+
+/** Backward-compatible entry point; purchasing still uses the shared transition above. */
+export function purchaseCamaroSpeedUpgrade(state: ChampionshipState): ChampionshipState {
+  return purchaseCamaroUpgrade(state, 'speed');
 }
 
 export function setSelections(state: ChampionshipState, patch: Partial<ChampionshipSelections>): ChampionshipState {

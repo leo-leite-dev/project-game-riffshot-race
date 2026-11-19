@@ -1,13 +1,15 @@
 import { createChampionshipState, setSelections, ensureAssignedTrack, chooseSpecialTrack,
   beginChampionshipRace, applyChampionshipResult, acknowledgeChampionshipResult,
   isValidChampionshipState, purchaseChampionshipVehicle, claimChampionshipRivalReward,
-  ownsChampionshipVehicle, hasChampionshipSelections, canRunOpening,
+  ownsChampionshipVehicle, hasChampionshipSelections, canRunOpening, purchaseCamaroUpgrade,
+  purchaseCamaroSpeedUpgrade,
   canClaimChampionshipRivalReward } from './championshipState.ts';
 import { loadChampionship, saveChampionship, eraseChampionship, CHAMPIONSHIP_SAVE_KEY } from './championshipStorage.ts';
 import { getTrackById } from '../data/raceTracks.ts';
 import { acquireChampionshipWriter } from './championshipWriter.ts';
 import type Phaser from 'phaser';
 import type { ChampionshipState, ChampionshipSelections, ChampionshipResult, RivalRewardChoice } from './championshipState.ts';
+import type { CamaroUpgradeAttribute } from '../data/camaroUpgrades.ts';
 
 const uniqueId = (prefix: string) => `${prefix}-${globalThis.crypto?.randomUUID?.()
   ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
@@ -129,6 +131,14 @@ export class Championship {
 
   purchaseVehicle(vehicleId: string, paintId: string) {
     return this.commit(purchaseChampionshipVehicle(this.state, vehicleId, paintId), true);
+  }
+
+  purchaseCamaroSpeedUpgrade() {
+    return this.commit(purchaseCamaroSpeedUpgrade(this.state), true);
+  }
+
+  purchaseCamaroUpgrade(attribute: CamaroUpgradeAttribute) {
+    return this.commit(purchaseCamaroUpgrade(this.state, attribute), true);
   }
 
   ownsVehicle(id: string) { return ownsChampionshipVehicle(this.state, id); }

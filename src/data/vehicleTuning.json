@@ -1,6 +1,6 @@
 {
   "rift-blaze": {
-    "speed": 62,
+    "speed": 68,
     "acceleration": 68,
     "control": 64,
     "tires": 60,
@@ -11,12 +11,12 @@
     "oilSlickCount": 0
   },
   "volt-vector": {
-    "speed": 62,
-    "acceleration": 76,
-    "control": 84,
-    "tires": 84,
-    "suspension": 48,
-    "armor": 60,
+    "speed": 0,
+    "acceleration": 0,
+    "control": 68,
+    "tires": 68,
+    "suspension": 68,
+    "armor": 68,
     "shotCount": 2,
     "bombCount": 2,
     "oilSlickCount": 2

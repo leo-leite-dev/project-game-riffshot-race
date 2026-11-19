@@ -60,6 +60,10 @@ const styles = `
   [data-vehicle-tuning] .dev-ai-control input[type="range"] { grid-column:1/-1; min-height:28px; padding:0; accent-color:#ff806d; }
   [data-vehicle-tuning] .dev-ai-control output { color:#ffcf73; font:700 18px Arial,sans-serif; }
   [data-vehicle-tuning] [hidden] { display:none !important; }
+  [data-vehicle-tuning] .dev-test-mode { display:flex; align-items:center; gap:10px; margin:14px 18px 0; padding:12px;
+    border:1px solid #536477; background:#0b1420; color:#ffcf73; font:700 13px Arial,sans-serif; }
+  [data-vehicle-tuning] .dev-test-mode input { width:20px; min-height:20px; accent-color:#ff806d; }
+  [data-vehicle-tuning] .dev-test-mode p { margin:0; color:#a9bfcc; font:12px/1.4 Arial,sans-serif; }
   @media(max-width:440px) { [data-vehicle-tuning] fieldset { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 `;
 
@@ -84,21 +88,26 @@ export class VehicleTuningEditor {
   private readonly authorizeButton: HTMLButtonElement;
   private readonly saveButton: HTMLButtonElement;
   private readonly closeButton: HTMLButtonElement;
+  private readonly testModeInput: HTMLInputElement;
   private token = '';
   private inputs = new Map<string, HTMLInputElement>();
   private readonly onTrackAudioAction: (event: Event) => void;
   private readonly onTabKeydown: (event: KeyboardEvent) => void;
   private readonly onAIBonusInput: (event: Event) => void;
+  private readonly onTestModeToggle: () => void;
   private destroyed = false;
   private busy = false;
+  private testModeEnabled = false;
+  private readonly onTestModeChange: (enabled: boolean) => void;
   private readonly onAuth: (event: SubmitEvent) => void;
   private readonly onSave: (event: SubmitEvent) => void;
   private readonly onClose: () => void;
   private readonly onCancel: (event: Event) => void;
   private readonly onShutdown: () => void;
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, onTestModeChange: (enabled: boolean) => void) {
     this.scene = scene;
+    this.onTestModeChange = onTestModeChange;
     acquireStyle();
     this.dialog = document.createElement('dialog');
     this.dialog.dataset.vehicleTuning = 'true';
@@ -113,6 +122,8 @@ export class VehicleTuningEditor {
         <div class="dev-actions"><button type="submit" data-role="authorize">DESBLOQUEAR E CARREGAR ATRIBUTOS</button></div>
       </form>
       <form data-role="edit-area" hidden>
+        <label class="dev-test-mode"><input type="checkbox" data-role="test-mode"> MODO TESTE
+          <p>Ativa ferramentas experimentais somente nesta sessão local.</p></label>
         <div class="dev-tabs" role="tablist" aria-label="Seções do Modo Desenvolvedor">
           <button type="button" role="tab" id="dev-tab-vehicles" aria-controls="dev-panel-vehicles" aria-selected="true" data-dev-tab="vehicles">VEÍCULOS</button>
           <button type="button" role="tab" id="dev-tab-audio" aria-controls="dev-panel-audio" aria-selected="false" data-dev-tab="audio" tabindex="-1">ÁUDIO</button>
@@ -151,6 +162,7 @@ export class VehicleTuningEditor {
     this.authorizeButton = this.dialog.querySelector<HTMLButtonElement>('[data-role="authorize"]')!;
     this.saveButton = this.dialog.querySelector<HTMLButtonElement>('[data-role="save"]')!;
     this.closeButton = this.dialog.querySelector<HTMLButtonElement>('[data-role="close"]')!;
+    this.testModeInput = this.dialog.querySelector<HTMLInputElement>('[data-role="test-mode"]')!;
     this.onAuth = event => { event.preventDefault(); void this.authorize(); };
     this.onSave = event => { event.preventDefault(); void this.save(); };
     this.onTrackAudioAction = event => {
@@ -160,6 +172,11 @@ export class VehicleTuningEditor {
     };
     this.onTabKeydown = event => this.handleTabKeydown(event);
     this.onAIBonusInput = event => this.saveAIBonusFromInput(event);
+    this.onTestModeToggle = () => {
+      if (!this.token) return;
+      this.testModeEnabled = this.testModeInput.checked;
+      this.onTestModeChange(this.testModeEnabled);
+    };
     this.onClose = () => this.close();
     this.onCancel = event => { event.preventDefault(); this.close(); };
     this.onShutdown = () => this.destroy();
@@ -168,6 +185,7 @@ export class VehicleTuningEditor {
     this.editArea.addEventListener('click', this.onTrackAudioAction);
     this.editArea.addEventListener('keydown', this.onTabKeydown);
     this.editArea.addEventListener('input', this.onAIBonusInput);
+    this.testModeInput.addEventListener('change', this.onTestModeToggle);
     this.closeButton.addEventListener('click', this.onClose);
     this.dialog.addEventListener('cancel', this.onCancel);
     scene.events.once('shutdown', this.onShutdown);
@@ -207,6 +225,7 @@ export class VehicleTuningEditor {
       this.render(result.vehicles);
       this.renderTrackAudioControls();
       this.renderAIBonusControls();
+      this.testModeInput.checked = this.testModeEnabled;
       this.passwordArea.hidden = true;
       this.editArea.hidden = false;
       this.status.textContent = 'Acesso de desenvolvimento liberado. As opções locais ficam organizadas nas abas acima.';
@@ -405,6 +424,7 @@ export class VehicleTuningEditor {
     this.editArea.removeEventListener('click', this.onTrackAudioAction);
     this.editArea.removeEventListener('keydown', this.onTabKeydown);
     this.editArea.removeEventListener('input', this.onAIBonusInput);
+    this.testModeInput.removeEventListener('change', this.onTestModeToggle);
     this.closeButton.removeEventListener('click', this.onClose);
     this.dialog.removeEventListener('cancel', this.onCancel);
     this.scene.events.off('shutdown', this.onShutdown);

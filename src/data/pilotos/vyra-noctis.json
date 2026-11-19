@@ -1,0 +1,17 @@
+{
+  "id": "vyra-noctis",
+  "originPlanetId": "noctis-prime",
+  "ultimateIds": ["vyra-noctis-position-swap"],
+  "identityIconKey": "pilot-symbol-vyra-noctis",
+  "portraitKey": "pilot-card-portrait-vyra-noctis",
+  "fullBodyPortraitKey": "pilot-fullbody-vyra-noctis",
+  "bonusAttributes": [
+    { "id": "control", "value": 1 },
+    { "id": "bombCount", "value": 1 }
+  ],
+  "nome": "VYRA NOCTIS",
+  "titulo": "A DIVA GALÁCTICA",
+  "themeColor": "#B65AFF",
+  "resumo": "Engenheira brilhante de Noctis Prime, Vyra abandonou a pesquisa militar para transformar as pistas em seu laboratório. Elegante e ambiciosa, busca aperfeiçoar a máquina definitiva a cada corrida.",
+  "lore": "Considerada uma das mentes mais brilhantes da engenharia orbital, Vyra ficou famosa por desenvolver bobinas de pulso e protótipos capazes de atingir velocidades extraordinárias. Entretanto, abandonou os laboratórios corporativos quando descobriu que suas invenções seriam utilizadas para fins militares. Refinada, ambiciosa e dona de uma confiança inabalável, decidiu transformar as pistas em seu novo laboratório. Para Vyra, cada corrida é um experimento e cada vitória representa mais um passo rumo à máquina perfeita."
+}

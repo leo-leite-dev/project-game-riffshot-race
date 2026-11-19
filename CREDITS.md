@@ -82,15 +82,14 @@ O arquivo local foi preservado em um backup privado fora do repositório antes d
 
 ## Arte procedural do projeto
 
-Garagem, braço mecânico, plataformas, painéis, ícones, veículos procedurais, favicon, fundos e retratos são desenhados por código; não há sprites, capturas de tela, fontes ou gravações de outros jogos no build. A Estação de Equipe usa fundo industrial, lua vermelha, molduras e título próprios de `StationArt.js`, além do retrato original de **Ravik Ferro, O Fundidor**. A imagem local de layout foi somente referência de composição e não é distribuída, inclusive seu retrato protegido. O logo RIFFSHOT RACING também é desenhado por código. Isso descreve a criação dos arquivos, mas **não certifica exclusividade jurídica nem ausência de semelhança**.
+Garagem, braço mecânico, plataformas, painéis, ícones, veículos procedurais, favicon e demais fundos incluem arte desenhada por código. A tela de seleção usa a folha de sprites `src/assets/ui/character-selection/character-selection-ui-guide.png` e retratos, planeta e pista recortados de `src/assets/Seleção de Pilotos em Voltarís.png`, ambas fornecidas pelo proprietário para este projeto. A origem e a licença independente dessas imagens não foram informadas; os recortes não certificam direitos de distribuição. A Estação de Equipe usa fundo industrial, lua vermelha, molduras e título próprios de `StationArt.js`, além do retrato original de **Ravik Ferro, O Fundidor**. O logo RIFFSHOT RACING também é desenhado por código. Isso descreve a criação dos arquivos, mas **não certifica exclusividade jurídica nem ausência de semelhança**.
 
 ## Identidade RIFFSHOT RACING
 
 - Nome público escolhido pelo proprietário: **RIFFSHOT RACING**.
 - Slogan: **“Sinta a batida. Pise fundo. Abra fogo.”**
 - O logotipo novo usa lettering cromado e um emblema original de palheta/onda sonora, desenhados por código. A mudança visual não equivale a busca ou liberação de marca.
-- Dax Voltage substitui Raze Riot: personagem descrito como técnico de ressonância/engenharia de som das arenas orbitais. O retrato é criado por vetores Canvas no projeto. O nome, perfil e aparência ainda exigem revisão de direitos; não foi feita uma busca jurídica exaustiva.
-- Vera Volt, Kira Comet, Echo-7, Atlas Knox e Zuri Spark permanecem no elenco, com estatísticas e funções preservadas. Seus retratos são ilustrações procedurais próprias com motivos distintos (crista mecânica, capuz-cartógrafo, sensor assimétrico, respirador de carga e bobina de propulsor); não usam arquivos de imagem externos. Isso não substitui comparação independente com catálogos de personagens.
+- A tela de seleção apresenta nove pilotos com IDs canônicos `axel-ryder`, `neon-kira`, `brok-thorn`, `leonard-lyon`, `rox-z7`, `vyra-noctis`, `dagger-raven`, `cyber-dragon` e `drax-mare`. Saves anteriores com IDs legados são migrados sem remover progresso; os nomes, perfis e retratos apresentados exigem revisão de direitos. Não foi feita uma busca jurídica exaustiva.
 - A preparação foi redesenhada como estação de equipe assimétrica, sem reproduzir uma captura de tela ou arte do jogo clássico. Ainda preserva grupos funcionais comuns — piloto/rival, temporada, pontuação, condição do veículo e módulos — por requisito do jogo; essa inspiração de estrutura merece revisão jurídica antes da publicação.
 - A antiga integração do GLB Air Blade foi removida; este registro permanece para identificar a procedência do backup local e a restrição de não distribuição.
 

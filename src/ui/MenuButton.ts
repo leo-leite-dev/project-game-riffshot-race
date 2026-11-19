@@ -79,4 +79,19 @@ export class MenuButton extends Phaser.GameObjects.Container {
     this.detail.setColor(selected && !this.locked ? '#71f6ff' : COLORS.dim);
     return this;
   }
+
+  setBuiltInVisualsVisible(visible: boolean): void {
+    for (const child of [this.background, this.number, this.label, this.detail, this.lockIcon]) {
+      child.setVisible(visible);
+    }
+  }
+
+  setInteractionArea(width: number, height: number): void {
+    this.setSize(width, height);
+    const hitArea = this.input?.hitArea;
+    if (hitArea instanceof Phaser.Geom.Rectangle) {
+      hitArea.setTo(0, 0, width, height);
+    }
+  }
+
 }

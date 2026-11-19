@@ -1,0 +1,17 @@
+{
+  "id": "rox-z7",
+  "originPlanetId": "solkar",
+  "ultimateIds": ["rox-z7-forced-acceleration"],
+  "identityIconKey": "pilot-symbol-rox-z7",
+  "portraitKey": "pilot-card-portrait-rox-z7",
+  "fullBodyPortraitKey": "pilot-fullbody-rox-z7",
+  "bonusAttributes": [
+    { "id": "speed", "value": 1 },
+    { "id": "acceleration", "value": 1 }
+  ],
+  "nome": "ROX Z-7",
+  "titulo": "O VELOCISTA CYBERPUNK",
+  "themeColor": "#00F2E5",
+  "resumo": "Após desaparecer em um acidente experimental, Rox Z-7 voltou aos circuitos com reflexos cibernéticos e tecnologia desconhecida. Ninguém sabe seu passado; ele só quer ultrapassar todos os limites.",
+  "lore": "Ninguém conhece o verdadeiro nome de Rox. Os registros oficiais afirmam que ele desapareceu após um acidente durante testes de veículos experimentais. Anos depois, um piloto de moicano azul surgiu nos circuitos clandestinos, utilizando tecnologia que nenhuma equipe conseguia identificar. Rox combina reflexos treinados, modificações cibernéticas e uma obsessão quase perigosa por ultrapassar os limites das máquinas. Por trás de sua postura desafiadora, carrega um segredo ligado ao acidente que mudou sua vida para sempre."
+}

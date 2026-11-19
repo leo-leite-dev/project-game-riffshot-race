@@ -1,0 +1,17 @@
+{
+  "id": "leonard-lyon",
+  "originPlanetId": "kaelith",
+  "ultimateIds": ["leonard-lyon-defensive-leap"],
+  "identityIconKey": "pilot-symbol-leonard-lyon",
+  "portraitKey": "pilot-card-portrait-leonard-lyon",
+  "fullBodyPortraitKey": "pilot-fullbody-leonard-lyon",
+  "bonusAttributes": [
+    { "id": "control", "value": 1 },
+    { "id": "tires", "value": 1 }
+  ],
+  "nome": "LEONARD LYON",
+  "titulo": "O REI DA SELVA",
+  "themeColor": "#F6B72C",
+  "resumo": "Vindo de um mundo selvagem, Leonard usa reflexos extraordinários para transformar cada curva em perseguição. Calculista e competitivo, quer liderar as pistas como o maior predador.",
+  "lore": "Originário de um mundo selvagem dominado por tempestades e predadores, Leonard pertence a uma linhagem conhecida por seus reflexos extraordinários. Desde jovem, recusou o destino de se tornar um caçador tradicional e encontrou nas corridas uma maneira diferente de demonstrar superioridade. Orgulhoso, calculista e extremamente competitivo, trata cada curva como uma perseguição e cada adversário como uma presa. Seu objetivo é conquistar o título máximo das pistas e provar que nasceu para liderar, não para seguir."
+}

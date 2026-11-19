@@ -1,9 +1,10 @@
-import { test, expect, openMenu, waitScene, state } from './helpers.ts';
+import { test, expect, openMenu, waitScene, state, clickObject } from './helpers.ts';
 import { CHARACTERS } from '../src/data/characters.ts';
 import { createChampionshipState, setSelections, acknowledgeChampionshipResult,
   ensureAssignedTrack, beginChampionshipRace, applyChampionshipResult } from '../src/championship/championshipState.ts';
 import { CHAMPIONSHIP_SAVE_KEY } from '../src/championship/championshipStorage.ts';
 import { VEHICLE_TUNING } from '../src/data/vehicles.ts';
+import { RACE_TRACKS } from '../src/data/raceTracks.ts';
 import { DEV_RACE_AI_BONUS_KEY } from '../src/race/DevRaceAIBonus.ts';
 
 function teamFixture() {
@@ -72,7 +73,7 @@ test('Modo Dev local: senha abre editor, valida e persiste tuning na API sem toc
   await editor.getByRole('tab', { name: 'ÁUDIO' }).click();
   await expect(editor.getByLabel('NEON FURNACE — MÚSICA — selecionar MP3')).toBeVisible();
   await expect(editor.getByLabel('NEON FURNACE — NARRAÇÃO DE LARGADA — selecionar MP3')).toBeVisible();
-  await expect(editor.locator('[data-track-audio-file]')).toHaveCount(6);
+  await expect(editor.locator('[data-track-audio-file]')).toHaveCount(RACE_TRACKS.length * 2);
   await editor.getByRole('tab', { name: 'VEÍCULOS' }).click();
   expect((await state(page)).key).toBe('RacePreparation');
   await expect(editor.getByRole('spinbutton', { name: 'CAMARO / Pneus' })).toHaveValue('84');
@@ -113,6 +114,127 @@ test('Modo Dev local: senha abre editor, valida e persiste tuning na API sem toc
   expect(await page.evaluate(key => localStorage.getItem(key), CHAMPIONSHIP_SAVE_KEY)).toBe(rawSave);
   // The editor remains open for review. Page teardown exercises its registered
   // shutdown cleanup without leaving fixture tuning or touching the real save.
+});
+
+test('Modo Teste protegido controla a entrada no laboratório e mantém a estação e o save isolados', async ({ page }) => {
+  test.setTimeout(90_000);
+  const seed = teamFixture();
+  await page.addInitScript(({ key, seed }) => localStorage.setItem(key, JSON.stringify(seed)),
+    { key: CHAMPIONSHIP_SAVE_KEY, seed });
+  await page.route('**/__riffshot_dev/vehicle-tuning/**', async route => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname.endsWith('/auth')) {
+      const body = route.request().postDataJSON() as { password?: string };
+      if (body.password !== 'fixture-only-pin') {
+        await route.fulfill({ status: 401, json: { error: 'invalid-password' } }); return;
+      }
+      await route.fulfill({ json: { token: 'fixture-session-token', vehicles: VEHICLE_TUNING } }); return;
+    }
+    if (pathname.endsWith('/logout')) { await route.fulfill({ json: { loggedOut: true } }); return; }
+    await route.fulfill({ status: 404, json: { error: 'not-found' } });
+  });
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page); await page.keyboard.press('Enter'); await waitScene(page, 'RacePreparation');
+  const gear = page.getByRole('button', { name: 'Configurações', exact: true });
+  await gear.click();
+  const settings = page.getByRole('dialog', { name: 'CONFIGURAÇÕES', exact: true });
+  await settings.getByRole('button', { name: 'MODO DESENVOLVEDOR / ATRIBUTOS DOS CARROS' }).click();
+  const editor = page.getByRole('dialog', { name: 'PAINEL DO MODO DESENVOLVEDOR' });
+  await editor.getByLabel('Senha local').fill('fixture-only-pin');
+  await editor.getByRole('button', { name: 'DESBLOQUEAR E CARREGAR ATRIBUTOS' }).click();
+  const testMode = editor.getByRole('checkbox', { name: /MODO TESTE/ });
+  await expect(testMode).toBeVisible();
+  await expect(testMode).not.toBeChecked();
+  const officialRaceLabel = await page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]')!;
+    const { game } = await import(script.src);
+    return (game.scene.getScene('RacePreparation') as any).startButton.label.text as string;
+  });
+
+  await testMode.check();
+  await page.screenshot({ path: 'previews-ui/modo-dev-modo-teste.png' });
+  await expect.poll(() => page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]')!;
+    const { game } = await import(script.src);
+    const scene = game.scene.getScene('RacePreparation') as unknown as {
+      testModeEnabled: boolean; physicsLabButton: { label: { text: string } } | null; startButton: { label: { text: string } };
+    };
+    return { enabled: scene.testModeEnabled, label: scene.physicsLabButton?.label.text,
+      officialRace: scene.startButton.label.text };
+  })).toMatchObject({ enabled: true, label: 'PISTA DE TESTE' });
+  await expect.poll(() => page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]')!;
+    const { game } = await import(script.src);
+    return (game.scene.getScene('RacePreparation') as any).startButton.label.text;
+  })).toBe(officialRaceLabel);
+
+  const saveBeforeLab = await page.evaluate(key => localStorage.getItem(key), CHAMPIONSHIP_SAVE_KEY);
+  const campaignBeforeLab = await page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]')!;
+    const { game } = await import(script.src);
+    return JSON.stringify(game.championship.state);
+  });
+  await editor.getByRole('button', { name: 'FECHAR' }).click();
+  await expect(editor).not.toBeVisible();
+  await page.screenshot({ path: 'previews-ui/estacao-pista-teste-ativada.png' });
+  const legacyLabRequests: string[] = [];
+  page.on('request', request => {
+    if (/\/PhysicsLabScene\.ts|RapierVehicleLab|rapier3d-compat/i.test(new URL(request.url()).pathname)) {
+      legacyLabRequests.push(request.url());
+    }
+  });
+  await clickObject(page, 'physicsLabButton');
+  const lab = page.locator('[data-physics-lab-root]');
+  await expect(lab).toBeVisible();
+  await expect(lab).toHaveAttribute('data-lab-engine', 'arcade-race-simulation');
+  await expect(lab).toHaveAttribute('data-lab-scene', 'ArcadePhysicsLab');
+  await expect(lab.locator('[data-physics-lab-status]')).toContainText('RaceSimulation ativa', { timeout: 15_000 });
+  await expect(lab).toContainText('física horizontal: RaceSimulation oficial');
+  await expect(lab).not.toContainText(/raycasts|suspensão|Rapier/i);
+  await expect.poll(() => page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]')!;
+    const { game } = await import(script.src);
+    return game.scene.getScenes(true).map((scene: { scene: { key: string } }) => scene.scene.key);
+  })).toContain('ArcadePhysicsLab');
+  expect(legacyLabRequests).toEqual([]);
+  await page.screenshot({ path: 'previews-ui/laboratorio-arcade-entrada-oficial.png' });
+  await page.locator('[data-close]').click();
+  await expect(lab).toHaveCount(0);
+  await expect(page.locator('body')).toHaveClass(/team-station-active/);
+  expect(await page.evaluate(key => localStorage.getItem(key), CHAMPIONSHIP_SAVE_KEY)).toBe(saveBeforeLab);
+  expect(await page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]')!;
+    const { game } = await import(script.src);
+    return JSON.stringify(game.championship.state);
+  })).toBe(campaignBeforeLab);
+
+  await gear.click();
+  await page.getByRole('dialog', { name: 'CONFIGURAÇÕES', exact: true })
+    .getByRole('button', { name: 'MODO DESENVOLVEDOR / ATRIBUTOS DOS CARROS' }).click();
+  await editor.getByLabel('Senha local').fill('fixture-only-pin');
+  await editor.getByRole('button', { name: 'DESBLOQUEAR E CARREGAR ATRIBUTOS' }).click();
+  const reopenedToggle = editor.getByRole('checkbox', { name: /MODO TESTE/ });
+  await expect(reopenedToggle).toBeChecked();
+  await reopenedToggle.uncheck();
+  await expect.poll(() => page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]')!;
+    const { game } = await import(script.src);
+    const scene = game.scene.getScene('RacePreparation') as unknown as { testModeEnabled: boolean; physicsLabButton: unknown };
+    return { enabled: scene.testModeEnabled, hasLabButton: scene.physicsLabButton !== null };
+  })).toEqual({ enabled: false, hasLabButton: false });
+  await editor.getByRole('button', { name: 'FECHAR' }).click();
+  await expect(editor).not.toBeVisible();
+  await page.screenshot({ path: 'previews-ui/estacao-pista-teste-desativada.png' });
+
+  await openMenu(page); await page.keyboard.press('Enter'); await waitScene(page, 'RacePreparation');
+  await expect.poll(() => page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]')!;
+    const { game } = await import(script.src);
+    const scene = game.scene.getScene('RacePreparation') as unknown as { testModeEnabled: boolean; physicsLabButton: unknown };
+    return { enabled: scene.testModeEnabled, hasLabButton: scene.physicsLabButton !== null };
+  })).toEqual({ enabled: false, hasLabButton: false });
+  expect(await page.evaluate(key => localStorage.getItem(key), CHAMPIONSHIP_SAVE_KEY)).toBe(saveBeforeLab);
 });
 
 test('produção: a engrenagem não oferece editor nem credencial dev', async ({ page }) => {

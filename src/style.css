@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Oxanium';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('./assets/ui/fonts/OxaniumVariable.ttf') format('truetype');
+}
+
 :root {
   color-scheme: dark;
   background: #080b19;
@@ -72,10 +80,32 @@ canvas {
 
 body.main-menu-active .public-credits { display: inline-flex; }
 
+body.main-menu-active .public-credits {
+  right: max(0.5vw, env(safe-area-inset-right));
+  bottom: max(0.5vh, env(safe-area-inset-bottom));
+  width: 14vw;
+  height: 6.5vh;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: transparent;
+  font-size: 0;
+  text-decoration: none;
+}
+
 .public-credits:hover, .public-credits:focus-visible {
   border-color: #71f6ff;
   outline: 1px solid #71f6ff;
   outline-offset: 3px;
+}
+
+body.main-menu-active .public-credits:hover,
+body.main-menu-active .public-credits:focus-visible {
+  border-color: #ff334d;
+  outline-color: #ff334d;
+  box-shadow: 0 0 18px #ff17386e;
 }
 
 @media (max-width: 359px) {
@@ -88,7 +118,7 @@ body.main-menu-active .public-credits { display: inline-flex; }
 #orientation-prompt { display: none; }
 
 @media (orientation: portrait) and (pointer: coarse) and (max-width: 900px) {
-  #orientation-prompt {
+  body:not(.main-menu-active):not(.intro-screen-active):not(.difficulty-selection-active) #orientation-prompt {
     position: fixed;
     z-index: 9;
     inset: 50% auto auto 50%;
@@ -98,7 +128,8 @@ body.main-menu-active .public-credits { display: inline-flex; }
     transform: translate(-50%, -50%);
     pointer-events: none;
   }
-  #orientation-prompt.is-dismissed { display: none; }
+  body:not(.main-menu-active):not(.intro-screen-active):not(.difficulty-selection-active)
+    #orientation-prompt.is-dismissed { display: none; }
   .orientation-card {
     display: grid;
     justify-items: center;
@@ -133,5 +164,22 @@ body.main-menu-active .public-credits { display: inline-flex; }
     background: #101927;
     color: #c6d7e6;
     font-weight: 400;
+  }
+}
+
+@media (max-width: 1100px) {
+  body.main-menu-active .public-credits {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: auto;
+    height: auto;
+    min-width: 138px;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid #ff334d;
+    background: #100811ed;
+    color: #fff4f4;
+    font-size: 11px;
+    text-decoration: none;
   }
 }

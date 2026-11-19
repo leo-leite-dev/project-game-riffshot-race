@@ -1,5 +1,5 @@
 // Shared balance for the implemented opening challenge. SCORE gates progress;
-// MONEY is the independent spendable wallet. No upgrade shop is implemented.
+// MONEY is separate and can buy vehicles or permanent vehicle improvements.
 export const CHAMPIONSHIP_RULES = Object.freeze({
   maximumRacesPerRival: 8,
   targetScore: 1400,

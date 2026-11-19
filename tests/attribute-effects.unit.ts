@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CHARACTERS } from '../src/data/characters.ts';
-import type { PilotAttribute } from '../src/data/characters.ts';
+import type { PilotHandlingAttribute } from '../src/data/characters.ts';
 import { RACE_TRACKS } from '../src/data/raceTracks.ts';
 import { VEHICLES } from '../src/data/vehicles.ts';
 import { deriveHandlingStats, PILOT_SPECIALTY_BONUS_POINTS, RaceSimulation, sampleTrackAtProgress } from '../src/race/RaceSimulation.ts';
@@ -12,7 +12,7 @@ const pilotKeys = ['speed', 'acceleration', 'handling', 'endurance', 'aggression
 
 test('pilotos: exatamente duas especialidades ativas, ratings somam 30 e não especialidades ficam neutras', () => {
   for (const pilot of CHARACTERS) {
-    const specialties = pilot.specialties as readonly PilotAttribute[];
+    const specialties = pilot.specialties as readonly PilotHandlingAttribute[];
     assert.equal(specialties.length, 2, `${pilot.name} precisa ter só dois talentos ativos`);
     assert.equal(new Set(pilot.specialties).size, 2);
     assert.equal(Object.values(pilot.stats).reduce((sum, value) => sum + value, 0), 30);

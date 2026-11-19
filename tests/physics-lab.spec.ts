@@ -15,6 +15,22 @@ test('lab Rapier 3D dirige, salta, pousa e não lê nem grava o save do jogo', a
   await expect(lab).toBeVisible();
   await expect(page.locator('[data-physics-lab-status]')).toContainText('0.21.0', { timeout: 15_000 });
   await expect(lab).toHaveAttribute('data-region', 'flat');
+  await expect.poll(() => lab.getAttribute('data-contacts'),
+    { timeout: 5000, message: 'o veículo inicia apoiado pelas quatro rodas' }).toBe('4');
+  await page.keyboard.down('a');
+  await expect.poll(() => lab.getAttribute('data-steering')).toBe('1');
+  await page.keyboard.up('a');
+  await page.keyboard.down('d');
+  await expect.poll(() => lab.getAttribute('data-steering')).toBe('-1');
+  await page.keyboard.up('d');
+  await page.keyboard.down('a');
+  await expect.poll(async () => Number(await lab.getAttribute('data-steering-applied')))
+    .toBeGreaterThan(0);
+  expect(Number(await lab.getAttribute('data-steering-applied'))).toBeLessThan(0.8);
+  await page.keyboard.up('a');
+  await expect.poll(async () => Number(await lab.getAttribute('data-steering-applied')),
+    { timeout: 2000, message: 'a direção volta progressivamente ao centro após soltar A' })
+    .toBeLessThan(0.2);
   await lab.locator('[data-pause-events-toggle]').click();
   await expect(lab.locator('[data-pause-events-toggle]')).toContainText('LIGADA');
 
@@ -22,6 +38,8 @@ test('lab Rapier 3D dirige, salta, pousa e não lê nem grava o save do jogo', a
     await page.keyboard.down('w');
     await expect.poll(async () => Number(await lab.getAttribute('data-speed-mps')),
       { timeout: 5000, message: 'W acelera o chassi Rapier' }).toBeGreaterThan(1);
+    await expect(lab).toHaveAttribute('data-region', 'ramp', { timeout: 15_000 });
+    await page.screenshot({ path: 'previews-ui/physics-lab-subida-rampa.png' });
     await expect.poll(async () => Number(await lab.getAttribute('data-takeoffs')),
       { timeout: 15_000, message: 'a superfície da rampa gera decolagem por perda de contato' })
       .toBeGreaterThan(0);
@@ -36,17 +54,73 @@ test('lab Rapier 3D dirige, salta, pousa e não lê nem grava o save do jogo', a
     await page.screenshot({ path: 'previews-ui/physics-lab-debug-fisico.png' });
     await lab.locator('[data-pause-toggle]').click();
     await expect(lab).toHaveAttribute('data-paused', 'false');
+    await expect.poll(async () => lab.getAttribute('data-descending'),
+      { timeout: 5000, intervals: [20, 30, 50], message: 'a descida é medida antes do toque' }).toBe('true');
+    await expect.poll(async () => Number(await lab.getAttribute('data-assist-target-pitch')),
+      { timeout: 5000, intervals: [20, 30, 50], message: 'a assistência calcula a referência da aterrissagem' }).toBeLessThan(0.01);
+    await expect.poll(async () => Number(await lab.getAttribute('data-pitch')),
+      { timeout: 5000, intervals: [20, 30, 50], message: 'o chassi adquire pitch negativo antes do pouso' }).toBeLessThan(0);
+    await page.screenshot({ path: 'previews-ui/physics-lab-descida-inclinada.png' });
     await expect.poll(async () => Number(await lab.getAttribute('data-landings')),
       { timeout: 10_000, message: 'as rodas retomam contato com a plataforma física' })
       .toBeGreaterThan(0);
+    await expect.poll(async () => Number(await lab.getAttribute('data-air-time-seconds')),
+      { timeout: 5000, message: 'o tempo de voo fica registrado após a aterrissagem' }).toBeGreaterThan(0);
     await expect(lab).toHaveAttribute('data-paused', 'true');
     await expect(lab).toHaveAttribute('data-airborne', 'false');
     await page.screenshot({ path: 'previews-ui/physics-lab-aterrissagem.png' });
+    await expect.poll(async () => Number(await lab.getAttribute('data-contacts')),
+      { timeout: 5000, message: 'o pouso recupera apoio de pelo menos um eixo' }).toBeGreaterThanOrEqual(2);
+    expect(Number(await lab.getAttribute('data-up-y'))).toBeGreaterThan(0.8);
+    expect(Number(await lab.getAttribute('data-angular-speed'))).toBeLessThan(4);
+    await page.screenshot({ path: 'previews-ui/physics-lab-estabilizacao-pos-pouso.png' });
   } finally {
     await page.keyboard.up('w');
   }
 
   expect(modelRequests).toEqual([]);
+  expect(await page.evaluate(key => localStorage.getItem(key), CHAMPIONSHIP_SAVE_KEY)).toBe(saveSentinel);
+});
+
+test('descida elevada usa contato das quatro rodas e mantém orientação arcade', async ({ page }) => {
+  const saveSentinel = 'fixture-only-save-must-remain-identical';
+  await page.addInitScript(({ key, value }) => localStorage.setItem(key, value),
+    { key: CHAMPIONSHIP_SAVE_KEY, value: saveSentinel });
+  await page.goto('/?physicsLab=1');
+  const lab = page.locator('[data-physics-lab-root]');
+  await expect(lab).toBeVisible();
+  await expect(page.locator('[data-physics-lab-status]')).toContainText('0.21.0', { timeout: 15_000 });
+    await page.evaluate(async () => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/src/main.ts"]');
+    if (!script) throw new Error('Entrada do jogo não encontrada');
+    const { game } = await import(script.src);
+    const scene = game.scene.getScene('PhysicsLab3D') as any;
+    const body = scene.simulation.chassis;
+    const initial = body.rotation();
+    const halfAngle = -0.25 / 2;
+    const localPitch = { x: 0, y: 0, z: Math.sin(halfAngle), w: Math.cos(halfAngle) };
+    const rotation = {
+      x: initial.x * localPitch.w + initial.y * localPitch.z,
+      y: initial.y * localPitch.w,
+      z: initial.z * localPitch.w + initial.w * localPitch.z,
+      w: initial.w * localPitch.w - initial.z * localPitch.z,
+    };
+    // Isolated fixture start; the slope traversal and wheel support remain live Rapier simulation.
+    body.setRotation({ x: rotation.x, y: rotation.y, z: rotation.z, w: rotation.w }, true);
+    body.setTranslation({ x: 0, y: 2.35, z: 96 }, true);
+    body.setLinvel({ x: 0, y: 0, z: 7 }, true);
+    scene.simulation.previousWheelContacts = [false, false, false, false];
+  });
+  await expect.poll(() => lab.getAttribute('data-contacts'),
+    { timeout: 5000, message: 'as quatro rodas leem a malha física inclinada' }).toBe('4');
+  await expect.poll(async () => Number(await lab.getAttribute('data-world-z')))
+    .toBeGreaterThan(97);
+  await expect.poll(async () => Math.abs(Number(await lab.getAttribute('data-pitch-degrees'))))
+    .toBeGreaterThan(5);
+  expect(Number(await lab.getAttribute('data-world-z'))).toBeLessThan(102);
+  expect(Number(await lab.getAttribute('data-up-y'))).toBeGreaterThan(0.8);
+  expect(Number(await lab.getAttribute('data-peak-roll-degrees'))).toBeLessThan(12);
+  await page.screenshot({ path: 'previews-ui/physics-lab-descida-pista.png' });
   expect(await page.evaluate(key => localStorage.getItem(key), CHAMPIONSHIP_SAVE_KEY)).toBe(saveSentinel);
 });
 

@@ -359,7 +359,6 @@ src/
     PreparationModules.ts          # Módulos, ícones e indicadores da preparação
     observeGameSize.ts             # Sincronização do contêiner e canvas
   visuals/
-    logo.ts                       # Logo tipográfica original
     characterPortrait.ts           # Retratos originais gerados e reutilizados
     RaceBackdrop.ts               # Cenário procedural e movimento
     race/

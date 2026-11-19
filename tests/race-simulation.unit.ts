@@ -4,6 +4,9 @@ import { OPENING_RACE_TRACK_ID, RACE_TRACKS, getTrackById } from '../src/data/ra
 import type { RaceControls } from '../src/race/RaceSimulation.ts';
 import { PAINTS, VEHICLES, VEHICLE_TUNING, INITIAL_VEHICLES, getVehicleById } from '../src/data/vehicles.ts';
 import { DIFFICULTIES } from '../src/data/raceDifficulty.ts';
+import { CAMARO_UPGRADE } from '../src/data/camaroUpgrades.ts';
+import { CHARACTERS, getEffectivePilotBonusAttributes, getEffectivePilotSpecialties } from '../src/data/characters.ts';
+import type { PilotHandlingAttribute } from '../src/data/characters.ts';
 import { deriveHandlingStats, findNearestTrackPoint, RaceSimulation, sampleRaceTrack, sampleTrackAtProgress } from '../src/race/RaceSimulation.ts';
 
 const bots = [
@@ -44,6 +47,27 @@ test('difficulty changes AI behavior configuration, not physical vehicle caps', 
   assert.deepEqual(normal.participants.map(car => car.vehicle.maxSpeed), hard.participants.map(car => car.vehicle.maxSpeed));
   assert.ok(deriveHandlingStats({ speed: 80 }, { speed: 10 }).maxSpeed > deriveHandlingStats({ speed: 80 }, { speed: 1 }).maxSpeed);
   assert.ok(deriveHandlingStats({}, { aggression: 10 }).collisionShove > deriveHandlingStats({}, { aggression: 1 }).collisionShove);
+});
+
+test('bônus oficiais são calculados sem alterar física, tuning ou upgrades do veículo', () => {
+  const vehicleStats = { speed: 80, acceleration: 70, control: 68, armor: 70, tires: 68, suspension: 68 };
+  const originalVehicleStats = { ...vehicleStats };
+
+  for (const character of CHARACTERS) {
+    const bonuses = getEffectivePilotBonusAttributes(character);
+    const raceSpecialties = getEffectivePilotSpecialties(character);
+    const base = deriveHandlingStats(vehicleStats, character.stats, {}, raceSpecialties, CAMARO_UPGRADE.vehicleId);
+    assert.deepEqual(Object.entries(bonuses).sort(), Object.entries(character.bonusAttributes).sort());
+    const unchanged = deriveHandlingStats(vehicleStats, character.stats, {}, raceSpecialties, CAMARO_UPGRADE.vehicleId);
+    assert.deepEqual(unchanged, base, `${character.id}: exibir bônus não altera a física da corrida`);
+    for (const [attribute, value] of Object.entries(bonuses)) {
+      assert.equal(value, 1, `${character.id} / ${attribute}`);
+    }
+    for (const attribute of character.specialties as readonly PilotHandlingAttribute[]) {
+      assert(raceSpecialties.includes(attribute), `${character.id} retains existing specialty ${attribute}`);
+    }
+  }
+  assert.deepEqual(vehicleStats, originalVehicleStats, 'the bonus must not mutate purchased vehicle stats');
 });
 
 test('bônus local separado para bots e rival só afeta IA na dificuldade Difícil', () => {

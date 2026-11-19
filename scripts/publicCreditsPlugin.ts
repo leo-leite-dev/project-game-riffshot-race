@@ -61,7 +61,13 @@ code{font-size:.9em;color:#ffbf75}footer{border-top:1px solid #365470;color:#a8b
 
 export function publicCreditsPlugin(): Plugin {
   let root: string;
-  const source = () => readFile(resolve(root, 'THIRD_PARTY_NOTICES.md'), 'utf8');
+  const source = async () => {
+    const [notices, oxaniumLicense] = await Promise.all([
+      readFile(resolve(root, 'THIRD_PARTY_NOTICES.md'), 'utf8'),
+      readFile(resolve(root, 'src/assets/ui/fonts/OFL-Oxanium.txt'), 'utf8'),
+    ]);
+    return `${notices}\n\n## Licença integral da fonte Oxanium\n\n${oxaniumLicense}`;
+  };
   return {
     name: 'public-credits',
     configResolved(config) { root = config.root; },

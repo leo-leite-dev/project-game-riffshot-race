@@ -106,6 +106,24 @@ const styles = `
   [data-station-settings="panel"] .station-settings__warning { margin: 0; color: #efb29b; font-size: 13px; }
   [data-station-settings="panel"] .station-settings__feedback { margin: 0; color: #ffd18b; font-size: 14px; }
   [data-station-settings="panel"] .station-settings__feedback:empty { display: none; }
+  [data-station-settings="erase-confirmation"] {
+    position: fixed; inset: 0; z-index: 1; display: grid; place-items: center; padding: 16px;
+    background: #050a14e8;
+  }
+  [data-station-settings="erase-confirmation"][hidden] { display: none; }
+  [data-station-settings="erase-confirmation"] .station-settings__confirm-card {
+    display: grid; gap: 16px; width: min(440px, 100%); padding: 24px;
+    border: 2px solid #c6705d; border-radius: 8px; background: #111b2a;
+    box-shadow: inset 0 0 0 3px #251923, 0 16px 56px #000c;
+  }
+  [data-station-settings="erase-confirmation"] h3 { margin: 0; color: #ffe0cd; font-size: 20px; }
+  [data-station-settings="erase-confirmation"] p { margin: 0; color: #d4c4bc; font-size: 14px; }
+  [data-station-settings="erase-confirmation"] .station-settings__confirm-actions {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  }
+  [data-station-settings="erase-confirmation"] button[data-action="confirm-erase"] {
+    border-color: #c6705d; background: linear-gradient(#82362e, #4e242a); color: #ffe0cd;
+  }
   @media (max-height: 500px) {
     [data-station-settings="panel"] .station-settings__header { padding: 16px 24px; }
     [data-station-settings="panel"] .station-settings__body { padding: 16px; gap: 12px; }
@@ -130,6 +148,9 @@ export class StationSettings {
   private readonly onVehicleTuning?: () => void;
   readonly button: HTMLButtonElement;
   private readonly dialog: HTMLDialogElement;
+  private readonly eraseConfirmation: HTMLElement;
+  private readonly cancelEraseButton: HTMLButtonElement;
+  private readonly confirmEraseButton: HTMLButtonElement;
   private readonly soundButton: HTMLButtonElement;
   private readonly eraseButton: HTMLButtonElement;
   private readonly vehicleTuningButton: HTMLButtonElement | null;
@@ -152,6 +173,7 @@ export class StationSettings {
   private readonly radioVolume: HTMLInputElement;
   private destroyed: boolean;
   private erasing: boolean;
+  private confirmationOpen: boolean;
   private readonly pendingKeys: Set<string>;
   private readonly onOpen: () => void;
   private readonly onClose: () => void;
@@ -171,6 +193,8 @@ export class StationSettings {
   private readonly onEffectsVolume: () => void;
   private readonly onRadioState: (state: RadioPlayerState) => void;
   private readonly onEraseClick: () => void;
+  private readonly onCancelEraseClick: () => void;
+  private readonly onConfirmEraseClick: () => void;
   private readonly onVehicleTuningClick: () => void;
   private readonly onAudioState: () => void;
   private readonly onShutdown: () => void;
@@ -187,6 +211,7 @@ export class StationSettings {
     this.onVehicleTuning = onVehicleTuning;
     this.destroyed = false;
     this.erasing = false;
+    this.confirmationOpen = false;
     this.pendingKeys = new Set();
     acquireStyle();
 
@@ -276,7 +301,18 @@ export class StationSettings {
         </section>
         <p class="station-settings__feedback" role="status" aria-live="polite" aria-atomic="true"></p>
         <button type="button" data-action="close" autofocus>FECHAR</button>
-      </div>`;
+      </div>
+      <section data-station-settings="erase-confirmation" role="alertdialog" aria-modal="true"
+        aria-labelledby="${dialogId}-erase-title" aria-describedby="${dialogId}-erase-description" hidden>
+        <div class="station-settings__confirm-card">
+          <h3 id="${dialogId}-erase-title">APAGAR TODO O PROGRESSO?</h3>
+          <p id="${dialogId}-erase-description">Dinheiro, SCORE, corridas, carros comprados, prêmio do rival, melhorias, histórico, piloto, veículo e pintura serão apagados, incluindo os backups do campeonato. Esta ação não pode ser desfeita.</p>
+          <div class="station-settings__confirm-actions">
+            <button type="button" data-action="cancel-erase">CANCELAR</button>
+            <button type="button" data-action="confirm-erase">CONFIRMAR EXCLUSÃO</button>
+          </div>
+        </div>
+      </section>`;
     this.soundButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="sound"]')!;
     this.musicSourceSelect = this.dialog.querySelector<HTMLSelectElement>('[data-action="music-source"]')!;
     this.gameMusicVolume = this.dialog.querySelector<HTMLInputElement>('[data-action="game-music-volume"]')!;
@@ -293,6 +329,9 @@ export class StationSettings {
     this.radioNextButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="radio-next"]')!;
     this.radioVolume = this.dialog.querySelector<HTMLInputElement>('[data-action="radio-volume"]')!;
     this.eraseButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="erase"]')!;
+    this.eraseConfirmation = this.dialog.querySelector<HTMLElement>('[data-station-settings="erase-confirmation"]')!;
+    this.cancelEraseButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="cancel-erase"]')!;
+    this.confirmEraseButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="confirm-erase"]')!;
     this.vehicleTuningButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="vehicle-tuning"]');
     this.closeButton = this.dialog.querySelector<HTMLButtonElement>('[data-action="close"]')!;
     this.audioStatus = this.dialog.querySelector<HTMLParagraphElement>('.station-settings__status')!;
@@ -336,7 +375,9 @@ export class StationSettings {
     this.onGameMusicVolume = () => this.game.menuMusic?.setGameMusicVolume(Number(this.gameMusicVolume.value));
     this.onEffectsVolume = () => this.game.menuMusic?.setEffectsVolume(Number(this.effectsVolume.value));
     this.onRadioState = () => this.updateRadio();
-    this.onEraseClick = () => this.requestErase();
+    this.onEraseClick = () => this.openEraseConfirmation();
+    this.onCancelEraseClick = () => this.cancelEraseConfirmation();
+    this.onConfirmEraseClick = () => { void this.confirmErase(); };
     this.onVehicleTuningClick = () => {
       if (!this.destroyed && this.isOpen) this.onVehicleTuning?.();
     };
@@ -369,6 +410,8 @@ export class StationSettings {
     this.gameMusicVolume.addEventListener('input', this.onGameMusicVolume);
     this.effectsVolume.addEventListener('input', this.onEffectsVolume);
     this.eraseButton.addEventListener('click', this.onEraseClick);
+    this.cancelEraseButton.addEventListener('click', this.onCancelEraseClick);
+    this.confirmEraseButton.addEventListener('click', this.onConfirmEraseClick);
     this.vehicleTuningButton?.addEventListener('click', this.onVehicleTuningClick);
     this.closeButton.addEventListener('click', this.onClose);
     this.dialog.addEventListener('cancel', this.onCancel);
@@ -401,6 +444,8 @@ export class StationSettings {
 
   close() {
     if (this.destroyed || !this.isOpen) return;
+    this.confirmationOpen = false;
+    this.eraseConfirmation.hidden = true;
     this.dialog.close();
     this.finishClose();
   }
@@ -419,10 +464,14 @@ export class StationSettings {
     event.stopImmediatePropagation();
     if (event.key === 'Escape') {
       event.preventDefault();
-      this.close();
+      if (this.confirmationOpen) this.cancelEraseConfirmation();
+      else this.close();
     } else if (event.key === 'Tab') {
       event.preventDefault();
-       const buttons = [...this.dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+       const buttons = this.confirmationOpen
+         ? [this.cancelEraseButton, this.confirmEraseButton]
+         : [...this.dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')]
+           .filter(button => !this.eraseConfirmation.contains(button));
        const index = document.activeElement instanceof HTMLButtonElement
          ? buttons.indexOf(document.activeElement) : -1;
       const next = index < 0 ? (event.shiftKey ? buttons.length - 1 : 0)
@@ -494,14 +543,31 @@ export class StationSettings {
     this.radioVolume.value = String(state.volume);
   }
 
-  async requestErase() {
+  openEraseConfirmation() {
     if (this.destroyed || !this.isOpen || this.erasing || typeof this.onErase !== 'function') return;
+    this.setFeedback('');
+    this.confirmationOpen = true;
+    this.eraseConfirmation.hidden = false;
+    this.cancelEraseButton.focus({ preventScroll: true });
+  }
+
+  cancelEraseConfirmation() {
+    if (!this.confirmationOpen) return;
+    this.confirmationOpen = false;
+    this.eraseConfirmation.hidden = true;
+    this.setFeedback('Exclusão cancelada. Seu progresso foi preservado.');
+    this.eraseButton.focus({ preventScroll: true });
+  }
+
+  async confirmErase() {
+    if (this.destroyed || !this.isOpen || !this.confirmationOpen || this.erasing || typeof this.onErase !== 'function') return;
     this.erasing = true;
-    if (document.activeElement === this.eraseButton) this.closeButton.focus({ preventScroll: true });
+    this.confirmationOpen = false;
+    this.eraseConfirmation.hidden = true;
+    this.closeButton.focus({ preventScroll: true });
     this.eraseButton.disabled = true;
-    this.setFeedback('A exclusão depende da confirmação. Sem confirmar, seu progresso é preservado.');
+    this.setFeedback('Excluindo o progresso…');
     try {
-      // No storage access or second confirmation: the scene owns this operation.
       await this.onErase();
     } catch {
       this.showError('Não foi possível concluir a solicitação de exclusão.');
@@ -549,6 +615,8 @@ export class StationSettings {
     this.gameMusicVolume.removeEventListener('input', this.onGameMusicVolume);
     this.effectsVolume.removeEventListener('input', this.onEffectsVolume);
     this.eraseButton.removeEventListener('click', this.onEraseClick);
+    this.cancelEraseButton.removeEventListener('click', this.onCancelEraseClick);
+    this.confirmEraseButton.removeEventListener('click', this.onConfirmEraseClick);
     this.vehicleTuningButton?.removeEventListener('click', this.onVehicleTuningClick);
     this.closeButton.removeEventListener('click', this.onClose);
     this.dialog.removeEventListener('cancel', this.onCancel);

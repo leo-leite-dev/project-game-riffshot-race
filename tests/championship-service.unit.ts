@@ -51,6 +51,26 @@ const required = <T>(value: T | null | undefined): T => {
   return value;
 };
 
+test('compra permanente de Velocidade usa somente MONEY e permanece após recarregar o save', () => {
+  const storage = memory();
+  const championship = service(storage);
+  const initialScore = championship.state.score;
+  assert.equal(championship.purchaseCamaroSpeedUpgrade(), true);
+  assert.equal(championship.state.money, 1500);
+  assert.equal(championship.state.score, initialScore);
+  assert.equal(championship.state.permanentUpgrades['volt-vector'].speed, 1);
+  assert.equal(championship.purchaseCamaroSpeedUpgrade(), true);
+  assert.equal(championship.state.money, 700);
+  const reloaded = service(storage);
+  assert.equal(reloaded.writable, true);
+  assert.equal(reloaded.state.money, 700);
+  assert.equal(reloaded.state.permanentUpgrades['volt-vector'].speed, 2);
+  assert.equal(reloaded.state.score, initialScore);
+  assert.equal(reloaded.purchaseCamaroSpeedUpgrade(), false, 'saldo insuficiente não confirma a segunda compra');
+  assert.equal(reloaded.state.money, 700);
+  assert.equal(reloaded.state.permanentUpgrades['volt-vector'].speed, 2);
+});
+
 test('serviço aplica as quatro premiações e restaura seleções/recibo sem duplicar após reload', () => {
   for (const position of [1, 2, 3, 4]) {
     const storage = memory(), first = service(storage);

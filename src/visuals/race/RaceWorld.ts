@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { sampleRaceTrack, type RaceTrack, type RaceParticipant, type RenderPose } from '../../race/RaceSimulation.ts';
+import { sampleRaceTrack, sampleTrackAtProgress, type RaceTrack, type RaceParticipant, type RenderPose } from '../../race/RaceSimulation.ts';
 import { RaceCameraRig } from './RaceCameraRig.ts';
 import { DEFAULT_RACE_CAMERA_MODE } from '../../data/raceCameras.ts';
 import { PAINTS } from '../../data/vehicles.ts';
@@ -7,6 +7,11 @@ import { TireSmoke } from '../vehicles/TireSmoke.ts';
 import { VehicleDamageEffects } from './VehicleDamageEffects.ts';
 import { RivalCannonEffects } from './RivalCannonEffects.ts';
 import { CANNON_MOUNT, type RivalCannon, type CannonEvent } from '../../race/RivalCannon.ts';
+import { sampleTrackSurface, trackHeadingAlignment, RACE_TRACK_SAMPLES_PER_SEGMENT,
+  type TrackJump } from '../../race/trackMath.ts';
+import { getRampFeatureSpan } from '../../race/rampLibrary.ts';
+import { ArcadeJumpPresentation, type ArcadeJumpPresentationPose,
+  ARCADE_LAB_RAMP_LENGTH } from './ArcadeJumpPresentation.ts';
 import type { GarageResources } from '../garage/GarageResources.ts';
 
 type TrackData = RaceTrack & { width: number; theme: { sky: THREE.ColorRepresentation; road: THREE.ColorRepresentation; edge: THREE.ColorRepresentation; glow: THREE.ColorRepresentation; accent: THREE.ColorRepresentation }; scenery: readonly { width: number; height: number; depth: number; x: number; z: number }[] };
@@ -28,6 +33,7 @@ export class RaceWorld {
   obstacles: THREE.Object3D[] = [];
   ownedGeometries = new Set<THREE.BufferGeometry>();
   ownedMaterials = new Set<THREE.Material>();
+  ownedTextures = new Set<THREE.Texture>();
   vehicles: VehicleObject[] = [];
   renderPoses: Pose[] = [];
   elapsed = 0;
@@ -54,6 +60,10 @@ export class RaceWorld {
   cameraUpdates = 0;
   participantPoseUpdates = 0;
   participants: readonly RaceParticipant[] = [];
+  private jumpPresentations: ArcadeJumpPresentation[] = [];
+  private jumpPresentationPoses: ArcadeJumpPresentationPose[] = [];
+  private previousRespawnSequences: number[] = [];
+  private readonly cameraPose: RenderPose = { x: 0, y: 0, z: 0, heading: 0, speed: 0 };
   lastAnimationMs = 0;
   lastRenderMs = 0;
   renderFrames = 0;
@@ -70,7 +80,10 @@ export class RaceWorld {
       this.participantPoseUpdates = 0;
     }
     this.trackData = track;
-    this.track = sampleRaceTrack(track, 20);
+    this.track = sampleRaceTrack(track, RACE_TRACK_SAMPLES_PER_SEGMENT);
+    this.jumpPresentations = participants.map(() => new ArcadeJumpPresentation());
+    this.jumpPresentationPoses = participants.map(() => ({ pitch: 0, rampOffset: 0, suspensionOffset: 0 }));
+    this.previousRespawnSequences = participants.map(participant => participant.respawnSequence);
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(track.theme.sky);
     this.scene.fog = new THREE.FogExp2(track.theme.sky, 0.0034);
@@ -78,6 +91,7 @@ export class RaceWorld {
     this.obstacles = [];
     this.ownedGeometries = new Set();
     this.ownedMaterials = new Set();
+    this.ownedTextures = new Set();
     this.vehicles = [];
     this.renderPoses = [];
     this.elapsed = 0;
@@ -94,6 +108,7 @@ export class RaceWorld {
       const paint = PAINTS.find(item => item.color.toLowerCase() === participant.paintColor.toLowerCase())
         ?? { id: participant.vehicleId, color: participant.paintColor };
       const vehicle = resources.createVehicle(participant.vehicleId, paint, { experimental: participant.isPlayer });
+      if (track.jumps?.length) vehicle.rotation.order = 'YXZ';
       vehicle.scale.multiplyScalar(RACE_VEHICLE_SCALE);
       vehicle.userData.size.multiplyScalar(RACE_VEHICLE_SCALE);
       this.scene.add(vehicle);
@@ -184,15 +199,22 @@ export class RaceWorld {
     const indices = [];
     const leftEdge = [];
     const rightEdge = [];
+    const groundRows: boolean[] = [];
     for (let i = 0; i < points.length; i += 1) {
       const point = points[i];
+      const surface = this.trackData.jumps?.length
+        ? sampleTrackSurface(this.track, this.trackData.jumps, point.distance) : null;
+      const surfaceY = surface?.y ?? point.y;
+      groundRows.push(surface?.hasGround ?? true);
       const nx = -point.tangentZ, nz = point.tangentX;
       const lx = point.x + nx * halfWidth, lz = point.z + nz * halfWidth;
       const rx = point.x - nx * halfWidth, rz = point.z - nz * halfWidth;
-      positions.push(lx, point.y + 0.05, lz, rx, point.y + 0.05, rz);
-      leftEdge.push(new THREE.Vector3(lx, point.y + 0.18, lz));
-      rightEdge.push(new THREE.Vector3(rx, point.y + 0.18, rz));
+      positions.push(lx, surfaceY + 0.05, lz, rx, surfaceY + 0.05, rz);
+      leftEdge.push(new THREE.Vector3(lx, surfaceY + 0.18, lz));
+      rightEdge.push(new THREE.Vector3(rx, surfaceY + 0.18, rz));
       const next = (i + 1) % points.length;
+      if (!groundRows[i] || !(this.trackData.jumps?.length
+        ? sampleTrackSurface(this.track, this.trackData.jumps, points[next]!.distance).hasGround : true)) continue;
       const a = i * 2, b = a + 1, c = next * 2, d = c + 1;
       indices.push(a, c, b, b, c, d);
     }
@@ -205,13 +227,16 @@ export class RaceWorld {
     road.material.side = THREE.DoubleSide;
     this.scene.add(road);
     this.obstacles.push(road);
+    this.buildJumpRamps();
     // A real deck/fascia closes the elevated ribbon from low camera angles.
     const sides: number[] = [], sideIndices: number[] = [];
     [leftEdge, rightEdge].forEach(edge => {
       const base = sides.length / 3;
       edge.forEach(point => sides.push(point.x, point.y - 0.13, point.z, point.x, point.y - 1.0, point.z));
       edge.forEach((_point, i) => {
-        const a = base + i * 2, b = base + ((i + 1) % edge.length) * 2;
+        const next = (i + 1) % edge.length;
+        if (!groundRows[i] || !groundRows[next]) return;
+        const a = base + i * 2, b = base + next * 2;
         sideIndices.push(a, a + 1, b, a + 1, b + 1, b);
       });
     });
@@ -222,18 +247,232 @@ export class RaceWorld {
     const fasciaMaterial = this.material(0x253345, 0.72, 0.52);
     fasciaMaterial.side = THREE.DoubleSide;
     this.obstacles.push(this.mesh(fascia, fasciaMaterial));
-    const leftSegments = [leftEdge], rightSegments = [rightEdge];
+    const leftSegments = splitGroundSegments(leftEdge, groundRows), rightSegments = splitGroundSegments(rightEdge, groundRows);
     for (const [sideIndex, segments] of [leftSegments, rightSegments].entries()) {
       for (const segment of segments) {
-        const edgeTube = this.addTube(segment, this.borderMaterial, 0.26, true);
+        if (segment.length < 2) continue;
+        const edgeTube = this.addTube(segment, this.borderMaterial, 0.26, segment.length === points.length);
         this.obstacles.push(edgeTube);
         const rail = segment.map(point => point.clone().add(new THREE.Vector3(0, 1.15, 0)));
-        this.obstacles.push(this.addTube(rail, this.steelMaterial, 0.22, true));
+        this.obstacles.push(this.addTube(rail, this.steelMaterial, 0.22, segment.length === points.length));
       }
       const spikeConfig = this.trackData.edgeSpikes;
       if (spikeConfig) this.addPointedSpikes(segments, sideIndex === 0 ? 1 : -1, spikeConfig);
     }
     this.addStartLine(points[0], halfWidth);
+  }
+
+  private buildJumpRamps(): void {
+    const jumps = this.trackData.jumps;
+    if (!jumps?.length) return;
+    const rampMaterial = this.material(this.trackData.theme.accent, 0.38, 0.42);
+    rampMaterial.side = THREE.DoubleSide;
+    const landingMaterial = this.glow(0x56e6b8, 1.05);
+    for (const [index, jump] of jumps.entries()) {
+      const span = getRampFeatureSpan(jump);
+      const rampLength = span.approach;
+      const takeoffDistance = jump.takeoff * this.track.totalLength;
+      const halfWidth = Math.max(2, this.trackData.width / 2 - 0.9);
+      const meshLength = rampLength + span.afterTakeoff;
+      const rows = Math.max(2, Math.ceil(meshLength));
+      const positions: number[] = [];
+      const basePositions: number[] = [];
+      const indices: number[] = [];
+      const groundRows: boolean[] = [];
+      for (let row = 0; row <= rows; row += 1) {
+        const distance = takeoffDistance - rampLength + meshLength * row / rows;
+        const point = sampleTrackAtProgress(this.track, distance);
+        const surface = sampleTrackSurface(this.track, jumps, distance);
+        groundRows.push(surface.hasGround);
+        const normalX = -point.tangentZ, normalZ = point.tangentX;
+        const leftX = point.x - normalX * halfWidth, leftZ = point.z - normalZ * halfWidth;
+        const rightX = point.x + normalX * halfWidth, rightZ = point.z + normalZ * halfWidth;
+        positions.push(leftX, surface.y + 0.07, leftZ, rightX, surface.y + 0.07, rightZ);
+        const fasciaBaseY = Math.min(point.y - 0.06, surface.y - 0.06);
+        basePositions.push(leftX, fasciaBaseY, leftZ, rightX, fasciaBaseY, rightZ);
+        if (row < rows && groundRows[row] && sampleTrackSurface(this.track, jumps,
+          takeoffDistance - rampLength + meshLength * (row + 1) / rows).hasGround) {
+          const left = row * 2;
+          indices.push(left, left + 2, left + 1, left + 1, left + 2, left + 3);
+        }
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+      this.ownedGeometries.add(geometry);
+      const ramp = new THREE.Mesh(geometry, rampMaterial);
+      ramp.name = `race-jump-ramp:${jump.id}`;
+      this.scene.add(ramp);
+      this.obstacles.push(ramp);
+      if (jump.lavaGap && jump.kind === 'jump') this.addLavaGap(jump, takeoffDistance, halfWidth);
+
+      const sideGeometry = new THREE.BufferGeometry();
+      sideGeometry.setAttribute('position', new THREE.Float32BufferAttribute([...positions, ...basePositions], 3));
+      const topVertexCount = positions.length / 3;
+      const sideIndices: number[] = [];
+      for (let row = 0; row < rows; row += 1) {
+        if (!groundRows[row] || !groundRows[row + 1]) continue;
+        const leftTop = row * 2, rightTop = leftTop + 1;
+        const nextLeftTop = leftTop + 2, nextRightTop = leftTop + 3;
+        const leftBottom = topVertexCount + leftTop, rightBottom = leftBottom + 1;
+        const nextLeftBottom = topVertexCount + nextLeftTop, nextRightBottom = nextLeftBottom + 1;
+        sideIndices.push(leftTop, nextLeftTop, leftBottom, leftBottom, nextLeftTop, nextLeftBottom,
+          rightTop, rightBottom, nextRightTop, rightBottom, nextRightBottom, nextRightTop);
+        if (jump.kind === 'double') {
+          sideIndices.push(leftBottom, nextLeftBottom, rightBottom,
+            rightBottom, nextLeftBottom, nextRightBottom);
+        }
+      }
+      sideGeometry.setIndex(sideIndices);
+      sideGeometry.computeVertexNormals();
+      this.ownedGeometries.add(sideGeometry);
+      const sideMaterial = this.material(0x273644, 0.62, 0.5);
+      sideMaterial.side = THREE.DoubleSide;
+      const sideMesh = new THREE.Mesh(sideGeometry, sideMaterial);
+      sideMesh.name = `race-jump-ramp-fascia:${jump.id}`;
+      this.scene.add(sideMesh);
+      this.obstacles.push(sideMesh);
+
+      for (const progress of [jump.landingStart, jump.landingEnd]) {
+        const marker = sampleTrackAtProgress(this.track, progress * this.track.totalLength);
+        const surface = sampleTrackSurface(this.track, jumps, marker.distance);
+        const markerMesh = this.box([this.trackData.width - 1.4, 0.055, 0.7],
+          [marker.x, surface.y + 0.13, marker.z], landingMaterial,
+          Math.atan2(marker.tangentX, marker.tangentZ));
+        markerMesh.rotation.order = 'YXZ';
+        markerMesh.rotation.x = -Math.atan(surface.grade);
+      }
+      this.addRampSign(jump, takeoffDistance - rampLength - 2, halfWidth + 5, index + 1);
+    }
+  }
+
+  private addLavaGap(ramp: TrackJump, takeoffDistance: number, halfWidth: number): void {
+    const gapLength = Math.max(1, ramp.gapLength ?? 11);
+    const rows = Math.max(4, Math.ceil(gapLength / 2));
+    const positions: number[] = [];
+    const indices: number[] = [];
+    for (let row = 0; row <= rows; row += 1) {
+      const point = sampleTrackAtProgress(this.track, takeoffDistance + gapLength * row / rows);
+      const normalX = -point.tangentZ, normalZ = point.tangentX;
+      const lavaY = point.y - 0.38;
+      positions.push(point.x - normalX * halfWidth, lavaY, point.z - normalZ * halfWidth,
+        point.x + normalX * halfWidth, lavaY, point.z + normalZ * halfWidth);
+      if (row < rows) {
+        const left = row * 2;
+        indices.push(left, left + 2, left + 1, left + 1, left + 2, left + 3);
+      }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    const material = this.glow(0x8e1805, 1.7);
+    material.side = THREE.DoubleSide;
+    material.roughness = 0.68;
+    const lava = new THREE.Mesh(geometry, material);
+    lava.name = `race-lava-gap:${ramp.id}`;
+    lava.userData.hazard = 'lava';
+    this.scene.add(lava);
+
+    const flowPositions: number[] = [];
+    const flowIndices: number[] = [];
+    const flowCount = 3;
+    const flowRows = Math.max(6, rows);
+    for (let flow = 0; flow < flowCount; flow += 1) {
+      const flowBase = flowPositions.length / 3;
+      for (let row = 0; row <= flowRows; row += 1) {
+        const progress = row / flowRows;
+        const point = sampleTrackAtProgress(this.track, takeoffDistance + gapLength * progress);
+        const surfaceY = point.y - 0.34;
+        const normalX = -point.tangentZ, normalZ = point.tangentX;
+        const lateral = (flow - 1) * halfWidth * 0.52 + Math.sin(progress * Math.PI * 3 + flow) * 0.7;
+        const halfFlowWidth = 0.22;
+        flowPositions.push(point.x + normalX * (lateral - halfFlowWidth), surfaceY,
+          point.z + normalZ * (lateral - halfFlowWidth),
+          point.x + normalX * (lateral + halfFlowWidth), surfaceY,
+          point.z + normalZ * (lateral + halfFlowWidth));
+        if (row < flowRows) {
+          const left = flowBase + row * 2;
+          flowIndices.push(left, left + 2, left + 1, left + 1, left + 2, left + 3);
+        }
+      }
+    }
+    const flowGeometry = new THREE.BufferGeometry();
+    flowGeometry.setAttribute('position', new THREE.Float32BufferAttribute(flowPositions, 3));
+    flowGeometry.setIndex(flowIndices);
+    flowGeometry.computeVertexNormals();
+    const flowMaterial = this.glow(0xff8a16, 2.2);
+    flowMaterial.side = THREE.DoubleSide;
+    const flows = new THREE.Mesh(flowGeometry, flowMaterial);
+    flows.name = `race-lava-flow:${ramp.id}`;
+    this.scene.add(flows);
+  }
+
+  private addRampSign(ramp: TrackJump, distance: number, offset: number, instanceNumber: number): void {
+    const point = sampleTrackAtProgress(this.track, distance);
+    const surface = sampleTrackSurface(this.track, this.trackData.jumps, distance);
+    const normalX = -point.tangentZ, normalZ = point.tangentX;
+    const sign = new THREE.Group();
+    sign.name = `race-ramp-sign:${ramp.id}`;
+    sign.position.set(point.x + normalX * offset, surface.y, point.z + normalZ * offset);
+    sign.rotation.y = Math.atan2(-point.tangentX, -point.tangentZ);
+
+    const labels = {
+      bump: ['QUEBRA-MOLAS', '#ffd34a'],
+      jump: ['SALTO', '#ff6048'],
+      platform: ['PLATAFORMA', '#58e6ff'],
+      double: ['DOIS NÍVEIS', '#c48cff'],
+    } as const;
+    const [description, accent] = labels[ramp.kind];
+    const type = `RAMPA ${String(instanceNumber).padStart(2, '0')}`;
+    sign.userData.rampType = type;
+    sign.userData.rampKind = ramp.kind;
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 220;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.fillStyle = '#101820';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.strokeStyle = accent;
+    context.lineWidth = 12;
+    context.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = '#f5fbff';
+    context.font = 'bold 82px Arial, sans-serif';
+    context.fillText(type, canvas.width / 2, 92);
+    context.fillStyle = accent;
+    context.font = 'bold 42px Arial, sans-serif';
+    context.fillText(description, canvas.width / 2, 166);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    this.ownedTextures.add(texture);
+    const faceMaterial = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, toneMapped: false });
+    this.ownedMaterials.add(faceMaterial);
+    const backing = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.35, 0.16), this.darkSteelMaterial);
+    backing.position.y = 2.2;
+    sign.add(backing);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(3.38, 1.13), faceMaterial);
+    face.name = `race-ramp-sign-label:${ramp.id}`;
+    face.position.set(0, 2.2, 0.09);
+    sign.add(face);
+    const reverseFace = face.clone();
+    reverseFace.name = `race-ramp-sign-label-back:${ramp.id}`;
+    reverseFace.position.z = -0.09;
+    reverseFace.rotation.y = Math.PI;
+    sign.add(reverseFace);
+    for (const x of [-1.45, 1.45]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.7, 0.12), this.steelMaterial);
+      post.position.set(x, 0.85, 0);
+      sign.add(post);
+      this.ownedGeometries.add(post.geometry);
+    }
+    this.ownedGeometries.add(backing.geometry);
+    this.ownedGeometries.add(face.geometry);
+    this.scene.add(sign);
   }
 
   addTube(points: THREE.Vector3[], material: THREE.Material, radius: number, closed = true): THREE.Mesh {
@@ -351,6 +590,27 @@ export class RaceWorld {
     this.cannonAlpha = alpha;
   }
 
+  private jumpForPresentation(pose: Pose): TrackJump {
+    const jumps = this.trackData.jumps!;
+    if (pose.airborne && pose._activeJumpId) {
+      const active = jumps.find(jump => jump.id === pose._activeJumpId);
+      if (active) return active;
+    }
+    let next: TrackJump | undefined;
+    let nextDistance = Infinity;
+    const distance = pose._lastPathDistance ?? 0;
+    for (const jump of jumps) {
+      const takeoff = jump.takeoff * this.track.totalLength;
+      const untilTakeoff = (takeoff - distance + this.track.totalLength) % this.track.totalLength;
+      const rampLength = jump.rampLength ?? ARCADE_LAB_RAMP_LENGTH;
+      if (untilTakeoff <= rampLength + 0.5 && untilTakeoff < nextDistance) {
+        next = jump;
+        nextDistance = untilTakeoff;
+      }
+    }
+    return next ?? jumps[0]!;
+  }
+
   private resolveMuzzle = (event: CannonEvent, target: THREE.Vector3): void => {
     const index = this.participants.findIndex(car => car.id === event.ownerId);
     const pose = this.renderPoses[index];
@@ -376,7 +636,8 @@ export class RaceWorld {
     const dt = Math.min(delta / 1000, 0.25);
     this.elapsed += dt;
     this.renderElapsed += dt;
-    const player = this.renderPoses.find(participant => participant.isPlayer) ?? this.renderPoses[0];
+    const playerIndex = Math.max(0, this.renderPoses.findIndex(participant => participant.isPlayer));
+    const player = this.renderPoses[playerIndex];
     this.smoke.update(dt);
     const animationStart = performance.now();
     for (let index = 0; index < this.vehicles.length; index += 1) {
@@ -385,12 +646,46 @@ export class RaceWorld {
       // Short body shudder communicates an impact; these transforms never feed physics.
       const hit = pose.shotImpactRemaining ?? 0;
       vehicle.rotation.z = hit > 0 ? Math.sin(hit * 65) * 0.055 * hit / 0.35 : 0;
-      const verticalVelocity = pose.verticalVelocity ?? 0;
-      const flightPitch = !pose.airborne ? 0 : verticalVelocity >= 0
-        ? -0.16 - THREE.MathUtils.clamp(verticalVelocity / Math.max(1, pose.speed) * 0.2, 0, 0.12)
-        : 0.18 + THREE.MathUtils.clamp(-verticalVelocity / Math.max(1, pose.speed) * 0.28, 0, 0.16);
-      vehicle.rotation.x = THREE.MathUtils.clamp(flightPitch, -0.3, 0.34);
-      vehicle.position.y = pose.y + 0.08 + (hit > 0 ? Math.abs(Math.sin(hit * 40)) * 0.07 * hit / 0.35 : 0);
+      const respawnSequence = pose.respawnSequence ?? 0;
+      if (this.previousRespawnSequences[index] !== respawnSequence) {
+        this.jumpPresentations[index]?.reset(pose._landingSequence ?? 0);
+        this.previousRespawnSequences[index] = respawnSequence;
+      }
+      const jump = this.trackData.jumps?.length ? this.jumpForPresentation(pose) : undefined;
+      const surface = this.trackData.jumps?.length
+        ? sampleTrackSurface(this.track, this.trackData.jumps, pose._lastPathDistance ?? 0) : null;
+      const jumpPose = jump
+        ? this.jumpPresentations[index]!.update({ airborne: Boolean(pose.airborne),
+          airborneElapsed: pose._airborneElapsed ?? 0, verticalVelocity: pose.verticalVelocity ?? 0,
+          speed: pose.speed, trackDistance: pose._lastPathDistance ?? 0,
+          totalTrackLength: this.track.totalLength, jump, deltaSeconds: dt, physicalSurface: true,
+          surfacePitchRadians: surface
+            ? -Math.atan(surface.grade) * trackHeadingAlignment(pose.heading, surface.tangentX, surface.tangentZ) : 0,
+          landingSequence: pose._landingSequence ?? 0,
+          landingImpactSpeed: pose._landingImpactSpeed ?? 0,
+          landingSurfaceSlope: pose._landingSurfaceSlope ?? 0 })
+        : null;
+      const cachedJumpPose = this.jumpPresentationPoses[index]!;
+      if (jumpPose) {
+        cachedJumpPose.pitch = jumpPose.pitch;
+        cachedJumpPose.rampOffset = jumpPose.rampOffset;
+        cachedJumpPose.suspensionOffset = jumpPose.suspensionOffset;
+        vehicle.rotation.x = cachedJumpPose.pitch;
+      }
+      else {
+        cachedJumpPose.pitch = 0;
+        cachedJumpPose.rampOffset = 0;
+        cachedJumpPose.suspensionOffset = 0;
+        const verticalVelocity = pose.verticalVelocity ?? 0;
+        const flightPitch = !pose.airborne ? 0 : verticalVelocity >= 0
+          ? -0.16 - THREE.MathUtils.clamp(verticalVelocity / Math.max(1, pose.speed) * 0.2, 0, 0.12)
+          : 0.18 + THREE.MathUtils.clamp(-verticalVelocity / Math.max(1, pose.speed) * 0.28, 0, 0.16);
+        vehicle.rotation.x = THREE.MathUtils.clamp(flightPitch, -0.3, 0.34);
+      }
+      const rampOffset = cachedJumpPose.rampOffset;
+      const suspensionOffset = cachedJumpPose.suspensionOffset;
+      vehicle.position.y = pose.y + 0.08 + rampOffset + suspensionOffset
+        + (hit > 0 ? Math.abs(Math.sin(hit * 40)) * 0.07 * hit / 0.35 : 0);
       const protection = pose.respawnProtection ?? 0;
       vehicle.visible = !pose.destroyed && (!(protection > 0) || Math.floor(protection * 8) % 2 === 0);
       const adapter = vehicle.userData.visualAdapter as { update(pose: Pose, dt: number, smoke: TireSmoke | null): void } | undefined;
@@ -405,12 +700,21 @@ export class RaceWorld {
         if (this.lastPlayerRespawnSequence !== undefined) this.cameraRig.resetAfterRespawn(player);
         this.lastPlayerRespawnSequence = player.respawnSequence;
       }
-      this.cameraRig.update(player, dt);
+      const playerJumpPose = this.jumpPresentationPoses[playerIndex];
+      this.cameraPose.x = player.x;
+      this.cameraPose.y = player.y + (playerJumpPose?.rampOffset ?? 0) + (playerJumpPose?.suspensionOffset ?? 0);
+      this.cameraPose.z = player.z;
+      this.cameraPose.heading = player.heading;
+      this.cameraPose.speed = player.speed;
+      this.cameraPose.longitudinalAcceleration = player.longitudinalAcceleration ?? 0;
+      this.cameraRig.update(this.cameraPose, dt);
       if (this.diagnostics) this.cameraUpdates += 1;
     }
     if (player) {
       this.spotlight.position.set(player.x - 4, player.y + 24, player.z + 6);
-      this.spotlight.target.position.set(player.x, player.y, player.z);
+      const playerJumpPose = this.jumpPresentationPoses[playerIndex];
+      this.spotlight.target.position.set(player.x,
+        player.y + (playerJumpPose?.rampOffset ?? 0) + (playerJumpPose?.suspensionOffset ?? 0), player.z);
     }
     // One render per Phaser frame, including 59.9 Hz. Throttling here used to
     // skip boundary frames even though Phaser already schedules the refresh.
@@ -433,9 +737,27 @@ export class RaceWorld {
       vehicle.traverse((object: THREE.Object3D) => { if (object instanceof THREE.SkinnedMesh) object.skeleton.dispose(); });
     }
     for (const geometry of this.ownedGeometries) geometry.dispose();
+    for (const texture of this.ownedTextures) texture.dispose();
     for (const material of this.ownedMaterials) material.dispose();
     this.scene.traverse((object: THREE.Object3D) => { if (object instanceof THREE.InstancedMesh) object.dispose(); });
     this.scene.clear();
     this.resources.renderer.renderLists.dispose();
   }
+}
+
+function splitGroundSegments(points: THREE.Vector3[], groundRows: readonly boolean[]): THREE.Vector3[][] {
+  const firstGap = groundRows.indexOf(false);
+  if (firstGap < 0) return [points];
+  const segments: THREE.Vector3[][] = [];
+  let segment: THREE.Vector3[] = [];
+  for (let step = 1; step <= points.length; step += 1) {
+    const index = (firstGap + step) % points.length;
+    if (groundRows[index]) segment.push(points[index]!);
+    else if (segment.length) {
+      segments.push(segment);
+      segment = [];
+    }
+  }
+  if (segment.length) segments.push(segment);
+  return segments;
 }

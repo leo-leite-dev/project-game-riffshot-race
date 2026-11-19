@@ -145,8 +145,8 @@ test('distribuição pública entrega só os cinco payloads do manifesto com int
     const data = await response.body();
     expect(data.subarray(0, 4).toString()).not.toBe('glTF');
   }
-  for (const path of ['/assets/ui/favicon.svg', '/assets/hud/icons/shots.png',
-    '/assets/hud/icons/bomb.png', '/assets/hud/icons/oil.png', '/assets/audio/neon-furnace-theme.mp3']) {
+  for (const path of ['/assets/ui/favicon.svg', '/assets/ui/hud/icons/shots.png',
+    '/assets/ui/hud/icons/bomb.png', '/assets/ui/hud/icons/oil.png', '/assets/audio/neon-furnace-theme.mp3']) {
     const response = await request.get(`${PRODUCTION_URL}${path}`);
     expect(response.ok(), path).toBe(true);
     if (path.endsWith('.mp3')) {

@@ -1,0 +1,17 @@
+{
+  "id": "axel-ryder",
+  "originPlanetId": "voltaris",
+  "ultimateIds": ["axel-double-shot"],
+  "identityIconKey": "pilot-symbol-axel-ryder",
+  "portraitKey": "pilot-card-portrait-axel-ryder",
+  "fullBodyPortraitKey": "pilot-fullbody-axel-ryder",
+  "bonusAttributes": [
+    { "id": "speed", "value": 1 },
+    { "id": "shotCount", "value": 1 }
+  ],
+  "nome": "AXEL RYDER",
+  "titulo": "O ASTRO DAS PISTAS",
+  "themeColor": "#F32427",
+  "resumo": "Axel cresceu entre motores e oficinas clandestinas de Voltaris. Transformou um carro abandonado em máquina de corrida e desafia campeões para provar que talento e coragem valem mais que riqueza.",
+  "lore": "Cresceu entre motores, sucata espacial e oficinas clandestinas de Voltaris. Desde jovem, Axel aprendeu que a liberdade não se conquista seguindo regras. Após transformar um carro abandonado em uma máquina de corrida, começou a desafiar pilotos muito mais ricos e poderosos. Sua coragem e seu estilo agressivo rapidamente se tornaram lendários. Agora, Axel percorre os circuitos mais perigosos da galáxia para provar que nenhum império é capaz de comprar o verdadeiro espírito de um campeão."
+}

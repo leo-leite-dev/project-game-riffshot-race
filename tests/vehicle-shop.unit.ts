@@ -80,7 +80,8 @@ function legacy(state: ChampionshipState, version = 2): ChampionshipState {
   const value = structuredClone(state) as ChampionshipState;
   delete asRecord(value).ownedVehicleIds;
   delete asRecord(value).rivalRewardChoice;
-  value.schemaVersion = version as 3;
+  delete asRecord(value).permanentUpgrades;
+  value.schemaVersion = version as 6;
   if (version === 1) {
     value.selections.vehicleId = value.selections.vehicleId === null ? null : 'air-blade';
     if (value.activeRace) value.activeRace.selections.vehicleId = 'air-blade';
@@ -90,7 +91,7 @@ function legacy(state: ChampionshipState, version = 2): ChampionshipState {
 
 test('loja: início tem 2000, inventário vazio e nenhuma seleção; select não concede carro', () => {
   const championship = service();
-  assert.equal(championship.state.schemaVersion, 3);
+  assert.equal(championship.state.schemaVersion, 6);
   assert.equal(championship.state.money, 2000);
   assert.deepEqual(championship.state.ownedVehicleIds, []);
   assert.equal(championship.state.rivalRewardChoice, null);
@@ -313,7 +314,9 @@ for (const version of [1, 2] as const) {
       assert.equal(storage.getItem(CHAMPIONSHIP_SAVE_KEY), raw);
       assert.equal(storage.getItem(CHAMPIONSHIP_BACKUP_KEY), 'backup anterior');
       const { ownedVehicleIds, rivalRewardChoice, ...migrated } = championship.state;
-      const expected = { ...old, schemaVersion: 3,
+      const expected = { ...old, schemaVersion: 6,
+        permanentUpgrades: { 'volt-vector': { speed: 0, acceleration: 0, armor: 0, control: 0,
+          tires: 0, suspension: 0, shotCount: 0, bombCount: 0, oilSlickCount: 0 } },
         selections: { ...old.selections, vehicleId: expectedId } };
       if (expected.activeRace) expected.activeRace = { ...expected.activeRace,
         selections: { ...expected.activeRace.selections, vehicleId: expectedId } };

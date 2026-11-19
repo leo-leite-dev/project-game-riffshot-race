@@ -1,0 +1,17 @@
+{
+  "id": "cyber-dragon",
+  "originPlanetId": "drakoryn",
+  "ultimateIds": ["cyber-dragon-fire-mark"],
+  "identityIconKey": "pilot-symbol-cyber-dragon",
+  "portraitKey": "pilot-card-portrait-cyber-dragon",
+  "fullBodyPortraitKey": "pilot-fullbody-cyber-dragon",
+  "bonusAttributes": [
+    { "id": "armor", "value": 1 },
+    { "id": "bombCount", "value": 1 }
+  ],
+  "nome": "CYBER DRAGON",
+  "titulo": "A LENDA CIBERNÉTICA",
+  "themeColor": "#388BFF",
+  "resumo": "Cyber Dragon surgiu em um campeonato experimental pilotando tecnologia muito além do conhecido. Blindado e preciso, alimenta rumores sobre sua origem, mas nunca responde: apenas continua vencendo.",
+  "lore": "Poucos conhecem a origem da figura blindada chamada Cyber Dragon. Surgiu pela primeira vez em um campeonato experimental, conduzindo uma máquina equipada com sistemas muito além da tecnologia conhecida. Seu capacete dracônico, sua precisão assustadora e sua resistência incomum alimentaram rumores de que seria parte de um projeto militar secreto. Alguns dizem que existe um humano sob a armadura; outros acreditam que não passa de uma inteligência artificial. Cyber Dragon nunca respondeu. Apenas continua vencendo."
+}

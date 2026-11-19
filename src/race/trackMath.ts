@@ -1,20 +1,38 @@
+import { sampleRampSurfaceProfile } from './rampLibrary.ts';
+import type { TrackRamp, TrackRampRegion } from './rampLibrary.ts';
+
 export interface TrackWaypoint { x: number; z: number; y?: number }
-export interface TrackJump {
-  id: string; takeoff: number; landingStart: number; landingEnd: number;
-  launchAngleDegrees: number; minimumSpeed: number; maximumVerticalSpeed: number;
-}
+export type TrackJump = TrackRamp;
 export interface TrackEdgeSpikes { spacing: number; height: number; baseWidth: number }
 export interface TrackPath {
   waypoints: readonly TrackWaypoint[];
   jumps?: readonly TrackJump[];
+  rampRegions?: readonly TrackRampRegion[];
+  rampCount?: number;
   edgeSpikes?: TrackEdgeSpikes;
 }
 export interface TrackPoint { x: number; z: number; y: number; distance: number; tangentX: number; tangentZ: number }
 export interface SampledTrack { points: TrackPoint[]; totalLength: number }
 export interface NearestTrackPoint extends TrackPoint { lateral: number; distanceSq: number }
+export interface TrackSurfaceSample {
+  y: number;
+  grade: number;
+  curvature: number;
+  tangentX: number;
+  tangentZ: number;
+  ramp: TrackJump | null;
+  rampProgress: number;
+  hasGround: boolean;
+}
 
 const mod = (value: number, size: number) => ((value % size) + size) % size;
 const lerp = (a: number, b: number, amount: number) => a + (b - a) * amount;
+export const RACE_TRACK_SAMPLES_PER_SEGMENT = 12;
+
+/** Projection of forward course direction onto the vehicle's local forward axis. */
+export function trackHeadingAlignment(heading: number, tangentX: number, tangentZ: number): number {
+  return Math.max(-1, Math.min(1, Math.sin(heading) * tangentX + Math.cos(heading) * tangentZ));
+}
 
 function catmull(a: number, b: number, c: number, d: number, t: number) {
   return 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t ** 2 + (-a + 3 * b - 3 * c + d) * t ** 3);
@@ -62,6 +80,41 @@ export function sampleTrackAtProgress(track: SampledTrack | TrackPath, progress:
   const tangentLength = Math.hypot(tangentX, tangentZ) || 1;
   return { x: lerp(a.x, b.x, amount), z: lerp(a.z, b.z, amount), y: lerp(a.y, b.y, amount),
     tangentX: tangentX / tangentLength, tangentZ: tangentZ / tangentLength, distance };
+}
+
+/** Shared vertical profile used by the official race physics and ramp meshes. */
+export function sampleTrackSurface(track: SampledTrack, jumps: readonly TrackJump[] | undefined,
+  distance: number): TrackSurfaceSample {
+  const pathDistance = mod(distance, track.totalLength);
+  const trackPoint = sampleTrackAtProgress(track, pathDistance);
+  let y = trackPoint.y;
+  let grade = 0;
+  let curvature = 0;
+  let ramp: TrackJump | null = null;
+  let rampProgress = 0;
+  let largestOffset = 0;
+  let hasGround = true;
+
+  for (const candidate of jumps ?? []) {
+    const profile = sampleRampSurfaceProfile(candidate, pathDistance, track.totalLength);
+    if (!profile || (profile.hasGround && Math.abs(profile.offset) <= Math.abs(largestOffset))) continue;
+    largestOffset = profile.offset;
+    grade = profile.grade;
+    curvature = profile.curvature;
+    ramp = candidate;
+    rampProgress = profile.progress;
+    hasGround = profile.hasGround;
+  }
+
+  y += largestOffset;
+  const tangentProbe = 0.25;
+  const baseBefore = sampleTrackAtProgress(track, pathDistance - tangentProbe).y;
+  const baseAfter = sampleTrackAtProgress(track, pathDistance + tangentProbe).y;
+  grade += (baseAfter - baseBefore) / (2 * tangentProbe);
+  curvature += (baseAfter - 2 * sampleTrackAtProgress(track, pathDistance).y + baseBefore)
+    / (tangentProbe * tangentProbe);
+  return { y, grade, curvature, tangentX: trackPoint.tangentX, tangentZ: trackPoint.tangentZ,
+    ramp, rampProgress, hasGround };
 }
 
 export function findNearestTrackPoint(track: SampledTrack | TrackPath, x: number, z: number): NearestTrackPoint | null {

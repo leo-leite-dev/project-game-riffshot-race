@@ -2,8 +2,10 @@ import Phaser from 'phaser';
 import { SplashScene } from './scenes/SplashScene.ts';
 import { MainMenuScene } from './scenes/MainMenuScene.ts';
 import { CharacterSelectionScene } from './scenes/CharacterSelectionScene.ts';
+import { GalacticMapScene } from './scenes/GalacticMapScene.ts';
 import { VehicleSelectionScene } from './scenes/VehicleSelectionScene.ts';
 import { RacePreparationScene } from './scenes/RacePreparationScene.ts';
+import { VehicleUpgradesScene } from './scenes/VehicleUpgradesScene.ts';
 import { RaceDevelopmentScene } from './scenes/RaceDevelopmentScene.ts';
 import { DifficultySelectionScene } from './scenes/DifficultySelectionScene.ts';
 import { RaceTrackSelectionScene } from './scenes/RaceTrackSelectionScene.ts';
@@ -19,12 +21,12 @@ import './ui/mobileOrientation.ts';
 import { Championship } from './championship/Championship.ts';
 import './style.css';
 
-// This route exists only in Vite dev. It skips the official scenes, save reader,
-// writer lease and game audio; the Rapier scene itself is loaded lazily.
+// This route exists only in Vite dev. It skips official scenes, save access,
+// writer lease and game audio; the arcade lab is loaded lazily.
 const physicsLabRoute = import.meta.env.DEV
   && new URLSearchParams(window.location.search).get('physicsLab') === '1';
-const officialScenes = [SplashScene, MainMenuScene, DifficultySelectionScene, CharacterSelectionScene,
-  VehicleSelectionScene, RacePreparationScene, RaceTrackSelectionScene, RaceScene, RaceResultsScene,
+const officialScenes = [SplashScene, MainMenuScene, DifficultySelectionScene, CharacterSelectionScene, GalacticMapScene,
+  VehicleSelectionScene, RacePreparationScene, VehicleUpgradesScene, RaceTrackSelectionScene, RaceScene, RaceResultsScene,
   RivalRewardScene, RaceDevelopmentScene];
 
 export const game = new Phaser.Game({
@@ -47,11 +49,11 @@ export const game = new Phaser.Game({
     postBoot(instance) {
       observeGameSize(instance);
       if (physicsLabRoute) {
-        instance.canvas.setAttribute('aria-label', 'Laboratório local de física 3D Rapier.');
+        instance.canvas.setAttribute('aria-label', 'Laboratório local de dirigibilidade arcade 3D.');
         instance.canvas.setAttribute('role', 'application');
         instance.canvas.setAttribute('tabindex', '0');
         instance.canvas.focus({ preventScroll: true });
-        // Compile-time DEV guard lets Vite omit the Rapier prototype from dist.
+        // Compile-time DEV guard keeps the experimental lab out of the public build.
         void import('./scenes/PhysicsLabBootstrapScene.ts').then(({ PhysicsLabBootstrapScene }) => {
           if (instance.isRunning) instance.scene.add('PhysicsLabBootstrap', PhysicsLabBootstrapScene, true);
         });

@@ -186,10 +186,21 @@ export function layoutStation(scene: StationLayoutScene, w: number, h: number) {
   scene.rivalInfo.setPosition(narrow ? 164 : mobileLandscape ? 305 : 508, narrow ? 128 : mobileLandscape ? -36 : -22)
     .setScale(narrow ? 0.72 : mobileLandscape ? 0.8 : 1);
   scene.modules.forEach((button: StationModule, index: number) => {
-    if (narrow) button.arrange(index < 3 ? (index - 1) * 131 : (index - 3.5) * 198,
-      index < 3 ? 332 : 411, index < 3 ? 125 : 190, index < 3 ? 82 : 62);
-    else if (mobileLandscape) button.arrange((index - 2) * 190, 130, 180, 40);
-    else button.arrange((index - 2) * 310, 315, 300, 78);
+    if (narrow) {
+      const testModeLayout = scene.modules.length === 6;
+      const x = testModeLayout ? (index % 3 - 1) * 131 : index < 3 ? (index - 1) * 131 : (index - 3.5) * 198;
+      const topRow = index < 3;
+      button.arrange(x, topRow ? 332 : 411,
+        testModeLayout ? 125 : topRow ? 125 : 190, topRow ? 82 : 62);
+    } else if (mobileLandscape) {
+      const testModeLayout = scene.modules.length === 6;
+      button.arrange(testModeLayout ? (index - 2.5) * 165 : (index - 2) * 190,
+        130, testModeLayout ? 150 : 180, 40);
+    } else {
+      const testModeLayout = scene.modules.length === 6;
+      button.arrange(testModeLayout ? (index - 2.5) * 260 : (index - 2) * 310,
+        315, testModeLayout ? 250 : 300, 78);
+    }
   });
   const reward = scene.rewardButton.visible;
   scene.startButton.arrange(reward ? (narrow ? -99 : mobileLandscape ? -170 : -220) : 0,

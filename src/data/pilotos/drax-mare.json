@@ -1,0 +1,17 @@
+{
+  "id": "drax-mare",
+  "originPlanetId": "tidaris",
+  "ultimateIds": ["drax-mare-spin-shot", "drax-mare-water-shield"],
+  "identityIconKey": "pilot-symbol-drax-mare",
+  "portraitKey": "pilot-card-portrait-drax-mare",
+  "fullBodyPortraitKey": "pilot-fullbody-drax-mare",
+  "bonusAttributes": [
+    { "id": "tires", "value": 1 },
+    { "id": "suspension", "value": 1 }
+  ],
+  "nome": "DRAX MARÉ",
+  "titulo": "O REI DAS CORRENTES",
+  "themeColor": "#18BE8A",
+  "resumo": "Criado entre portos e oceanos turbulentos, Drax aprendeu a correr sobre plataformas marítimas. Brincalhão e habilidoso, enfrenta tempestades e qualquer rival como se fossem uma nova aventura.",
+  "lore": "Criado entre portos flutuantes e oceanos turbulentos, Drax aprendeu a pilotar antes mesmo de conhecer uma pista profissional. Durante anos, participou de corridas improvisadas sobre plataformas marítimas, enfrentando tempestades, ondas gigantes e adversários muito maiores que ele. Seu jeito brincalhão esconde um competidor surpreendentemente habilidoso, acostumado a improvisar diante do perigo. Quando recebeu um convite para disputar os circuitos galácticos, partiu imediatamente. Afinal, para Drax, nenhuma aventura é grande demais."
+}

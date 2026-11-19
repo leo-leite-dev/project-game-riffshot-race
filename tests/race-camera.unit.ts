@@ -268,6 +268,97 @@ test('feedback de velocidade e drift na perseguição é sutil, progressivo e n�
   isometric.destroy();
 });
 
+test('as câmeras respondem progressivamente à velocidade física real sem efeitos sintéticos', () => {
+  const chase = makeRig({ mode: 'chase', vehicleSize: scaledSize });
+  chase.update({ ...pose, speed: 0 }, 1 / 60);
+  const idleFov = chase.zoomFov;
+  for (let frame = 0; frame < 120; frame += 1)
+    chase.update({ ...pose, speed: 55 }, 1 / 60);
+  assert.ok(chase.zoomFov > idleFov + 2.8, 'FOV chega ao efeito configurado no limite físico de 220 km/h');
+  assert.ok(chase.zoomFov <= RACE_CAMERA_SETTINGS.chase.presets[0].fov + RACE_CAMERA_SETTINGS.chase.speedFov + 1e-5,
+    'o FOV respeita o limite existente');
+  chase.destroy();
+
+  const isometric = makeRig({ mode: 'isometric' });
+  isometric.update({ ...pose, speed: 0 }, 1 / 60);
+  const lowSpeedTarget = isometric.isometricTarget.clone();
+  isometric.update({ ...pose, speed: 55 }, 1 / 60);
+  assert.ok(isometric.isometricTarget.distanceTo(lowSpeedTarget) > 2,
+    'a antecipação/acompanhamento existente usa o avanço físico do Camaro');
+  assert.equal(isometric.isometric.zoom, 1, 'não há zoom isométrico adicionado pelo experimento anterior');
+  assert.ok(isometric.camera.projectionMatrix.elements.every(Number.isFinite));
+  isometric.destroy();
+});
+
+test('impulso da câmera reage suavemente à aceleração e desaceleração em velocidades arcade', () => {
+  const accelerating = makeRig({ mode: 'chase', vehicleSize: scaledSize });
+  const neutral = makeRig({ mode: 'chase', vehicleSize: scaledSize });
+  const startingPose = { ...pose, speed: 8, longitudinalAcceleration: 0 };
+  accelerating.update(startingPose, 1 / 60);
+  neutral.update(startingPose, 1 / 60);
+
+  const speedSteps = [5, 18, 35] as const;
+  const fovs: number[] = [];
+  for (const speed of speedSteps) {
+    const moving = { ...pose, speed, longitudinalAcceleration: 0 };
+    for (let frame = 0; frame < 30; frame += 1) {
+      accelerating.update(moving, 1 / 60);
+      neutral.update(moving, 1 / 60);
+    }
+    fovs.push(accelerating.zoomFov);
+  }
+  assert.ok(fovs[0]! < fovs[1]! && fovs[1]! < fovs[2]!, `FOV progressivo ${fovs}`);
+  assert.ok(fovs[2]! - RACE_CAMERA_SETTINGS.chase.presets[0].fov <= 3);
+
+  const mediumSpeed = { ...pose, speed: 18, longitudinalAcceleration: 7 };
+  for (let frame = 0; frame < 30; frame += 1) {
+    accelerating.update(mediumSpeed, 1 / 60);
+    neutral.update({ ...mediumSpeed, longitudinalAcceleration: 0 }, 1 / 60);
+  }
+  const cameraAtNeutralSpeed = neutral.chasePosition.clone();
+  assert.ok(accelerating.accelerationLag > 5.5);
+  assert.ok(accelerating.chasePosition.z < cameraAtNeutralSpeed.z,
+    'acelerar alonga suavemente a câmera para trás');
+  assert.ok(accelerating.chasePosition.distanceTo(cameraAtNeutralSpeed) <= 0.25,
+    'o impulso permanece pequeno e previsível');
+
+  const braking = { ...pose, speed: 8, longitudinalAcceleration: -7 };
+  for (let frame = 0; frame < 30; frame += 1) {
+    accelerating.update(braking, 1 / 60);
+    neutral.update({ ...braking, longitudinalAcceleration: 0 }, 1 / 60);
+  }
+  assert.ok(accelerating.accelerationLag < -4.5);
+  assert.ok(accelerating.chasePosition.z > neutral.chasePosition.z,
+    'desacelerar recolhe suavemente a câmera');
+
+  for (const mode of ['chase', 'isometric'] as const) {
+    const rig = makeRig({ mode, vehicleSize: scaledSize });
+    const projection = rig.isometric.projectionMatrix.clone();
+    const heights = [0, 1.5, 3, 1.7, 0]; // entrada em rampa, salto e pouso
+    let previousFov = -Infinity;
+    for (let index = 0; index < heights.length; index += 1) {
+      const speed = [5, 18, 35, 35, 18][index]!;
+      const heading = [0, 0.22, 0.52, 0.7, 0.82][index]!;
+      const player = { ...pose, x: index * 3, y: heights[index]!, z: -index * 4,
+        heading, speed, longitudinalAcceleration: index < 2 ? 5 : -4 };
+      for (let frame = 0; frame < 12; frame += 1) rig.update(player, 1 / 60);
+      assert.ok(rig.camera.position.toArray().every(Number.isFinite));
+      assert.ok(rig.camera.projectionMatrix.elements.every(Number.isFinite));
+      assert.ok(rig.zoomFov >= previousFov - 1e-6 || speed < 35,
+        'as curvas, rampa e pouso não provocam saltos abruptos de FOV');
+      previousFov = rig.zoomFov;
+      if (mode === 'isometric') {
+        assert.equal(rig.camera.isOrthographicCamera, true);
+        assert.deepEqual(rig.isometric.projectionMatrix.elements, projection.elements,
+          'a câmera isométrica preserva o enquadramento ortográfico');
+      }
+    }
+    rig.destroy();
+  }
+  accelerating.destroy();
+  neutral.destroy();
+});
+
 test('câmera se retrai antes de uma estrutura e limpa referências ao encerrar', () => {
   const wall = new THREE.Mesh(new THREE.BoxGeometry(30, 30, 0.4), new THREE.MeshBasicMaterial());
   wall.position.set(0, 10, -4);

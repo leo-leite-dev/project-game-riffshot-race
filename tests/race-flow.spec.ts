@@ -19,7 +19,7 @@ test('dificuldade → piloto → garagem → pista → corrida arcade → result
   await expect(page.locator('#screen-status')).toContainText('Difícil');
   await page.keyboard.press('Enter');
   await waitScene(page, 'CharacterSelection');
-  await clickObject(page, 'cards', 5);
+  await page.keyboard.press('ArrowLeft');
   await clickObject(page, 'confirmButton');
   await waitScene(page, 'VehicleSelection');
   await expect.poll(async () => page.evaluate(async () => {

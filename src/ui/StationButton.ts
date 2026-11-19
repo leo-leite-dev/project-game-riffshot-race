@@ -59,6 +59,12 @@ function drawIcon(g: Phaser.GameObjects.Graphics, kind: string, color: number) {
     g.fillStyle(color).fillRect(-13, -1, 5, 3).fillRect(10, -1, 5, 3);
   } else if (kind === 'start') {
     g.fillStyle(color).fillTriangle(-11, -16, -11, 16, 16, 0);
+  } else if (kind === 'lab') {
+    g.beginPath(); g.moveTo(-5, -17); g.lineTo(5, -17).lineTo(5, -8);
+    g.lineTo(14, 9).lineTo(12, 15).lineTo(-12, 15).lineTo(-14, 9);
+    g.lineTo(-5, -8).closePath().strokePath();
+    g.lineBetween(-7, -3, 7, -3).lineBetween(-11, 7, 11, 7);
+    g.fillStyle(color, 0.65).fillCircle(-5, 4, 2).fillCircle(4, 10, 2);
   } else {
     g.lineBetween(0, -17, 16, -17).lineBetween(16, -17, 16, 17).lineBetween(16, 17, 0, 17);
     g.lineBetween(-17, 0, 8, 0).lineBetween(-17, 0, -9, -8).lineBetween(-17, 0, -9, 8);

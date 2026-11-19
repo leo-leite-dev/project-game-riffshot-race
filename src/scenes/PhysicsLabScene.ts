@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { LAB_TUNING, RapierVehicleLab, initializeRapierLab, type LabControls, type LabSnapshot } from '../physics-lab/RapierVehicleLab.ts';
+import { DEFAULT_LAB_TRACK_CONFIG, LAB_TUNING, RapierVehicleLab, initializeRapierLab,
+  type LabControls, type LabSnapshot } from '../physics-lab/RapierVehicleLab.ts';
+import { SCENES } from '../ui/theme.ts';
 
 type LabWheelView = { mesh: THREE.Mesh; debugRay: THREE.Line; contact: THREE.Mesh };
 const LAB_LOCAL_FORWARD = new THREE.Vector3(1, 0, 0);
@@ -23,6 +25,7 @@ export class PhysicsLabScene extends Phaser.Scene {
   private debugEnabled = true;
   private pauseOnEventsEnabled = false;
   private paused = false;
+  private returnToPreparation = false;
   private uiElapsed = 0;
   private resizeHandler: (() => void) | null = null;
   private keyDownHandler: ((event: KeyboardEvent) => void) | null = null;
@@ -30,6 +33,10 @@ export class PhysicsLabScene extends Phaser.Scene {
   private blurHandler: (() => void) | null = null;
 
   constructor() { super({ key: 'PhysicsLab3D' }); }
+
+  init(data?: { returnToPreparation?: boolean }): void {
+    this.returnToPreparation = data?.returnToPreparation === true;
+  }
 
   create(): void {
     document.body.classList.add('physics-lab-active');
@@ -141,9 +148,9 @@ export class PhysicsLabScene extends Phaser.Scene {
       this.refreshButtons();
     });
     root.querySelector<HTMLButtonElement>('[data-pause-toggle]')!.addEventListener('click', () => this.togglePause());
-    root.querySelector<HTMLButtonElement>('[data-reset]')!.addEventListener('click', () => this.simulation?.reset());
+    root.querySelector<HTMLButtonElement>('[data-reset]')!.addEventListener('click', () => this.resetVehicle());
     root.querySelector<HTMLButtonElement>('[data-close]')!.addEventListener('click', () => {
-      window.location.assign(window.location.pathname);
+      this.exitLab();
     });
     document.body.append(root);
     this.root = root;
@@ -272,14 +279,17 @@ export class PhysicsLabScene extends Phaser.Scene {
 
   private updateWheels(state: LabSnapshot): void {
     if (!this.vehicleRoot) return;
-    this.vehicleRoot.updateMatrixWorld(true);
+    // Wheel contacts and hard points belong to the latest physics pose, while
+    // the chassis root is render-interpolated. Convert through the physics pose
+    // first so interpolation cannot stretch the wheels away from their axles.
+    const physicsPoseInverse = state.rotation.clone().invert();
     for (const wheel of state.wheels) {
       const view = this.wheelViews[wheel.index]!;
       const center = wheel.contactPoint && wheel.contactNormal
         ? wheel.contactPoint.clone().addScaledVector(wheel.contactNormal, LAB_TUNING.wheelRadiusM)
         : wheel.hardPoint.clone().addScaledVector(wheel.rayDirection,
           wheel.suspensionLengthM + LAB_TUNING.wheelRadiusM);
-      const local = this.vehicleRoot.worldToLocal(center);
+      const local = center.sub(state.position).applyQuaternion(physicsPoseInverse);
       view.mesh.position.copy(local);
       view.mesh.rotation.z = wheel.rotation;
       view.contact.visible = wheel.inContact && this.debugEnabled;
@@ -325,8 +335,8 @@ export class PhysicsLabScene extends Phaser.Scene {
     return {
       throttle: accelerate ? 1 : reverseOrBrake && Math.abs(speed) < 0.75 ? -1 : 0,
       brake: reverseOrBrake && Math.abs(speed) >= 0.75 ? 1 : 0,
-      steer: (this.heldKeys.has('d') || this.heldKeys.has('arrowright') ? 1 : 0)
-        - (this.heldKeys.has('a') || this.heldKeys.has('arrowleft') ? 1 : 0),
+      steer: (this.heldKeys.has('a') || this.heldKeys.has('arrowleft') ? 1 : 0)
+        - (this.heldKeys.has('d') || this.heldKeys.has('arrowright') ? 1 : 0),
     };
   }
 
@@ -338,7 +348,7 @@ export class PhysicsLabScene extends Phaser.Scene {
       }
       this.heldKeys.add(key);
       if (event.repeat) return;
-      if (key === 'r') this.simulation?.reset();
+      if (key === 'r') this.resetVehicle();
       if (key === 't') { this.pitchAssistEnabled = !this.pitchAssistEnabled; this.refreshButtons(); }
       if (key === 'b') { this.debugEnabled = !this.debugEnabled; this.refreshButtons(); }
       if (key === 'e') { this.pauseOnEventsEnabled = !this.pauseOnEventsEnabled; this.refreshButtons(); }
@@ -358,24 +368,75 @@ export class PhysicsLabScene extends Phaser.Scene {
     this.root.dataset.paused = String(this.paused);
     this.root.dataset.pitchDegrees = degrees(state.pitchRadians);
     this.root.dataset.speedMps = String(state.horizontalSpeedMps);
+    this.root.dataset.steering = String(controls.steer);
+    this.root.dataset.steeringSupportScale = String(state.steeringSupportScale);
+    this.root.dataset.steeringApplied = String(state.steeringApplied);
+    this.root.dataset.steeringEdgeScale = String(state.steeringEdgeScale);
+    this.root.dataset.steeringEdgeCorrection = String(state.steeringEdgeCorrection);
+    this.root.dataset.steeringEdgeScale = String(state.steeringEdgeScale);
+    this.root.dataset.heightM = String(state.position.y);
+    this.root.dataset.verticalSpeedMps = String(state.verticalSpeedMps);
+    this.root.dataset.descending = String(state.airborne && state.verticalSpeedMps < -0.15);
+    this.root.dataset.pitch = String(state.pitchRadians);
+    this.root.dataset.roll = String(state.rollRadians);
+    this.root.dataset.angularSpeed = String(state.angularVelocity.length());
+    this.root.dataset.upY = String(new THREE.Vector3(0, 1, 0).applyQuaternion(state.rotation).y);
+    this.root.dataset.peakPitchDegrees = String(state.peakPitchRadians * 180 / Math.PI);
+    this.root.dataset.peakRollDegrees = String(state.peakRollRadians * 180 / Math.PI);
+    this.root.dataset.peakAngularSpeed = String(state.peakAngularSpeedRadPerSecond);
+    this.root.dataset.peakSuspensionForce = String(state.peakSuspensionForceN);
+    this.root.dataset.peakForwardImpulse = String(state.peakForwardImpulse);
+    this.root.dataset.peakSideImpulse = String(state.peakSideImpulse);
+    this.root.dataset.uprightMode = state.uprightMode;
+    this.root.dataset.uprightTorque = String(state.uprightTorqueNm);
+    this.root.dataset.supportContacts = String(state.supportContactCount);
+    this.root.dataset.yawRate = String(state.yawRateRadPerSecond);
+    this.root.dataset.airYawTarget = String(state.airYawTargetRadPerSecond);
+    this.root.dataset.airYawTorque = String(state.airYawTorqueNm);
+    this.root.dataset.groundYawTarget = String(state.groundYawTargetRadPerSecond);
+    this.root.dataset.groundYawTorque = String(state.groundYawTorqueNm);
+    this.root.dataset.contacts = String(state.wheels.filter(wheel => wheel.inContact).length);
+    this.root.dataset.suspensionCompression = state.wheels.map(wheel => wheel.compressionM.toFixed(3)).join(',');
+    this.root.dataset.assistTargetPitch = state.assistTargetPitch === null ? '' : String(state.assistTargetPitch);
+    this.root.dataset.simulationTimeSeconds = String(state.simulationTimeSeconds);
+    this.root.dataset.takeoffTimeSeconds = state.takeoffTimeSeconds === null ? '' : String(state.takeoffTimeSeconds);
+    this.root.dataset.landingTimeSeconds = state.landingTimeSeconds === null ? '' : String(state.landingTimeSeconds);
+    this.root.dataset.airTimeSeconds = state.lastAirTimeSeconds === null ? '' : String(state.lastAirTimeSeconds);
     this.root.dataset.worldZ = String(state.position.z);
     this.root.dataset.lastEvent = state.lastEvent;
     this.root.dataset.takeoffs = String(state.takeoffCount);
     this.root.dataset.landings = String(state.landingCount);
-    this.root.dataset.region = state.position.z < 22 ? 'flat'
-      : state.position.z < 37 ? 'ramp' : state.position.z < 46 ? 'jump-gap'
-        : state.position.z < 70 ? 'landing' : state.position.z < 82 ? 'descent' : 'banked-turn';
+    this.root.dataset.region = state.position.z < DEFAULT_LAB_TRACK_CONFIG.approachEndZ ? 'flat'
+      : state.position.z < DEFAULT_LAB_TRACK_CONFIG.launchLipEndZ ? 'ramp'
+        : state.position.z < DEFAULT_LAB_TRACK_CONFIG.landingStartZ ? 'jump-gap'
+          : state.position.z < DEFAULT_LAB_TRACK_CONFIG.landingEndZ ? 'landing'
+            : state.position.z < DEFAULT_LAB_TRACK_CONFIG.descentEndZ ? 'descent' : 'banked-turn';
     const wheelLines = state.wheels.map(wheel => `${wheel.label.padEnd(21)} ${wheel.inContact ? 'CONTATO' : 'NO AR   '}`
       + ` · curso ${wheel.suspensionLengthM.toFixed(2)} m · comp. ${wheel.compressionM.toFixed(2)} m`
-      + ` · força ${wheel.suspensionForceN.toFixed(1)} N`).join('\n');
+      + ` · força ${wheel.suspensionForceN.toFixed(1)} N`
+      + ` · imp. long./lat. ${wheel.forwardImpulse.toFixed(2)}/${wheel.sideImpulse.toFixed(2)}`).join('\n');
     this.root.querySelector<HTMLElement>('[data-physics-lab-readout]')!.textContent = [
       `ESTADO ${state.airborne ? 'AIRBORNE' : state.grounded ? 'NO SOLO' : 'SEM CONTATO INICIAL'} · ${state.lastEvent}`,
       `v horizontal ${state.horizontalSpeedMps.toFixed(2)} m/s · v vertical ${state.verticalSpeedMps.toFixed(2)} m/s · ω ${state.angularVelocity.length().toFixed(2)} rad/s`,
+      `altura ${state.position.y.toFixed(2)} m · tempo simulado ${state.simulationTimeSeconds.toFixed(2)} s`,
       `pitch ${degrees(state.pitchRadians)}° · roll ${degrees(state.rollRadians)}° · assistência ${this.pitchAssistEnabled ? 'LIGADA' : 'DESLIGADA'}`,
+      `picos | pitch ${degrees(state.peakPitchRadians)}° · roll ${degrees(state.peakRollRadians)}° · ω ${state.peakAngularSpeedRadPerSecond.toFixed(2)} rad/s`,
+      `picos | suspensão ${state.peakSuspensionForceN.toFixed(1)} N · impulso long./lat. ${state.peakForwardImpulse.toFixed(2)}/${state.peakSideImpulse.toFixed(2)}`,
+      `estabilizador ${state.uprightMode === 'ground' ? 'SOLO' : state.uprightMode === 'partial' ? `APOIO PARCIAL (${state.supportContactCount})` : 'AR'}`
+        + ` · erro ${degrees(state.uprightErrorRadians)}° · torque ${state.uprightTorqueNm.toFixed(1)} Nm`,
+      `direção aplicada ${state.steeringApplied.toFixed(2)} · fator do apoio/inclinação ${state.steeringSupportScale.toFixed(2)}`,
+      `assistência de borda ${state.steeringEdgeScale.toFixed(2)} · contraesterço ${state.steeringEdgeCorrection.toFixed(2)}`,
+      `limite suave da borda da reta ${state.steeringEdgeScale.toFixed(2)} · rodas dianteiras`,
+      `assist. yaw ${degrees(state.yawRateRadPerSecond)}°/s · alvo ${degrees(state.uprightMode === 'air'
+        ? state.airYawTargetRadPerSecond : state.groundYawTargetRadPerSecond)}°/s`
+        + ` · torque solo/ar ${state.groundYawTorqueNm.toFixed(1)}/${state.airYawTorqueNm.toFixed(1)} Nm`,
       `assist target ${state.assistTargetPitch === null ? '—' : `${degrees(state.assistTargetPitch)}°`}`
         + ` · torque ${state.assistTorqueNm.toFixed(2)} Nm · controles T${controls.throttle.toFixed(0)} B${controls.brake.toFixed(0)} D${controls.steer.toFixed(0)}`,
       `perda por limite de substeps ${state.droppedSimulationSeconds.toFixed(3)} s`,
-      `saltos completos ${state.takeoffCount}/${state.landingCount}`,
+      `decolagem ${state.takeoffTimeSeconds === null ? '—' : `${state.takeoffTimeSeconds.toFixed(2)} s`}`
+        + ` · aterrissagem ${state.landingTimeSeconds === null ? '—' : `${state.landingTimeSeconds.toFixed(2)} s`}`
+        + ` · tempo no ar ${state.lastAirTimeSeconds === null ? '—' : `${state.lastAirTimeSeconds.toFixed(2)} s`}`
+        + ` · saltos ${state.takeoffCount}/${state.landingCount}`,
       wheelLines,
     ].join('\n');
   }
@@ -395,6 +456,23 @@ export class PhysicsLabScene extends Phaser.Scene {
   private togglePause(): void {
     this.paused = !this.paused;
     this.refreshButtons();
+  }
+
+  private resetVehicle(): void {
+    this.heldKeys.clear();
+    this.simulation?.reset();
+    this.paused = false;
+    this.refreshButtons();
+  }
+
+  private exitLab(): void {
+    if (!this.returnToPreparation) {
+      window.location.assign(window.location.pathname);
+      return;
+    }
+    this.scene.stop('PhysicsLab3D');
+    this.scene.stop('PhysicsLabBootstrap');
+    this.scene.resume(SCENES.preparation);
   }
 
   private resize(): void {

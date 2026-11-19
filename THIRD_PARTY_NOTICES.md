@@ -164,3 +164,10 @@ SOFTWARE.
 ## Ferramentas não incluídas no runtime da página
 
 Vite e Playwright são usados apenas em desenvolvimento, build e testes; não são carregados pelo navegador no build do jogo. Suas licenças declaradas constam nos metadados dos pacotes fixados em `package-lock.json`.
+
+## Oxanium — fonte da tela de seleção de pilotos
+
+- Autoria: The Oxanium Project Authors (Severin Meyer).
+- Origem: https://github.com/google/fonts/tree/main/ofl/oxanium
+- Licença SIL Open Font License 1.1 (OFL), apta para incorporação e distribuição comercial. A fonte variável original, sem modificações, está em `src/assets/fonts/OxaniumVariable.ttf`.
+- O aviso e texto integral da licença acompanham o arquivo em `src/assets/fonts/OFL-Oxanium.txt`; versão oficial: https://openfontlicense.org/.

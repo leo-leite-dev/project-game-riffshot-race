@@ -1,0 +1,17 @@
+{
+  "id": "dagger-raven",
+  "originPlanetId": "eclipsis",
+  "ultimateIds": ["dagger-raven-bat-lift"],
+  "identityIconKey": "pilot-symbol-dagger-raven",
+  "portraitKey": "pilot-card-portrait-dagger-raven",
+  "fullBodyPortraitKey": "pilot-fullbody-dagger-raven",
+  "bonusAttributes": [
+    { "id": "shotCount", "value": 1 },
+    { "id": "oilSlickCount", "value": 1 }
+  ],
+  "nome": "DAGGER RAVEN",
+  "titulo": "O CAVALEIRO DA NOITE",
+  "themeColor": "#AD222C",
+  "resumo": "Ex-escolta traído durante uma operação, Dagger vive sob identidade misteriosa. Silencioso e implacável, corre por territórios sem lei enquanto procura respostas sobre a conspiração contra sua equipe.",
+  "lore": "Antigo escolta de comboios em territórios dominados por organizações criminosas, Dagger abandonou sua profissão após uma operação terminar em traição. Desde então, passou a viajar sob uma identidade misteriosa, participando de corridas em regiões onde a lei praticamente não existe. Silencioso, disciplinado e implacável, raramente revela suas intenções. Muitos acreditam que busca dinheiro ou vingança, mas Dagger parece perseguir algo muito maior: encontrar os responsáveis pela conspiração que destruiu sua antiga equipe."
+}

@@ -159,7 +159,7 @@ test('efeitos Web Audio: MP3 privados apenas em dev, fallback no build, disparo,
   expect(npcSounds.npcSkidsUseMp3).toEqual([true, true, true]);
   expect(npcSounds.hitsUseMp3).toBe(true);
   expect(npcSounds.diag.impacts).toBe(4);
-  for (const voice of npcSounds.engines.voices.filter(voice => voice.id !== 'vera-volt')) {
+  for (const voice of npcSounds.engines.voices.filter(voice => voice.id !== 'axel-ryder')) {
     expect(voice.level).toBeGreaterThan(0.2);
   }
   await page.evaluate(async () => {

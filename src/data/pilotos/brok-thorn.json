@@ -1,0 +1,17 @@
+{
+  "id": "brok-thorn",
+  "originPlanetId": "thorgar",
+  "ultimateIds": ["brok-thorn-freeze"],
+  "identityIconKey": "pilot-symbol-brok-thorn",
+  "portraitKey": "pilot-card-portrait-brok-thorn",
+  "fullBodyPortraitKey": "pilot-fullbody-brok-thorn",
+  "bonusAttributes": [
+    { "id": "armor", "value": 1 },
+    { "id": "suspension", "value": 1 }
+  ],
+  "nome": "BROK THORN",
+  "titulo": "O REI DA SUCATA",
+  "themeColor": "#50CFFF",
+  "resumo": "Descendente de mineradores de Thorgar, Brok construiu seu veículo com peças de escavadeiras e cargueiros. Forte e resistente, corre para defender sua colônia e nunca recua diante do impacto.",
+  "lore": "Descendente de uma antiga linhagem de mineradores guerreiros, Brok passou décadas trabalhando nas fornalhas de um planeta industrial. Foi ali que construiu seu primeiro veículo, utilizando peças de máquinas de escavação e motores destinados a cargueiros. Quando sua colônia perdeu tudo em uma disputa contra grandes corporações, Brok encontrou nas corridas uma forma de recuperar sua honra. Ele não se importa com fama ou velocidade elegante: acredita que um verdadeiro campeão deve resistir até o último impacto."
+}

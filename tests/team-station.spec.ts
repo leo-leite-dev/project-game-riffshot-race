@@ -1,8 +1,9 @@
-import { test, expect, openMenu, waitScene, clickObject } from './helpers.ts';
+import { test, expect, openMenu, waitScene, clickObject, objectPosition } from './helpers.ts';
 import type { Page } from '@playwright/test';
 
 type Dynamic = { [key: string]: Dynamic; [key: number]: Dynamic; (...args: unknown[]): Dynamic };
 import { CHARACTERS } from '../src/data/characters.ts';
+import { VEHICLES } from '../src/data/vehicles.ts';
 import { createChampionshipState, setSelections, ensureAssignedTrack, beginChampionshipRace,
   applyChampionshipResult, acknowledgeChampionshipResult } from '../src/championship/championshipState.ts';
 import { CHAMPIONSHIP_SAVE_KEY } from '../src/championship/championshipStorage.ts';
@@ -51,16 +52,23 @@ async function team(page: Page, qualified = false) {
 test('estação visual: molduras, retrato original e dados reais em desktop, celular e paisagem', async ({ page }) => {
   await page.setViewportSize({ width: 1664, height: 940 });
   const seed = await team(page);
+  const camaro = VEHICLES.find(vehicle => vehicle.id === 'volt-vector')!;
   expect(await inspect(page, game => {
     const scene = game.scene.getScene('RacePreparation');
     return { portrait: scene.rivalPortrait.texture.key, name: scene.rivalName.text,
-      pilot: scene.pilotPortrait.texture.key, fields: scene.campaignFields.map((item: Dynamic) => item.value.text),
-      playerStats: (scene.motor.rows as unknown as Dynamic[]).map((row: Dynamic) => [row.attribute.key, row.value.text]),
-      rivalStats: (scene.chassis.rows as unknown as Dynamic[]).map((row: Dynamic) => [row.attribute.key, row.value.text]),
+       pilot: scene.pilotPortrait.texture.key, fields: scene.campaignFields.map((item: Dynamic) => item.value.text),
+       playerStats: (scene.motor.rows as unknown as Dynamic[]).map((row: Dynamic) => [row.attribute.key, row.value.text]),
+       playerUpgradeLabels: (scene.motor.rows as unknown as Dynamic[]).map((row: Dynamic) => row.label.text),
+       playerIndicatorCounts: (scene.motor.rows as unknown as Dynamic[]).map((row: Dynamic) => row.indicatorCount),
+       rivalStats: (scene.chassis.rows as unknown as Dynamic[]).map((row: Dynamic) => [row.attribute.key, row.value.text]),
       eraseOnCanvas: !!scene.eraseButton, errors: game.garageResources.modelFailures };
   })).toEqual({ portrait: 'rival-opening-ferro', name: 'RAVIK FERRO', pilot: `pilot-${CHARACTERS[0].id}`,
      fields: [`$ ${seed.money.toLocaleString('pt-BR')}`, 'B', '3 DE 8', '1.400', '540'],
-      playerStats: [['speed', '62'], ['armor', '35'], ['shotCount', '0'], ['bombCount', '0'], ['oilSlickCount', '0']],
+        playerStats: [['speed', '110 km/h'], ['armor', String(camaro.stats.armor)],
+           ['shotCount', String(camaro.stats.shotCount)], ['bombCount', String(camaro.stats.bombCount)],
+           ['oilSlickCount', String(camaro.stats.oilSlickCount)]],
+        playerUpgradeLabels: ['VELOCIDADE 0/8', 'RESISTÊNCIA 0/8', 'TIROS 0/8', 'BOMBAS 0/8', 'ÓLEO 0/8'],
+        playerIndicatorCounts: [8, 8, 8, 8, 8],
       rivalStats: [['speed', '88'], ['armor', '90'], ['shotCount', '5'], ['bombCount', '1'], ['oilSlickCount', '1']],
       eraseOnCanvas: false, errors: [] });
   const infoBounds = await inspect(page, game => {
@@ -73,12 +81,13 @@ test('estação visual: molduras, retrato original e dados reais em desktop, cel
   await page.mouse.move(canvasBox.x + Number(infoBounds.x), canvasBox.y + Number(infoBounds.y));
   await expect.poll(() => inspect(page, game => {
     const scene = game.scene.getScene('RacePreparation');
-    return { visible: scene.attributePopup.visible, title: scene.attributePopupTitle.text,
-      rows: scene.attributePopupRows.map((row: Dynamic) => row.text),
-      values: scene.attributePopupValues.map((row: Dynamic) => row.text) };
-  })).toEqual({ visible: true, title: 'ATRIBUTOS DO SEU VEÍCULO', rows: [
-    'ACELERAÇÃO', 'CONTROLE', 'PNEUS', 'SUSPENSÃO',
-  ], values: ['76', '84', '84', '48'] });
+     return { visible: scene.attributePopup.visible, title: scene.attributePopupTitle.text,
+       rows: scene.attributePopupRows.map((row: Dynamic) => row.text),
+       values: scene.attributePopupValues.map((row: Dynamic) => row.text),
+       slots: scene.attributePopup.getData('upgradeSlotCount') };
+   })).toEqual({ visible: true, title: 'ATRIBUTOS DO SEU VEÍCULO', rows: [
+     'ACELERAÇÃO 0/8', 'CONTROLE 0/8', 'PNEUS 0/8', 'SUSPENSÃO 0/8',
+   ], values: ['36', '68', '68', '68'], slots: 8 });
   await page.screenshot({ path: 'previews-ui/estacao-equipe-atributos-hover.png' });
   await page.mouse.move(canvasBox.x + 8, canvasBox.y + 8);
   await expect.poll(() => inspect(page, game => game.scene.getScene('RacePreparation').attributePopup.visible)).toBe(false);
@@ -89,24 +98,36 @@ test('estação visual: molduras, retrato original e dados reais em desktop, cel
   await page.mouse.move(canvasBox.x + Number(rivalInfoBounds.x), canvasBox.y + Number(rivalInfoBounds.y));
   await expect.poll(() => inspect(page, game => {
     const scene = game.scene.getScene('RacePreparation');
-    return { visible: scene.attributePopup.visible, title: scene.attributePopupTitle.text,
-      rows: scene.attributePopupRows.map((row: Dynamic) => row.text),
-      values: scene.attributePopupValues.map((row: Dynamic) => row.text) };
-  })).toEqual({ visible: true, title: 'ATRIBUTOS DO RIVAL',
-    rows: ['ACELERAÇÃO', 'CONTROLE', 'PNEUS', 'SUSPENSÃO'], values: ['78', '65', '65', '90'] });
+     return { visible: scene.attributePopup.visible, title: scene.attributePopupTitle.text,
+       rows: scene.attributePopupRows.map((row: Dynamic) => row.text),
+       values: scene.attributePopupValues.map((row: Dynamic) => row.text),
+       slots: scene.attributePopup.getData('upgradeSlotCount') };
+   })).toEqual({ visible: true, title: 'ATRIBUTOS DO RIVAL',
+     rows: ['ACELERAÇÃO 0/8', 'CONTROLE 0/8', 'PNEUS 0/8', 'SUSPENSÃO 0/8'],
+     values: ['78', '65', '65', '90'], slots: 8 });
   await page.screenshot({ path: 'previews-ui/estacao-equipe-atributos-rival-hover.png' });
   await page.mouse.move(canvasBox.x + 8, canvasBox.y + 8);
   await expect.poll(() => inspect(page, game => game.scene.getScene('RacePreparation').attributePopup.visible)).toBe(false);
   for (const [name, viewport] of [['desktop', { width: 1664, height: 940 }],
     ['mobile', { width: 390, height: 844 }], ['paisagem', { width: 844, height: 390 }]] as Array<[string, { width: number; height: number }]>) {
-    await page.setViewportSize(viewport);
-    await expect.poll(() => inspect(page, game => {
-      const scene = game.scene.getScene('RacePreparation');
+     await page.setViewportSize(viewport);
+     await objectPosition(page, 'motor');
+     const layoutCheck = await inspect(page, game => {
+       const scene = game.scene.getScene('RacePreparation');
         const bounds = [scene.pilotPanel, scene.rivalPanel, scene.campaign, scene.preview, scene.rivalVehicle, scene.motor, scene.chassis,
-         ...(scene.modules as unknown as Dynamic[]), scene.startButton].map(object => object.getBounds() as unknown as { left: number; right: number; top: number; bottom: number });
-       return bounds.every(box => box.left >= 0 && box.right <= Number(game.scale.width) + 1
-         && box.top >= 0 && box.bottom <= Number(game.scale.height) - 40);
-    })).toBe(true);
+          ...(scene.modules as unknown as Dynamic[]), scene.startButton].map(object => object.getBounds() as unknown as { left: number; right: number; top: number; bottom: number });
+        const playerTextRows = (scene.motor.rows as unknown as Dynamic[]).map((row: Dynamic) => ({
+          label: row.label.getBounds() as unknown as { x: number; width: number },
+          value: row.value.getBounds() as unknown as { x: number; width: number },
+        }));
+        return { boundsOkay: bounds.every(box => box.left >= 0 && box.right <= Number(game.scale.width) + 1
+          && box.top >= 0 && box.bottom <= Number(game.scale.height) - 40), playerTextRows,
+          playerIndicatorCounts: (scene.motor.rows as unknown as Dynamic[]).map((row: Dynamic) => row.indicatorCount) };
+     });
+     expect(layoutCheck.boundsOkay).toBe(true);
+      expect(layoutCheck.playerTextRows.every((row: Dynamic) => Number(row.label.x) + Number(row.label.width)
+        <= Number(row.value.x) + 1)).toBe(true);
+     expect(layoutCheck.playerIndicatorCounts).toEqual([8, 8, 8, 8, 8]);
     await page.screenshot({ path: `previews-ui/estacao-equipe-${name}.png` });
   }
   await page.setViewportSize({ width: 1664, height: 940 });

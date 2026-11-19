@@ -49,7 +49,7 @@ test('campeonato: chegada premia uma vez, reload reabre o recibo e MONEY/SCORE r
     if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(seed));
   }, { key: CHAMPIONSHIP_SAVE_KEY, seed });
   await openCharacters(page);
-  await clickObject(page, 'cards', 1);
+  await page.keyboard.press('ArrowRight');
   await clickObject(page, 'confirmButton');
   await waitScene(page, 'VehicleSelection');
   await waitPreview(page, 'VehicleSelection');

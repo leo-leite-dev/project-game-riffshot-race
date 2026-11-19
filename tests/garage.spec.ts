@@ -383,7 +383,7 @@ test.describe('oficina 3D e preparação', () => {
       race: { money: 2000, division: 'B', racesRun: 0, maxRaces: 8, targetScore: 1400, score: 0 },
       fields: [['MONEY', '$ 2.000'], ['DIVISÃO', 'B'], ['CORRIDAS', '0 DE 8'],
         ['PONTUAÇÃO NECESSÁRIA', '1.400'], ['PONTUAÇÃO ATUAL', '0']],
-      modules: [['PISTA / CORRIDA', 'CIRCUITO'], ['MELHORIAS', 'Em breve'], ['REPAROS', 'Em breve'],
+      modules: [['PISTA / CORRIDA', 'CIRCUITO'], ['MELHORIAS', 'VELOCIDADE / CAMARO'], ['REPAROS', 'EM BREVE'],
         ['LOJA / GARAGEM', 'COMPRAR OU EQUIPAR'], ['SAIR / VOLTAR', 'ESC']],
     });
     expect(preparation.stats).toEqual(Object.fromEntries(VEHICLE_ATTRIBUTES.map(({ key }) => [key, String(VEHICLES[1].stats[key as keyof typeof VEHICLES[number]['stats']])] )));

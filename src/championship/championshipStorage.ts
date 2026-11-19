@@ -38,13 +38,13 @@ function decode(raw: string): DecodedChampionship {
   try {
     const state: unknown = JSON.parse(raw);
     const schemaVersion = state !== null && typeof state === 'object' && 'schemaVersion' in state ? state.schemaVersion : undefined;
-    if (typeof schemaVersion === 'number' && [1, 2].includes(schemaVersion)) {
+    if (typeof schemaVersion === 'number' && [1, 2, 3, 4, 5].includes(schemaVersion)) {
       const migrated = migrateChampionshipState(state);
       if (!migrated) return { state: null,
         warning: 'Save de campeonato inválido para migração. Original e backup preservados; gravação bloqueada.' };
       return { state: migrated, warning: null, migrated: true };
     }
-    if (schemaVersion !== 3) return { state: null,
+    if (schemaVersion !== 6) return { state: null,
       warning: 'Versão de campeonato desconhecida. Migração bloqueada; save original preservado.' };
     if (!isValidChampionshipState(state)) return { state: null,
       warning: 'Save de campeonato inválido. Original e backup preservados; gravação bloqueada.' };

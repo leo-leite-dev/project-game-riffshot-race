@@ -16,6 +16,7 @@ import {
   CHAMPIONSHIP_SAVE_KEY, CHAMPIONSHIP_BACKUP_KEY, loadChampionship, saveChampionship,
 } from '../src/championship/championshipStorage.ts';
 import type { ChampionshipResult, ChampionshipState } from '../src/championship/championshipState.ts';
+import { LEGACY_PILOT_ID_ALIASES } from '../src/data/pilotIds.ts';
 
 type UnsafeRecord = Record<string, unknown>;
 const asRecord = (value: unknown): UnsafeRecord => value as UnsafeRecord;
@@ -119,9 +120,11 @@ function roundTrip(state: ChampionshipState): ChampionshipState {
 test('estado inicial canônico, dinheiro existente e API de seleções reais', () => {
   const state = initial();
   assert.deepEqual(state, {
-    schemaVersion: 3, revision: 0, id: 'career-1', money: 2000, score: 0, targetScore: 1400,
+      schemaVersion: 6, revision: 0, id: 'career-1', money: 2000, score: 0, targetScore: 1400,
     division: 'B', rivalId: 'opening-b', rivalName: 'DESAFIO INICIAL', racesRun: 0, maxRaces: 8,
-    upgrades: {}, selections: { pilotId: null, vehicleId: null, paintId: null, difficultyId: null },
+      upgrades: {}, permanentUpgrades: { 'volt-vector': { speed: 0, acceleration: 0, armor: 0,
+        control: 0, tires: 0, suspension: 0, shotCount: 0, bombCount: 0, oilSlickCount: 0 } },
+     selections: { pilotId: null, vehicleId: null, paintId: null, difficultyId: null },
     attempt: { id: 'attempt-1', number: 1, status: 'active' },
     tracks: { ...createTrackAssignmentState(), history: [] }, awardedRaceIds: [],
     activeRace: null, pendingResult: null, previousAttempts: [], ownedVehicleIds: [], rivalRewardChoice: null,
@@ -198,11 +201,13 @@ test('variação futura da carteira não gasta SCORE nem revoga a qualificação
 });
 
 test('fracasso na oitava mantém totais, upgrades e pending até ack; reset preserva seleções e ledger', () => {
-  const state = runPositions(Array(8).fill(2), { ...selected(), upgrades: { engine: 2 }, revision: 23 });
+  const state = runPositions(Array(8).fill(2), { ...selected(), upgrades: { engine: 2 },
+    permanentUpgrades: { 'volt-vector': { ...initial().permanentUpgrades['volt-vector'], speed: 2 } }, revision: 23 });
   assert.equal(state.score, 1360);
   assert.equal(state.money, 8800);
   assert.equal(state.attempt.status, 'failed');
   assert.deepEqual(state.upgrades, { engine: 2 });
+  assert.equal(state.permanentUpgrades['volt-vector'].speed, 2);
   const loaded = roundTrip(state);
   assert.equal(ensureAssignedTrack(loaded), loaded);
   assert.equal(beginChampionshipRace(loaded, 'ninth'), loaded);
@@ -211,6 +216,7 @@ test('fracasso na oitava mantém totais, upgrades e pending até ack; reset pres
   const reset = acknowledgeChampionshipResult(freeze(loaded), 'attempt-2');
   assert.deepEqual([reset.money, reset.score, reset.racesRun], [0, 0, 0]);
   assert.deepEqual(reset.upgrades, {});
+  assert.equal(reset.permanentUpgrades['volt-vector'].speed, 2);
   assert.deepEqual(reset.selections, selections);
   assert.equal(reset.targetScore, loaded.targetScore);
   assert.equal(reset.division, loaded.division);
@@ -410,7 +416,7 @@ test('registro antigo, vazio ou sem corrida ativa não lança nem concede prêmi
 });
 
 const corruptions: Record<string, (state: ChampionshipState) => void> = {
-  'versão desconhecida': state => { asRecord(state).schemaVersion = 4; },
+  'versão desconhecida': state => { asRecord(state).schemaVersion = 6; },
   'chave ausente': state => { delete asRecord(state).upgrades; },
   'chave extra': state => { asRecord(state).moneyGoal = 1400; },
   'revision negativa': state => { state.revision = -1; },
@@ -531,6 +537,7 @@ test('migração de save v1 troca a máquina antiga sem perder dinheiro, SCORE n
   const legacy = ready();
   delete asRecord(legacy).ownedVehicleIds;
   delete asRecord(legacy).rivalRewardChoice;
+  delete asRecord(legacy).permanentUpgrades;
   asRecord(legacy).schemaVersion = 1;
   legacy.selections.vehicleId = 'air-blade';
   required(legacy.activeRace).selections.vehicleId = 'air-blade';
@@ -545,7 +552,11 @@ test('migração de save v1 troca a máquina antiga sem perder dinheiro, SCORE n
   assert.equal(loaded.raw, raw, 'a migração de leitura não substitui silenciosamente o save original');
   assert.equal('migrated' in loaded && loaded.migrated, true);
   const migrated = required(loaded.state);
-  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.schemaVersion, 6);
+  assert.deepEqual(migrated.permanentUpgrades['volt-vector'], {
+    speed: 0, acceleration: 0, armor: 0, control: 0, tires: 0, suspension: 0,
+    shotCount: 0, bombCount: 0, oilSlickCount: 0,
+  });
   assert.deepEqual(migrated.ownedVehicleIds, ['rift-blaze']);
   assert.equal(migrated.selections.vehicleId, 'rift-blaze');
   assert.equal(required(migrated.activeRace).selections.vehicleId, 'rift-blaze');
@@ -563,14 +574,54 @@ test('migração de save v1 troca a máquina antiga sem perder dinheiro, SCORE n
   assert.equal(saved.ok, true, saved.warning ?? undefined);
   assert.equal(storage.getItem(CHAMPIONSHIP_BACKUP_KEY), raw);
   const savedState = JSON.parse(required(storage.getItem(CHAMPIONSHIP_SAVE_KEY))) as ChampionshipState;
-  assert.equal(savedState.schemaVersion, 3);
+   assert.equal(savedState.schemaVersion, 6);
   assert.equal(savedState.money, 7350);
   assert.equal(savedState.score, 680);
 });
 
+test('migração de save v5 troca IDs legados do piloto sem duplicá-lo nem perder seleção, corrida ou recibo', () => {
+  for (const [legacyId, canonicalId] of Object.entries(LEGACY_PILOT_ID_ALIASES)) {
+    const source = { ...initial(), schemaVersion: 5,
+      selections: { ...initial().selections, pilotId: legacyId } };
+    const migrated = migrateChampionshipState(source);
+    assert.ok(migrated, `save com ${legacyId} deve migrar`);
+    assert.equal(migrated.schemaVersion, 6);
+    assert.equal(migrated.selections.pilotId, canonicalId);
+    assert.equal(isValidChampionshipState(migrated), true);
+  }
+
+  const racing = ready();
+  const legacyRace = clone(racing) as unknown as UnsafeRecord;
+  legacyRace.schemaVersion = 5;
+  (legacyRace.selections as UnsafeRecord).pilotId = 'kira-comet';
+  const activeRace = legacyRace.activeRace as UnsafeRecord;
+  (activeRace.selections as UnsafeRecord).pilotId = 'kira-comet';
+  const migratedRace = migrateChampionshipState(legacyRace);
+  assert.ok(migratedRace);
+  assert.equal(migratedRace.selections.pilotId, 'neon-kira');
+  assert.equal(migratedRace.activeRace?.selections.pilotId, 'neon-kira');
+
+  const finished = applyChampionshipResult(racing, resultFor(racing));
+  const legacyReceipt = clone(finished) as unknown as UnsafeRecord;
+  legacyReceipt.schemaVersion = 5;
+  (legacyReceipt.selections as UnsafeRecord).pilotId = 'kira-comet';
+  const receipt = legacyReceipt.pendingResult as UnsafeRecord;
+  const standings = receipt.standings as UnsafeRecord[];
+  const playerStanding = standings.find(standing => standing.isPlayer);
+  assert.ok(playerStanding);
+  playerStanding.id = 'kira-comet';
+  const migratedReceipt = migrateChampionshipState(legacyReceipt);
+  assert.ok(migratedReceipt);
+  assert.equal(migratedReceipt.selections.pilotId, 'neon-kira');
+  assert.equal(migratedReceipt.pendingResult?.standings.find(standing => standing.isPlayer)?.id, 'neon-kira');
+  assert.equal(isValidChampionshipState(migratedReceipt), true);
+});
+
 for (const raw of ['{bad-json', 'null', '{}', JSON.stringify({ ...initial(), schemaVersion: 0 }),
   JSON.stringify({ ...initial(), schemaVersion: 1, selections: { ...initial().selections, vehicleId: 'not-a-legacy-car' } }),
-  JSON.stringify({ ...initial(), schemaVersion: 4 }), JSON.stringify({ ...initial(), schemaVersion: 999 }),
+  JSON.stringify({ ...initial(), schemaVersion: 5,
+    selections: { ...initial().selections, pilotId: 'unknown-pilot' } }),
+  JSON.stringify({ ...initial(), schemaVersion: 999 }),
   JSON.stringify({ ...initial(), money: -1 }),
   JSON.stringify(initial()).replace('"upgrades":{}', '"upgrades":{"__proto__":1}')]) {
   test(`migração desconhecida/corrupção bloqueada e original/backup preservados: ${raw.slice(0, 70)}`, () => {

@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import type { VehicleStats } from '../data/vehicles.ts';
 import { drawStationFrame } from '../visuals/preparation/StationArt.ts';
 import { FONTS } from './theme.ts';
 
@@ -9,7 +10,14 @@ function caption(scene: Phaser.Scene, value: string, size: number, color: string
   }).setOrigin(origin, 0.5);
 }
 
-function statIcon(g: Phaser.GameObjects.Graphics, key: string | undefined, x: number, y: number, size: number, accent = 0x71f6ff) {
+export function drawVehicleAttributeIcon(
+  g: Phaser.GameObjects.Graphics,
+  key: string | undefined,
+  x: number,
+  y: number,
+  size: number,
+  accent = 0x71f6ff,
+) {
   g.save().translateCanvas(x, y).scaleCanvas(size, size).lineStyle(2, accent, 1);
   if (key === 'speed') {
     g.beginPath(); g.arc(0, 1, 12, Math.PI * 0.85, Math.PI * 2.15, false); g.strokePath();
@@ -41,10 +49,13 @@ function statIcon(g: Phaser.GameObjects.Graphics, key: string | undefined, x: nu
   g.restore();
 }
 
+const statIcon = drawVehicleAttributeIcon;
+
 const SLOT_COLORS = [0xff2825, 0xff3023, 0xff3c20, 0xff4b1d, 0xff611c, 0xff7a20, 0xff9627, 0xffb637, 0xffcf49, 0xffe777];
 
 type StatAttribute = { key: string; label: string };
-type StatRow = { attribute: StatAttribute; label: Phaser.GameObjects.Text; value: Phaser.GameObjects.Text };
+export type StationUpgradeIndicator = { level: number; maximum: number; display: string };
+type StatRow = { attribute: StatAttribute; label: Phaser.GameObjects.Text; value: Phaser.GameObjects.Text; indicatorCount: number };
 type StationStatPanel = Phaser.GameObjects.Container & {
   rows: StatRow[];
   heading: Phaser.GameObjects.Text;
@@ -55,9 +66,10 @@ export function createStationStatPanel(
   scene: Phaser.Scene,
   heading: string,
   attributes: readonly StatAttribute[],
-  stats: Record<string, number>,
+  stats: Readonly<VehicleStats>,
   statValues: Record<string, Phaser.GameObjects.Text> = {},
   accent = 0x71f6ff,
+  upgrades: Readonly<Record<string, StationUpgradeIndicator>> = {},
 ) {
   const panel = scene.add.container() as StationStatPanel;
   const frame = scene.add.graphics(), bars = scene.add.graphics(), icons = scene.add.graphics();
@@ -69,12 +81,13 @@ export function createStationStatPanel(
       : attribute.key === 'control' ? 'CONTROLE' : attribute.key === 'suspension' ? 'SUSPENSÃO'
         : attribute.key === 'armor' ? 'RESISTÊNCIA' : attribute.key === 'shotCount' ? 'TIROS'
           : attribute.key === 'bombCount' ? 'BOMBAS' : attribute.key === 'oilSlickCount' ? 'ÓLEO' : attribute.label;
-    const label = caption(scene, rowLabel, 14, color);
-    const raw = stats[attribute.key];
-    const value = caption(scene, Number.isFinite(raw) ? String(raw) : '—', 21, '#f0f6fc', 1);
+    const upgrade = upgrades[attribute.key];
+    const label = caption(scene, upgrade ? `${rowLabel} ${upgrade.level}/${upgrade.maximum}` : rowLabel, 14, color);
+    const raw = stats[attribute.key as keyof VehicleStats];
+    const value = caption(scene, upgrade?.display ?? (Number.isFinite(raw) ? String(raw) : '—'), 21, '#f0f6fc', 1);
     statValues[attribute.key] = value;
     panel.add([label, value]);
-    return { attribute, label, value };
+    return { attribute, label, value, indicatorCount: upgrade?.maximum ?? 8 };
   });
   panel.rows = rows;
   panel.heading = title;
@@ -82,10 +95,10 @@ export function createStationStatPanel(
     panel.setPosition(x, y).setSize(width, height);
     drawStationFrame(frame, width, height);
     bars.clear(); icons.clear();
-    const left = -width / 2 + 24, right = width / 2 - 23;
     const compact = height < 150;
     const compactInline = rows.length >= 5 && height < 230;
     const inlineRows = compactInline || rows.length > 6 && height >= 150;
+    const left = -width / 2 + 24, right = width / 2 - (compactInline ? 8 : 23);
     const headingY = -height / 2 + (compact ? 23 : 30);
     const headingKey = attributes[0]?.key;
     statIcon(icons, headingKey, left + 11, headingY, compact ? 0.6 : 0.8, accent);
@@ -94,8 +107,9 @@ export function createStationStatPanel(
     const start = -height / 2 + (height < 100 ? 10 : compact ? 39 : 58);
     const bottom = height / 2 - (height < 100 ? 11 : 20);
     const rowHeight = Math.max(1, (bottom - start) / Math.max(1, rows.length));
-    rows.forEach(({ attribute, label, value }, index) => {
+    rows.forEach(({ attribute, label, value, indicatorCount }, index) => {
       const rowY = start + rowHeight * index + rowHeight * 0.26;
+      const upgrade = upgrades[attribute.key];
       const iconSize = Math.min(0.87, rowHeight / 63, width / 310);
       statIcon(icons, attribute.key, left + 11, rowY + 7, iconSize, accent);
       const textX = left + 35;
@@ -103,20 +117,21 @@ export function createStationStatPanel(
       label.setPosition(textX, rowY + (inlineRows ? 6 : 0)).setFontSize(compact ? 11 : inlineRows ? 10 : 14).setScale(1);
       if (!inlineRows) label.setScale(Math.min(1, Math.max(10, right - textX - 34) / Math.max(1, label.width)));
       else if (compactInline) label.setScale(Math.min(1, 48 / Math.max(1, label.width)));
-      value.setPosition(right, rowY + (compact || inlineRows ? 6 : 12)).setFontSize(compact ? 16 : compactInline ? 13 : inlineRows ? 16 : 21);
+      value.setPosition(right, rowY + (compact || inlineRows ? 6 : 12))
+        .setFontSize(upgrade ? (compact ? 12 : 14) : compact ? 16 : compactInline ? 13 : inlineRows ? 16 : 21);
       const barY = inlineRows ? rowY + 1 : rowY + Math.min(20, rowHeight * 0.32);
-      const slotCount = compactInline ? 5 : 10;
+      const slotCount = indicatorCount;
       const barW = Math.max(10, right - barX - (compactInline ? 22 : 34)), gap = Math.min(3, barW / (slotCount * 4));
       const slotW = (barW - gap * (slotCount - 1)) / slotCount;
       const barH = Math.max(3, Math.min(compactInline ? 8 : inlineRows ? 10 : 12, rowHeight * 0.38));
-      const raw = stats[attribute.key];
-      const amount = Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) / (100 / slotCount) : 0;
-      value.setText(Number.isFinite(raw) ? String(raw) : '—');
+      const raw = stats[attribute.key as keyof VehicleStats];
+      const amount = upgrade ? Math.max(0, Math.min(upgrade.maximum, upgrade.level)) : 0;
+      value.setText(upgrade?.display ?? (Number.isFinite(raw) ? String(raw) : '—'));
       bars.fillStyle(0x02070c).fillRect(barX - 3, barY - 3, barW + 6, barH + 6);
       bars.lineStyle(1, 0x385264, 0.9).strokeRect(barX - 3, barY - 3, barW + 6, barH + 6);
       for (let slot = 0; slot < slotCount; slot += 1) {
         const sx = barX + slot * (slotW + gap), fraction = Math.min(1, Math.max(0, amount - slot));
-        const color = SLOT_COLORS[Math.min(9, slot * (10 / slotCount))]!;
+        const color = SLOT_COLORS[Math.min(9, Math.floor(slot * (10 / slotCount)))]!;
         bars.fillStyle(0x162632).fillRect(sx, barY, slotW, barH);
         bars.lineStyle(1, 0x3b5461, 0.3).lineBetween(sx, barY, sx + slotW, barY);
         if (fraction > 0) {
