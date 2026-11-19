@@ -55,12 +55,19 @@ Foi corrigido o mapa para preencher as ações já desenhadas: **VOLTAR** retorn
 
 ## Cobertura de execução
 
-| Fluxo / tela | DEVELOP | Preview local | Cloudflare |
+| Fluxo / telas | DEVELOP | Preview local | Cloudflare publicado |
 |---|---:|---:|---:|
-| Splash, menu, dificuldade, pilotos e mapa | Capturado e percorrido | Capturado e percorrido | Capturado e percorrido |
-| Mapa → compra inicial e três GLBs | Passou | Passou | Falhava antes da correção; pendente da publicação corretiva |
-| Estação de Equipe, melhorias, pista e largada | Percorrido; capturas visuais | Percorrido; capturas visualmente iguais | Impedido pelo mapa antes da correção; validar após publicar |
-| Recibo de resultado e premiação condicional | Abertos com fixtures válidas em contexto isolado | Abertos com fixtures válidas em contexto isolado | Abertos com fixtures válidas em contexto isolado |
-| Laboratório/administração fora do build público | Fluxo local restrito | Ausente | Ausente |
+| Caminho novo: Splash → menu → dificuldade → pilotos → mapa → veículos → equipe → melhorias → pista → corrida (**10 telas**) | 10/10, percorrido | 10/10, percorrido | 10/10, percorrido após deploy |
+| Compra inicial, escolha de pintura, Loja e Minha Garagem | Percorridas; 5 modelos GLB 200 | Percorridas; 5 modelos GLB 200 | Percorridas; 5 modelos GLB 200 |
+| Resultado e premiação condicional | Abertos com saves-fixture válidos isolados | Abertos com saves-fixture válidos isolados | Abertos com saves-fixture válidos isolados |
+| Configurações e página pública de créditos | Abertas; créditos HTTP 200 | Abertas; créditos HTTP 200 | Abertas; créditos HTTP 200 |
+| Laboratório arcade local | Teste Playwright aprovado | Rota ausente, como esperado | Rota ausente, como esperado |
+| Laboratório Rapier e editor/credencial de tuning | Excluídos da distribuição; teste de proteção aprovado | Ausentes | Ausentes; teste de proteção aprovado |
 
-**Validações locais:** `npm run typecheck` e `npm run build` aprovados; testes Playwright de produção confirmaram que o laboratório Rapier, a senha dev e o editor não são incluídos/abertos em produção. O relatório final da tarefa deve registrar o SHA e o resultado Cloudflare após o push corretivo.
+**Cobertura contabilizada:** 12 cenas públicas jogáveis/condicionais (10 do caminho de carreira + Resultado + Premiação), verificadas nos três ambientes (**36 estados de cena**). Loja/Garagem, pinturas, Configurações e créditos também foram percorridos nos três. `RaceDevelopmentScene` é um placeholder sem entrada de navegação, e os laboratórios são locais/experimentais; não foram contados como telas públicas do jogo.
+
+**Evidências:** capturas Playwright em contextos novos e isolados; menu, dificuldade, mapa, melhorias e pista produziram imagens idênticas entre os três ambientes. Pilotos, oficina e corrida foram comparados visualmente em estados equivalentes; efeitos de entrada e movimento alteram pixels entre capturas. Não houve exceções JavaScript. No Vite dev, três amostras de áudio local opcionais retornaram 404; preview e Cloudflare não tiveram falhas HTTP no percurso público. Os cinco GLBs oficiais foram requisitados com HTTP 200 nos três ambientes.
+
+**Validações:** typecheck e build passaram em DEVELOP e MAIN. Playwright aprovou a proteção do laboratório Rapier e do editor/credencial no build; o teste local do laboratório arcade também passou. Os testes unitários do plugin de assets e de preparação/publicação dos GLBs passaram. Uma execução combinada de `vehicle-models.unit.ts` teve **20 aprovados e 5 falhas** porque as fontes privadas ignoradas `referencias-locais/Vehicles/*.glb` não existem nesta máquina; os cinco modelos públicos versionados foram carregados nos três ambientes. A suíte `race-simulation.unit.ts` teve 21 aprovados e um caso de bots que não concluiu quatro voltas em 150 s em `neon-furnace/normal`; a corrida pública foi verificada até a largada, e Resultado/Premiação foram validados com recibos válidos isolados.
+
+**Publicação:** correção integrada por fast-forward e publicada em `main`, commit `759c19c440d77b67421ff4b11d2ff6afe75feee8`. Check Cloudflare Pages: `success`; o domínio público serve `/assets/index-B-IRKUyj.js`, bundle produzido pelo build validado.
